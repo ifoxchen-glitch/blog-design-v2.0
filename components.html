@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>组件索引 · ifoxchen's blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/components.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="site-logo" href="index.html" id="site-logo">ifoxchen's blog</a>
+        <nav class="nav-desktop" aria-label="主导航">
+          <a href="index.html">首页</a>
+          <a href="archive.html">归档</a>
+          <a href="components.html" aria-current="page">组件</a>
+          <a href="about.html">关于</a>
+        </nav>
+        <button class="theme-toggle" id="theme-btn" aria-label="切换主题">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.36 14.25 2 14 2h-4c-.25 0-.46.36-.49.65l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.63c-.04.32-.07.65-.07.97s.03.65.07.97l-2.11 1.63c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.29.24.65.49.65h4c.25 0 .46-.36.49-.65l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.63z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="site-main">
+      <h1 class="page-title">组件与令牌示意</h1>
+      <p class="page-desc">
+        对应计划中的组件清单。完整页面见
+        <a href="index.html">首页</a>、<a href="archive.html">归档</a>、<a href="post.html">单篇</a>、<a
+          href="about.html"
+          >关于</a
+        >。令牌定义见 <code>css/tokens.css</code>，规范摘要见
+        <a href="docs/03-design-spec.md">docs/03-design-spec.md</a>。
+      </p>
+
+      <h2 class="post-list__heading">颜色（亮色 / 深色随系统）</h2>
+      <div class="sg-grid">
+        <div>
+          <div class="sg-swatch" style="background: var(--color-bg)"></div>
+          <p class="sg-label">--color-bg</p>
+        </div>
+        <div>
+          <div class="sg-swatch" style="background: var(--color-surface)"></div>
+          <p class="sg-label">--color-surface</p>
+        </div>
+        <div>
+          <div class="sg-swatch" style="background: var(--color-text)"></div>
+          <p class="sg-label">--color-text</p>
+        </div>
+        <div>
+          <div class="sg-swatch" style="background: var(--color-accent)"></div>
+          <p class="sg-label">--color-accent</p>
+        </div>
+      </div>
+
+      <h2 class="post-list__heading" style="margin-top: var(--space-6)">排版阶梯</h2>
+      <div class="prose" style="max-width: none">
+        <p style="font-size: var(--text-display); font-family: var(--font-display); margin: 0 0 0.5rem">
+          Display 标题
+        </p>
+        <p style="font-size: var(--text-h1); font-family: var(--font-display); margin: 0 0 0.5rem">H1 标题</p>
+        <p style="font-size: var(--text-h2); margin: 0 0 0.5rem">H2 区块标题</p>
+        <p style="font-size: var(--text-body-lg); margin: 0 0 0.5rem">正文大号（prose 默认）</p>
+        <p style="font-size: var(--text-caption); color: var(--color-text-muted); margin: 0">Caption 说明</p>
+      </div>
+
+      <h2 class="post-list__heading" style="margin-top: var(--space-6)">元信息与标签</h2>
+      <div class="meta-row">
+        <time datetime="2026-04-12">2026年4月12日</time>
+        <span>作者名</span>
+        <a class="pill" href="#">分类</a>
+        <span class="pill">标签</span>
+      </div>
+
+      <h2 class="post-list__heading" style="margin-top: var(--space-6)">文章卡片</h2>
+      <div class="card-grid" style="grid-template-columns: repeat(auto-fill, minmax(260px, 1fr))">
+        <a class="post-card" href="post.html">
+          <img
+            class="post-card__media"
+            src="https://picsum.photos/seed/c1/480/270"
+            alt=""
+            width="480"
+            height="270"
+          />
+          <div class="post-card__body">
+            <h3 class="post-card__title">有封面卡片</h3>
+            <p class="post-card__excerpt">摘要最多三行截断，检验行高与灰色层级。</p>
+            <div class="meta-row">
+              <time datetime="2026-04-01">2026年4月1日</time>
+              <span class="pill">示例</span>
+            </div>
+          </div>
+        </a>
+        <a class="post-card post-card--text-only" href="#">
+          <div class="post-card__body">
+            <h3 class="post-card__title">无封面卡片</h3>
+            <p class="post-card__excerpt">与有封面版本共用 body 内边距与元信息行。</p>
+            <div class="meta-row">
+              <time datetime="2026-03-01">2026年3月1日</time>
+              <span class="pill">变体</span>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <h2 class="post-list__heading" style="margin-top: var(--space-6)">正文片段</h2>
+      <div class="prose">
+        <p>段落中的 <code>行内代码</code> 与 <a href="#">链接悬停</a> 对比。</p>
+        <blockquote><p>引用块样式：左边框 + 浅底 + 斜体。</p></blockquote>
+        <pre><code>pre 代码块
+第二行</code></pre>
+      </div>
+    </main>
+
+<footer class="site-footer">
+      <div class="site-footer__inner">
+        <span>© 2026 ifoxchen's blog</span>
+        <span>
+          <a href="/rss.xml">RSS</a>
+          ·
+          <a href="components.html">组件索引</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

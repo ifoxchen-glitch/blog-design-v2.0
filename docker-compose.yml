@@ -1,0 +1,27 @@
+services:
+  blog:
+    build: .
+    image: ghcr.io/ifoxchen-glitch/blog-design-v2.0:latest
+    container_name: blog
+    ports:
+      - "8787:8787"
+    environment:
+      - NODE_ENV=production
+      - PORT=8787
+      - SESSION_SECRET=${SESSION_SECRET:-change-me-in-production}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+    volumes:
+      - blog-data:/app/server/db
+      - blog-uploads:/app/server/public/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8787/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  blog-data:
+  blog-uploads:

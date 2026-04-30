@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ifoxchen's blog</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/base.css" />
+    <link rel="stylesheet" href="css/components.css" />
+  </head>
+  <body data-theme="cyberpunk" data-mode="dark">
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="site-logo" href="index.html" id="site-logo">ifoxchen's blog</a>
+        <nav class="nav-desktop" aria-label="主导航">
+          <a href="index.html">首页</a>
+          <a href="archive.html">归档</a>
+          <a href="archive.html?type=category">分类</a>
+          <a href="archive.html?type=tag">标签</a>
+          <a href="links.html">导航</a>
+          <a href="about.html">关于</a>
+        </nav>
+        <button class="theme-toggle" id="theme-btn" aria-label="切换主题">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97 0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.36 14.25 2 14 2h-4c-.25 0-.46.36-.49.65l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.63c-.04.32-.07.65-.07.97s.03.65.07.97l-2.11 1.63c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.29.24.65.49.65h4c.25 0 .46-.36.49-.65l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.63z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="site-main">
+      <section class="hero">
+        <h1 class="hero__title">技术与文字，都是写给未来的信</h1>
+        <p class="hero__lede">
+          在代码的严谨与文字的自由之间，找到平衡<br>
+          以理性解构技术，以感性记录成长<br>
+          逻辑之外，皆是文字的留白
+        </p>
+      </section>
+
+      <section aria-labelledby="latest-heading">
+        <h2 id="latest-heading" class="post-list__heading">最新文章</h2>
+        <div class="card-grid">
+          <a class="post-card" href="archive.html">
+            <img
+              class="post-card__media"
+              src="https://picsum.photos/seed/blog1/640/360"
+              width="640"
+              height="360"
+              alt=""
+            />
+            <div class="post-card__body">
+              <h3 class="post-card__title">用真实长文压版式：单篇文章模板</h3>
+              <p class="post-card__excerpt">
+                代码块、列表、引用与多级标题在同一条阅读流里是否舒服，只有放进真内容才知道。本文是设计交付中的压版样例。
+              </p>
+              <div class="meta-row">
+                <time datetime="2026-04-01">2026年4月1日</time>
+                <span class="pill">前端</span>
+              </div>
+            </div>
+          </a>
+          <a class="post-card" href="archive.html">
+            <img
+              class="post-card__media"
+              src="https://picsum.photos/seed/blog2/640/360"
+              width="640"
+              height="360"
+              alt=""
+            />
+            <div class="post-card__body">
+              <h3 class="post-card__title">归档与筛选：列表页的信息密度</h3>
+              <p class="post-card__excerpt">
+                网格与分页如何平衡扫读效率与视觉噪音；移动端单列时卡片高度与摘要行数建议。
+              </p>
+              <div class="meta-row">
+                <time datetime="2026-03-20">2026年3月20日</time>
+                <span class="pill">设计</span>
+              </div>
+            </div>
+          </a>
+          <a class="post-card post-card--text-only" href="about.html">
+            <div class="post-card__body">
+              <h3 class="post-card__title">无封面文章在卡片里的表现</h3>
+              <p class="post-card__excerpt">
+                变体：无图时保留标题、摘要与元信息，避免布局跳动。与有封面卡片共用同一套内边距与圆角。
+              </p>
+              <div class="meta-row">
+                <time datetime="2026-03-05">2026年3月5日</time>
+                <span class="pill">随笔</span>
+              </div>
+            </div>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="site-footer__inner">
+        <span>© 2026 ifoxchen's blog · 设计原型</span>
+        <span>
+          <a href="/rss.xml">RSS</a>
+          ·
+          <a href="components.html">组件索引</a>
+        </span>
+      </div>
+    </footer>
+    <script src="js/theme.js"></script>
+    <script src="js/blog.js"></script>
+    <div class="theme-modal" id="theme-modal">
+      <div class="theme-modal__content">
+        <div class="theme-modal__header">
+          <h3 class="theme-modal__title">选择主题</h3>
+<button class="theme-modal__mode-btn" id="modal-mode-btn" aria-label="切换深浅模式">
+            <svg id="modal-mode-icon-sun" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="display:none"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm20-2h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 20v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
+            <svg id="modal-mode-icon-moon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+        </div>
+        <div class="theme-grid">
+          <button class="theme-option" data-theme="cyberpunk" style="--preview:#00c8ff">赛博朋克</button>
+          <button class="theme-option" data-theme="aurora" style="--preview:#22d3ee">极光蓝</button>
+          <button class="theme-option" data-theme="synthwave" style="--preview:#f472b6">合成波</button>
+          <button class="theme-option" data-theme="neon" style="--preview:#39ff14">霓虹绿</button>
+          <button class="theme-option" data-theme="matrix" style="--preview:#00ff00">黑客帝国</button>
+          <button class="theme-option" data-theme="nord" style="--preview:#88c0d0">北境</button>
+          <button class="theme-option" data-theme="dracula" style="--preview:#ff79c6">德古拉</button>
+          <button class="theme-option" data-theme="github" style="--preview:#58a6ff">GitHub</button>
+          <button class="theme-option" data-theme="monokai" style="--preview:#f92672">暮光</button>
+          <button class="theme-option" data-theme="sunset" style="--preview:#ff7b54">日落</button>
+          <button class="theme-option" data-theme="forest" style="--preview:#7fcc7f">森林</button>
+        </div>
+        <button class="theme-modal__close" id="theme-close">关闭</button>
+      </div>
+    </div>
+    
+  </body>
+</html>

@@ -1,0 +1,70 @@
+/* Cyberpunk Base Styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--color-bg);
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  background: var(--color-bg);
+  color: var(--color-text);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 200, 255, 0.01) 2px,
+      rgba(0, 200, 255, 0.01) 4px
+    );
+  pointer-events: none;
+  z-index: 1;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+  filter: brightness(0.9) contrast(1.05);
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  transition: all 0.2s ease;
+  text-shadow: 0 0 5px rgba(0, 200, 255, 0.3);
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+  text-shadow: 0 0 10px rgba(0, 200, 255, 0.6);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  box-shadow: var(--glow-accent);
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}

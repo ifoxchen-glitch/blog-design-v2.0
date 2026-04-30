@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title><%= mode === "new" ? "New Post" : "Edit Post" %> - Admin</title>
+<link rel="stylesheet" href="/css/tokens.css" />
+<link rel="stylesheet" href="/css/base.css" />
+<link rel="stylesheet" href="/css/components.css" />
+<link rel="stylesheet" href="/admin-static/admin.css" />
+</head>
+<body>
+<header class="site-header">
+<div class="site-header__inner">
+<a class="site-logo" href="/">ifoxchen's blog</a>
+<nav class="nav-desktop" aria-label="Admin Nav">
+<a href="/admin/posts">Posts</a>
+<a href="/admin/links">Links</a>
+<a href="/admin/api">API</a>
+</nav>
+<form method="post" action="/admin/logout" class="admin-inline">
+<button class="admin-btn admin-btn--ghost" type="submit">Logout</button>
+</form>
+</div>
+</header>
+
+    <main class="site-main">
+      <header class="admin-header">
+        <div>
+          <h1 class="page-title"><%= mode === "new" ? "新建文章" : "编辑文章" %></h1>
+          <% if (mode !== "new") { %>
+            <p class="page-desc admin-sub">
+              ID: <code><%= post.id %></code>
+              · 状态:
+              <%= post.status === "published" ? "已发布" : "草稿" %>
+              <% if (post.status === "published") { %>
+                · <a href="/post.html?slug=<%= encodeURIComponent(post.slug) %>" target="_blank" rel="noreferrer">前台预览</a>
+              <% } %>
+            </p>
+          <% } %>
+        </div>
+        <a class="admin-btn admin-btn--ghost" href="/admin/posts">返回列表</a>
+      </header>
+
+      <article class="admin-card">
+        <form method="post" action="/admin/posts/save" class="admin-form">
+          <% if (mode !== "new") { %>
+            <input type="hidden" name="id" value="<%= post.id %>" />
+          <% } %>
+          <div class="admin-grid">
+            <label class="admin-label">
+              标题
+              <input class="admin-input" name="title" value="<%= post.title || '' %>" required />
+            </label>
+            <label class="admin-label">
+              Slug
+              <input class="admin-input" name="slug" value="<%= post.slug || '' %>" placeholder="自动生成（可留空）" />
+            </label>
+            <label class="admin-label admin-label--full">
+              摘要
+              <textarea class="admin-textarea admin-textarea--sm" name="excerpt" rows="3"><%= post.excerpt || '' %></textarea>
+            </label>
+            <label class="admin-label admin-label--full">
+              封面图
+              <div class="cover-upload">
+                <button type="button" class="admin-btn" id="cover-upload-btn">选择图片</button>
+                <input class="admin-input" name="coverImageUrl" id="cover-image-url" value="<%= post.coverImageUrl || '' %>" placeholder="上传后自动填充" />
+                <input type="file" id="cover-file" accept="image/*" style="display:none" />
+              </div>
+              <% if (post.coverImageUrl) { %>
+                <div class="cover-preview"><img src="<%= post.coverImageUrl %>" alt="封面预览" /></div>
+              <% } %>
+            </label>
+            <label class="admin-label admin-label--full">
+              标签（逗号分隔）
+              <input class="admin-input" name="tags" value="<%= post.tags || '' %>" placeholder="前端, 排版" />
+            </label>
+            <label class="admin-label admin-label--full">
+              分类（逗号分隔）
+              <input class="admin-input" name="categories" value="<%= post.categories || '' %>" placeholder="技术, 教程" />
+            </label>
+            <label class="admin-label admin-label--full">
+              正文（Markdown）
+              <textarea class="admin-textarea" name="contentMarkdown" rows="18"><%= post.contentMarkdown || '' %></textarea>
+            </label>
+          </div>
+
+          <div class="admin-actions admin-actions--bar">
+            <button class="admin-btn" type="submit">保存</button>
+            <% if (mode !== "new") { %>
+              <% if (post.status === "published") { %>
+                <button class="admin-btn admin-btn--ghost" type="submit" formaction="/admin/posts/<%= post.id %>/unpublish">下线为草稿</button>
+              <% } else { %>
+                <button class="admin-btn admin-btn--ghost" type="submit" formaction="/admin/posts/<%= post.id %>/publish">发布</button>
+              <% } %>
+              <button
+                class="admin-btn admin-btn--danger"
+                type="submit"
+                formaction="/admin/posts/<%= post.id %>/delete"
+                formmethod="post"
+                onclick="return confirm('确定删除？此操作不可恢复。')"
+              >
+                删除
+              </button>
+            <% } %>
+          </div>
+        </form>
+      </article>
+    </main>
+    <script>
+      const coverFile = document.getElementById('cover-file');
+      const coverUploadBtn = document.getElementById('cover-upload-btn');
+      const coverUrlInput = document.getElementById('cover-image-url');
+
+      coverUploadBtn.addEventListener('click', () => coverFile.click());
+      
+      coverFile.addEventListener('change', async () => {
+        const file = coverFile.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('image', file);
+        coverUploadBtn.textContent = '上传中...';
+        coverUploadBtn.disabled = true;
+        try {
+          const res = await fetch('/api/admin/upload', {
+            method: 'POST',
+            body: formData
+          });
+          const data = await res.json();
+          if (data.url) {
+            coverUrlInput.value = data.url;
+            coverUploadBtn.textContent = '已上传';
+            if (!document.querySelector('.cover-preview')) {
+              const preview = document.createElement('div');
+              preview.className = 'cover-preview';
+              preview.innerHTML = `<img src="${data.url}" alt="封面预览" />`;
+              coverUrlInput.parentElement.appendChild(preview);
+            }
+          } else {
+            alert('上传失败');
+            coverUploadBtn.textContent = '选择图片';
+          }
+        } catch (e) {
+          alert('上传失败: ' + e.message);
+          coverUploadBtn.textContent = '选择图片';
+        } finally {
+          coverUploadBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
+

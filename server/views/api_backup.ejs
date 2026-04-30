@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>API&#23545;&#25509; &#183; &#21338;&#23458;&#21518;&#21488;</title>
+<link rel="stylesheet" href="/css/tokens.css" />
+<link rel="stylesheet" href="/css/base.css" />
+<link rel="stylesheet" href="/css/components.css" />
+<link rel="stylesheet" href="/admin-static/admin.css" />
+</head>
+<body>
+<header class="site-header">
+<div class="site-header__inner">
+<a class="site-logo" href="/">ifoxchen's blog</a>
+<nav class="nav-desktop" aria-label="&#21518;&#21488;&#23548;&#33322;">
+<a href="/admin/posts">&#25991;&#31456;</a>
+<a href="/admin/links">&#31449;&#22806;&#38142;&#25509;</a>
+<a href="/admin/api" aria-current="page">API&#23545;&#25509;</a>
+<a href="/index.html">&#21069;&#21488;</a>
+</nav>
+<form method="post" action="/admin/logout" class="admin-inline">
+<button class="admin-btn admin-btn--ghost" type="submit">&#36864;&#20986;</button>
+</form>
+</div>
+</header>
+
+<main class="site-main">
+<header class="admin-header">
+<h1 class="page-title">API&#23545;&#25509;&#31649;&#29702;</h1>
+</header>
+
+<article class="admin-card">
+<h2 class="admin-card__title">API&#23494;&#38144;</h2>
+<div class="admin-form">
+<label class="admin-label">
+&#24403;&#21069;API&#23494;&#38144;
+<input class="admin-input" value="<%= agentApiKey || '' %>" readonly />
+</label>
+</div>
+</article>
+
+<article class="admin-card">
+<h2 class="admin-card__title">&#21516;&#27493;Obsidian&#30693;&#35782;&#24211;</h2>
+<div class="admin-form">
+<label class="admin-label admin-label--full">
+Vault&#36335;&#24452;
+<input class="admin-input" id="vaultPath" placeholder="&#30041;&#31354;&#20351;&#29992;&#40664;&#35748;&#36335;&#24452;" />
+</label>
+<label class="admin-label admin-label--full">
+Slug&#21069;&#32512;
+<input class="admin-input" id="slugPrefix" value="obsidian-" />
+</label>
+<button class="admin-btn" onclick="syncObsidian()">&#24320;&#22987;&#21516;&#27493;</button>
+<pre id="syncResult" class="admin-result"></pre>
+</div>
+</article>
+
+<article class="admin-card">
+<h2 class="admin-card&#95;title">API&#27979;&#35797;</h2>
+<div class="admin-form">
+<label class="admin-label admin-label--full">
+&#27979;&#31456;&#26631;&#39064;
+<input class="admin-input" id="testTitle" placeholder="&#25991;&#31456;&#26631;&#39064;" />
+</label>
+<label class="admin-label admin-label--full">
+&#20869;&#23481;
+<textarea class="admin-textarea" id="testContent" rows="5" placeholder="Markdown&#20869;&#23481;"></textarea>
+</label>
+<button class="admin-btn" onclick="testPublish()">&#27979;&#31456;&#21457;&#24067;</button>
+<pre id="testResult" class="admin-result"></pre>
+</div>
+</article>
+
+<article class="admin-card">
+<h2 class="admin-card__title">API&#25991;&#26723;</h2>
+<pre class="api-docs">## Agent API
+
+### &#35748;&#35777;
+Header: X-API-Key: your-key
+
+### 1. &#21457;&#24067;&#25991;&#31456;
+POST /api/agent/publish
+&#21442;&#25995;:
+  title: &#26631;&#39064;
+  contentMarkdown: Markdown&#20869;&#23481;;
+  status: published/draft
+
+### 2. &#21516;&#27493;&#20998;&#31867;
+POST /api/agent/sync-categories
+&#21442;&#25995;: categories: ["&#25216;&#26415;">["Tech"]
+
+### 3. &#21516;&#27493;&#26631;&#31614;
+POST /api/agent/sync-tags
+&#21442;&#25995;: tags: ["&#21069;&#31455;">["Frontend"]
+
+### 4. &#21516;&#27493;Obsidian
+POST /api/agent/sync-obsidian
+&#21442;&#25995;:
+  vaultPath: /path/to/vault
+  slugPrefix: obsidian-
+
+## Obsidian Frontmatter
+---
+title: My Post
+tags: test
+status: published
+---
+</pre>
+</article>
+</main>
+
+<script>
+async function syncObsidian() {
+const vaultPath = document.getElementById('vaultPath').value || null;
+const slugPrefix = document.getElementById('slugPrefix').value || 'obsidian-';
+const result = document.getElementById('syncResult');
+result.textContent = '&#21516;&#27493;&#20013;...';
+try {
+const res = await fetch('/api/agent/sync-obsidian', {
+method: 'POST',
+headers: {'Content-Type': 'application/json'},
+body: JSON.stringify({vaultPath, slugPrefix})
+});
+result.textContent = JSON.stringify(await res.json(), null, 2);
+} catch(e) {
+result.textContent = '&#38169;&#35823;: ' + e.message;
+}
+}
+
+async function testPublish() {
+const title = document.getElementById('testTitle').value;
+const content = document.getElementById('testContent').value;
+const result = document.getElementById('testResult');
+if(!title) {alert('&#35831;&#36755;&#20837;&#26631;&#39064;'); return;}
+result.textContent = '&#21457;&#24067;&#20013;...';
+try {
+const res = await fetch('/api/agent/publish', {
+method: 'POST',
+headers: {'Content-Type': 'application/json'},
+body: JSON.stringify({title, contentMarkdown: content || '# ' + title, status: 'draft'})
+});
+result.textContent = JSON.stringify(await res.json(), null, 2);
+} catch(e) {
+result.textContent = '&#38169;&#35823;: ' + e.message;
+}
+}
+</script>
+</body>
+</html>
