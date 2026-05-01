@@ -41,13 +41,23 @@ flowchart TB
 - **关于**：简介、写作方向、社交与联系。
 - **搜索**：可选；首版可在导航中预留入口或省略。
 
-### URL 结构建议（供开发参考）
+### URL 结构（实际实现）
 
-- `/` 首页  
-- `/posts` 或 `/archive` 归档  
-- `/posts/:slug` 单篇  
-- `/category/:slug`、`/tag/:slug`  
-- `/about`  
+本项目使用静态 HTML + Express 静态文件服务，URL 结构如下：
+
+- `/` 或 `/index.html` — 首页  
+- `/archive.html` — 归档（支持 `?tag=xxx`、`?category=xxx`、`?q=xxx` 筛选）  
+- `/post.html?slug=<slug>` — 单篇文章  
+- `/about.html` — 关于  
+- `/links.html` — 外部链接  
+- `/components.html` — 组件索引页  
+
+API 接口（RESTful）：
+- `/api/posts`、`/api/posts/:slug`
+- `/api/tags`、`/api/categories`
+- `/api/links`
+
+> 注意：文档最初设计建议使用 clean URL（如 `/posts/:slug`），但实际实现采用静态 HTML 文件 + query 参数方式。
 
 ---
 

@@ -43,9 +43,29 @@ npm run dev
 
 ## 公开 API（前台用）
 
-- `GET /api/posts?limit=12&offset=0&tag=<tagSlug>&q=<keyword>`
-- `GET /api/posts/:slug`
-- `GET /api/tags`
+- `GET /api/posts?limit=12&offset=0&tag=<tagSlug>&category=<catSlug>&q=<keyword>` — 文章列表
+- `GET /api/posts/:slug` — 单篇文章详情
+- `GET /api/tags` — 标签列表
+- `GET /api/categories` — 分类列表
+- `GET /api/links` — 外部链接列表
+- `GET /rss.xml` — RSS 订阅源
+
+## 管理后台 API（需登录）
+
+- `GET/POST /api/admin/posts` — 文章列表 / 创建文章
+- `GET/PUT/DELETE /api/admin/posts/:id` — 获取/更新/删除文章
+- `POST /api/admin/posts/:id/publish` — 发布文章
+- `POST /api/admin/posts/:id/unpublish` — 取消发布
+- `GET/POST /api/admin/links` — 链接列表 / 创建链接
+- `PUT/DELETE /api/admin/links/:id` — 更新/删除链接
+- `POST /api/admin/upload` — 上传图片
+- `GET /api/admin/export` — 导出文章（JSON）
+- `POST /api/admin/import` — 导入文章（JSON）
+
+## 其他功能
+
+- RSS 订阅：`GET /rss.xml`（文章发布后自动出现在订阅源中）
+- 图片上传：支持在编辑文章时上传封面图或内容图片
 
 ## 备注（安全）
 
