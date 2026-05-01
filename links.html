@@ -17,9 +17,14 @@
         <a class="site-logo" href="index.html" id="site-logo">ifoxchen's blog</a>
         <nav class="nav-desktop" aria-label="主导航">
           <a href="index.html">首页</a>
-          <a href="archive.html">归档</a>
-          <a href="archive.html?type=category">分类</a>
-          <a href="archive.html?type=tag">标签</a>
+          <div class="nav-dropdown">
+            <a href="archive.html" class="nav-dropdown__trigger">归档 ▾</a>
+            <ul class="nav-dropdown__menu">
+              <li><a href="archive.html">归档</a></li>
+              <li><a href="archive.html?type=category">分类</a></li>
+              <li><a href="archive.html?type=tag">标签</a></li>
+            </ul>
+          </div>
           <a href="links.html" aria-current="page">导航</a>
           <a href="about.html">关于</a>
         </nav>
