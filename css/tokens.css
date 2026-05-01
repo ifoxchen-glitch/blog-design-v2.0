@@ -69,20 +69,20 @@
 
 /* Light mode - applies to all themes via data-mode attribute */
 [data-mode="light"] {
-  --color-bg: #f8f9fa !important;
-  --color-bg-alt: #e9ecef !important;
-  --color-surface: #ffffff !important;
-  --color-surface-hover: #f1f3f5 !important;
-  --color-text: #212529 !important;
-  --color-text-muted: #6c757d !important;
-  --color-border: #dee2e6 !important;
-  --color-accent: #0066cc !important;
-  --color-accent-hover: #0052a3 !important;
-  --color-accent-dim: rgba(0, 102, 204, 0.1) !important;
-  --color-code-bg: #f1f3f5 !important;
-  --color-quote-border: #0066cc !important;
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-  --glow-accent: 0 0 6px rgba(0, 102, 204, 0.4) !important;
+  --color-bg: #f8f9fa;
+  --color-bg-alt: #e9ecef;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f1f3f5;
+  --color-text: #212529;
+  --color-text-muted: #6c757d;
+  --color-border: #dee2e6;
+  --color-accent: #0066cc;
+  --color-accent-hover: #0052a3;
+  --color-accent-dim: rgba(0, 102, 204, 0.1);
+  --color-code-bg: #f1f3f5;
+  --color-quote-border: #0066cc;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --glow-accent: 0 0 6px rgba(0, 102, 204, 0.4);
   --preview: #0066cc;
 }
 
