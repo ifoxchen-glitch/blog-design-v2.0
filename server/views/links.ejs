@@ -120,10 +120,16 @@
       let links = [];
 
       async function loadLinks() {
-        const res = await fetch('/api/admin/links');
-        const data = await res.json();
-        links = data.links || [];
-        renderLinks();
+        try {
+          const res = await fetch('/api/admin/links', { credentials: 'same-origin' });
+          if (!res.ok) throw new Error('Failed to load');
+          const data = await res.json();
+          links = data.links || [];
+          renderLinks();
+        } catch (e) {
+          console.error('Error loading links:', e);
+          document.getElementById('links-list').innerHTML = '<div class="admin-empty"><p class="admin-empty__text">加载失败，请刷新重试</p></div>';
+        }
       }
 
       function renderLinks() {
@@ -192,7 +198,7 @@
 
       async function deleteLink(id) {
         if (!confirm('确定删除？')) return;
-        await fetch('/api/admin/links/' + id, { method: 'DELETE' });
+        await fetch('/api/admin/links/' + id, { method: 'DELETE', credentials: 'same-origin' });
         loadLinks();
       }
 
@@ -211,13 +217,15 @@
           await fetch('/api/admin/links/' + id, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify(data),
+            credentials: 'same-origin'
           });
         } else {
           await fetch('/api/admin/links', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify(data),
+            credentials: 'same-origin'
           });
         }
 
