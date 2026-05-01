@@ -21,7 +21,8 @@ scp $SSH_OPTS -r server/public/* root@$REMOTE_HOST:$HOST_PATH/server/public/
 scp $SSH_OPTS js/* root@$REMOTE_HOST:$HOST_PATH/js/
 scp $SSH_OPTS css/* root@$REMOTE_HOST:$HOST_PATH/css/
 scp $SSH_OPTS *.html root@$REMOTE_HOST:$HOST_PATH/
-scp $SSH_OPTS Dockerfile package.json package-lock.json .dockerignore root@$REMOTE_HOST:$HOST_PATH/
+scp $SSH_OPTS Dockerfile .dockerignore root@$REMOTE_HOST:$HOST_PATH/
+scp $SSH_OPTS server/package.json server/package-lock.json root@$REMOTE_HOST:$HOST_PATH/server/
 
 # Upload .env if exists
 scp $SSH_OPTS server/.env root@$REMOTE_HOST:$HOST_PATH/server/.env 2>/dev/null
