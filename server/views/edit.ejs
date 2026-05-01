@@ -1,28 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title><%= mode === "new" ? "New Post" : "Edit Post" %> - Admin</title>
-<link rel="stylesheet" href="/css/tokens.css" />
-<link rel="stylesheet" href="/css/base.css" />
-<link rel="stylesheet" href="/css/components.css" />
-<link rel="stylesheet" href="/admin-static/admin.css" />
-</head>
-<body>
-<header class="site-header">
-<div class="site-header__inner">
-<a class="site-logo" href="/">ifoxchen's blog</a>
-<nav class="nav-desktop" aria-label="Admin Nav">
-<a href="/admin/posts">Posts</a>
-<a href="/admin/links">Links</a>
-<a href="/admin/api">API</a>
-</nav>
-<form method="post" action="/admin/logout" class="admin-inline">
-<button class="admin-btn admin-btn--ghost" type="submit">Logout</button>
-</form>
-</div>
-</header>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= mode === "new" ? "新建文章" : "编辑文章" %> · 博客后台</title>
+    <link rel="stylesheet" href="/css/tokens.css" />
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/components.css" />
+    <link rel="stylesheet" href="/admin-static/admin.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="site-logo" href="/">ifoxchen's blog</a>
+        <nav class="nav-desktop" aria-label="后台导航">
+          <a href="/admin/posts">文章</a>
+          <a href="/admin/links">站外链接</a>
+          <a href="/index.html">前台</a>
+        </nav>
+        <form method="post" action="/admin/logout" class="admin-inline">
+          <button class="admin-btn admin-btn--ghost" type="submit">退出</button>
+        </form>
+      </div>
+    </header>
 
     <main class="site-main">
       <header class="admin-header">

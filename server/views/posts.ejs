@@ -1,61 +1,135 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Posts - Admin</title>
-<link rel="stylesheet" href="/css/tokens.css" />
-<link rel="stylesheet" href="/css/base.css" />
-<link rel="stylesheet" href="/css/components.css" />
-<link rel="stylesheet" href="/admin-static/admin.css" />
-</head>
-<body>
-<header class="site-header">
-<div class="site-header__inner">
-<a class="site-logo" href="/">ifoxchen's blog</a>
-<nav class="nav-desktop" aria-label="Admin Nav">
-<a href="/admin/posts" aria-current="page">Posts</a>
-<a href="/admin/links">Links</a>
-<a href="/admin/api">API</a>
-</nav>
-<form method="post" action="/admin/logout" class="admin-inline">
-<button class="admin-btn admin-btn--ghost" type="submit">Logout</button>
-</form>
-</div>
-</header>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>文章 · 博客后台</title>
+    <link rel="stylesheet" href="/css/tokens.css" />
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/components.css" />
+    <link rel="stylesheet" href="/admin-static/admin.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="site-logo" href="/">ifoxchen's blog</a>
+        <nav class="nav-desktop" aria-label="后台导航">
+          <a href="/admin/posts" aria-current="page">文章</a>
+          <a href="/admin/links">站外链接</a>
+          <a href="/index.html">前台</a>
+        </nav>
+        <form method="post" action="/admin/logout" class="admin-inline">
+          <button class="admin-btn admin-btn--ghost" type="submit">退出</button>
+        </form>
+      </div>
+    </header>
 
-<main class="site-main">
-<header class="admin-header">
-<h1 class="page-title">Posts</h1>
-<a class="admin-btn" href="/admin/posts/new">New Post</a>
-</header>
+    <main class="site-main">
+      <header class="admin-header">
+        <h1 class="page-title">文章管理 <span class="admin-count">(<%= total %>)</span></h1>
+        <a class="admin-btn" href="/admin/posts/new">新建文章</a>
+      </header>
 
-<form class="admin-search" method="get" action="/admin/posts">
-<input class="admin-input" type="text" name="q" placeholder="Search posts..." value="<%= typeof q !== 'undefined' ? q : '' %>" />
-<button class="admin-btn" type="submit">Search</button>
-<% if (typeof q !== 'undefined' && q) { %>
-<a class="admin-btn admin-btn--ghost" href="/admin/posts">Clear</a>
-<% } %>
-</form>
+      <form class="admin-search" method="get" action="/admin/posts">
+        <input class="admin-input" type="text" name="q" placeholder="搜索标题..." value="<%= q %>" />
+        <select class="admin-input admin-select--sm" name="status">
+          <option value="">全部状态</option>
+          <option value="published" <%= status === 'published' ? 'selected' : '' %>>已发布</option>
+          <option value="draft" <%= status === 'draft' ? 'selected' : '' %>>草稿</option>
+        </select>
+        <select class="admin-input admin-select--sm" name="category">
+          <option value="">全部分类</option>
+          <% allCategories.forEach(function(c){ %>
+            <option value="<%= c.slug %>" <%= category === c.slug ? 'selected' : '' %>><%= c.name %></option>
+          <% }) %>
+        </select>
+        <button class="admin-btn" type="submit">筛选</button>
+        <% if (q || status || category) { %>
+          <a class="admin-btn admin-btn--ghost" href="/admin/posts">清除</a>
+        <% } %>
+      </form>
 
-<div class="admin-table">
-<div class="admin-table__head">
-<div>Title</div>
-<div>Status</div>
-<div>Updated</div>
-<div>Actions</div>
-</div>
-<% posts.forEach(function(p){ %>
-<div class="admin-table__row">
-<div><a href="/admin/posts/<%= p.id %>/edit"><%= p.title %></a></div>
-<div><%= p.status === "published" ? "Published" : "Draft" %></div>
-<div><%= new Date(p.updatedAt).toLocaleDateString() %></div>
-<div>
-<a href="/admin/posts/<%= p.id %>/edit">Edit</a>
-</div>
-</div>
-<% }); %>
-</div>
-</main>
-</body>
+      <% if (posts.length === 0) { %>
+        <div class="admin-empty">
+          <div class="admin-empty__icon">&#128221;</div>
+          <p class="admin-empty__text"><%= (q || status || category) ? '没有符合条件的文章' : '还没有文章，点击上方按钮创建第一篇' %></p>
+          <% if (!q && !status && !category) { %>
+            <a class="admin-btn" href="/admin/posts/new">新建文章</a>
+          <% } %>
+        </div>
+      <% } else { %>
+        <div class="admin-table">
+          <div class="admin-table__head">
+            <div>标题</div>
+            <div>状态</div>
+            <div>更新时间</div>
+            <div>操作</div>
+          </div>
+          <% posts.forEach(function(p){ %>
+            <div class="admin-table__row">
+              <div>
+                <div class="admin-title"><%= p.title %></div>
+                <div class="admin-sub">
+                  <code><%= p.slug %></code>
+                  <% if (p.categories && p.categories.length) { %>
+                    &middot;
+                    <% p.categories.forEach(function(c){ %>
+                      <a class="admin-badge admin-badge--ok" href="/admin/posts?category=<%= encodeURIComponent(c.slug) %>"><%= c.name %></a>
+                    <% }) %>
+                  <% } %>
+                  <% if (p.tags && p.tags.length) { %>
+                    &middot;
+                    <% p.tags.forEach(function(t){ %>
+                      <span class="pill"><%= t.name %></span>
+                    <% }) %>
+                  <% } %>
+                </div>
+              </div>
+              <div>
+                <% if (p.status === "published") { %>
+                  <span class="admin-badge admin-badge--ok">已发布</span>
+                <% } else { %>
+                  <span class="admin-badge">草稿</span>
+                <% } %>
+              </div>
+              <div class="admin-sub"><%= (p.updatedAt || "").slice(0, 19).replace("T", " ") %></div>
+              <div class="admin-actions">
+                <a class="admin-btn admin-btn--ghost" href="/admin/posts/<%= p.id %>/edit">编辑</a>
+                <% if (p.status === "published") { %>
+                  <a class="admin-btn admin-btn--ghost" href="/post.html?slug=<%= encodeURIComponent(p.slug) %>" target="_blank" rel="noreferrer">预览</a>
+                  <form method="post" action="/admin/posts/<%= p.id %>/unpublish" class="admin-inline">
+                    <button class="admin-btn admin-btn--ghost" type="submit">下架</button>
+                  </form>
+                <% } else { %>
+                  <form method="post" action="/admin/posts/<%= p.id %>/publish" class="admin-inline">
+                    <button class="admin-btn admin-btn--ok" type="submit">发布</button>
+                  </form>
+                <% } %>
+                <form method="post" action="/admin/posts/<%= p.id %>/delete" class="admin-inline" onsubmit="return confirm('确定删除「<%= p.title %>」？')">
+                  <button class="admin-btn admin-btn--danger" type="submit">删除</button>
+                </form>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+
+        <% if (totalPages > 1) { %>
+          <nav class="admin-pagination">
+            <% const buildUrl = (p) => { const params = new URLSearchParams(); if (q) params.set('q', q); if (status) params.set('status', status); if (category) params.set('category', category); if (p > 1) params.set('page', p); return '/admin/posts' + (params.toString() ? '?' + params.toString() : ''); }; %>
+            <% if (page > 1) { %>
+              <a class="admin-pagination__btn" href="<%= buildUrl(page - 1) %>">&laquo; 上一页</a>
+            <% } else { %>
+              <span class="admin-pagination__btn admin-pagination__btn--disabled">&laquo; 上一页</span>
+            <% } %>
+            <span class="admin-pagination__info"><%= page %> / <%= totalPages %></span>
+            <% if (page < totalPages) { %>
+              <a class="admin-pagination__btn" href="<%= buildUrl(page + 1) %>">下一页 &raquo;</a>
+            <% } else { %>
+              <span class="admin-pagination__btn admin-pagination__btn--disabled">下一页 &raquo;</span>
+            <% } %>
+          </nav>
+        <% } %>
+      <% } %>
+    </main>
+  </body>
 </html>

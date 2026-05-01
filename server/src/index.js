@@ -75,8 +75,7 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    sameSite: false,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   },
 }));
@@ -725,6 +724,7 @@ app.post("/admin/logout", requireAdminPage, (req, res) => {
 app.get("/admin/posts", requireAdminPage, (req, res) => {
   const q = String(req.query.q ?? "").trim();
   const status = String(req.query.status ?? "").trim();
+  const category = String(req.query.category ?? "").trim();
 
   const where = [];
   const params = {};
@@ -736,6 +736,10 @@ app.get("/admin/posts", requireAdminPage, (req, res) => {
   if (status === "published" || status === "draft") {
     where.push("status = @status");
     params.status = status;
+  }
+  if (category) {
+    where.push("id IN (SELECT postId FROM post_categories WHERE categoryId = (SELECT id FROM categories WHERE slug = @category))");
+    params.category = category;
   }
 
   const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -759,7 +763,14 @@ app.get("/admin/posts", requireAdminPage, (req, res) => {
     draft: db.prepare("SELECT COUNT(*) AS c FROM posts WHERE status='draft'").get().c,
   };
 
-  res.render("posts", { posts, q, status, counts });
+  const allCategories = db.prepare("SELECT id, name, slug FROM categories ORDER BY name").all();
+
+  const pageSize = 20;
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const totalPages = Math.ceil(posts.length / pageSize) || 1;
+  const pagedPosts = posts.slice((page - 1) * pageSize, page * pageSize);
+
+  res.render("posts", { posts: pagedPosts, q, status, category, page, totalPages, total: counts.all, counts, allCategories });
 });
 
 app.get("/admin/posts/new", requireAdminPage, (req, res) => {

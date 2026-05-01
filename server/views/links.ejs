@@ -1,119 +1,438 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>External Links - Admin</title>
-<link rel="stylesheet" href="/css/tokens.css" />
-<link rel="stylesheet" href="/css/base.css" />
-<link rel="stylesheet" href="/css/components.css" />
-<link rel="stylesheet" href="/admin-static/admin.css" />
-</head>
-<body>
-<header class="site-header">
-<div class="site-header__inner">
-<a class="site-logo" href="/">ifoxchen's blog</a>
-<nav class="nav-desktop">
-<a href="/admin/posts">Posts</a>
-<a href="/admin/links">Links</a>
-<a href="/admin/api">API</a>
-</nav>
-<form method="post" action="/admin/logout">
-<button type="submit">Logout</button>
-</form>
-</div>
-</header>
-<main>
-<h1>External Links</h1>
-<button onclick="showAddForm()" class="btn">+ Add Link</button>
-<div id="link-form" style="display:none; margin: 20px 0; padding: 20px; background: #f5f5f5;">
-  <input type="hidden" id="link-id" />
-  <p><label>Title: <input type="text" id="link-title" required style="width:300px" /></label></p>
-  <p><label>URL: <input type="url" id="link-url" required style="width:400px" /></label></p>
-  <p><label>Icon URL: <input type="url" id="link-icon" style="width:400px" /></label></p>
-  <p><label>Sort Order: <input type="number" id="link-sort" value="0" style="width:100px" /></label></p>
-  <button type="button" onclick="saveLink()" class="btn">Save</button>
-  <button type="button" onclick="hideForm()" class="btn btn-secondary">Cancel</button>
-</div>
-<div id="link-list" style="margin-top:20px"></div>
-</main>
-<script>
-let links = [];
-
-function showAddForm() {
-  document.getElementById('link-id').value = '';
-  document.getElementById('link-title').value = '';
-  document.getElementById('link-url').value = '';
-  document.getElementById('link-icon').value = '';
-  document.getElementById('link-sort').value = '0';
-  document.getElementById('link-form').style.display = 'block';
-}
-
-function hideForm() {
-  document.getElementById('link-form').style.display = 'none';
-}
-
-function editLink(link) {
-  document.getElementById('link-id').value = link.id;
-  document.getElementById('link-title').value = link.title;
-  document.getElementById('link-url').value = link.url;
-  document.getElementById('link-icon').value = link.icon || '';
-  document.getElementById('link-sort').value = link.sortOrder;
-  document.getElementById('link-form').style.display = 'block';
-}
-
-async function saveLink() {
-  const id = document.getElementById('link-id').value;
-  const data = {
-    title: document.getElementById('link-title').value,
-    url: document.getElementById('link-url').value,
-    icon: document.getElementById('link-icon').value,
-    iconSize: '1x1',
-    sortOrder: parseInt(document.getElementById('link-sort').value) || 0
-  };
-  
-  const method = id ? 'PUT' : 'POST';
-  const url = id ? '/api/admin/links/' + id : '/api/admin/links';
-  
-  const res = await fetch(url, {
-    method: method,
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(data)
-  });
-  
-  if (res.ok) {
-    hideForm();
-    loadLinks();
-  } else {
-    alert('Error saving link');
-  }
-}
-
-async function deleteLink(id) {
-  if (!confirm('Delete this link?')) return;
-  const res = await fetch('/api/admin/links/' + id, {method: 'DELETE'});
-  if (res.ok) loadLinks();
-}
-
-function loadLinks() {
-  fetch('/api/admin/links').then(r=>r.json()).then(d=>{
-    links = d.links;
-    const html = links.map(link => `
-      <div style="display:flex;align-items:center;padding:10px;border-bottom:1px solid #eee;gap:10px">
-        <img src="${link.icon||''}" style="width:32px;height:32px;object-fit:contain" onerror="this.style.display='none'" />
-        <div style="flex:1">
-          <strong>${link.title}</strong><br>
-          <small>${link.url}</small>
-        </div>
-        <button onclick="editLink(${JSON.stringify(link).replace(/"/g,'&quot;')})" class="btn">Edit</button>
-        <button onclick="deleteLink(${link.id})" class="btn btn-danger">Delete</button>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>站外链接 · 博客后台</title>
+    <link rel="stylesheet" href="/css/tokens.css" />
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/components.css" />
+    <link rel="stylesheet" href="/admin-static/admin.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="site-logo" href="/">ifoxchen's blog</a>
+        <nav class="nav-desktop" aria-label="后台导航">
+          <a href="/admin/posts">文章</a>
+          <a href="/admin/links" aria-current="page">站外链接</a>
+          <a href="/index.html">前台</a>
+        </nav>
+        <form method="post" action="/admin/logout" class="admin-inline">
+          <button class="admin-btn admin-btn--ghost" type="submit">退出</button>
+        </form>
       </div>
-    `).join('');
-    document.getElementById('link-list').innerHTML = html || '<p>No links yet</p>';
-  });
-}
+    </header>
 
-loadLinks();
-</script>
-</body>
+    <main class="site-main">
+      <header class="admin-header">
+        <h1 class="page-title">站外链接管理</h1>
+        <div class="admin-header__actions">
+          <button class="admin-btn admin-btn--ghost" onclick="exportData()">导出</button>
+          <button class="admin-btn admin-btn--ghost" onclick="importData()">导入</button>
+          <button class="admin-btn" onclick="openModal()">添加链接</button>
+        </div>
+      </header>
+
+      <div class="admin-table admin-table--links">
+        <div class="admin-table__head">
+          <div>图标</div>
+          <div>标题</div>
+          <div>网址</div>
+          <div>大小</div>
+          <div>操作</div>
+        </div>
+        <div id="links-list">
+          <div class="admin-empty">
+            <div class="admin-empty__icon">&#128279;</div>
+            <p class="admin-empty__text">加载中...</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <div class="modal" id="link-modal">
+      <div class="modal__content">
+        <h3 class="modal__title" id="modal-title">添加链接</h3>
+        <form id="link-form" class="admin-form">
+          <input type="hidden" id="link-id" />
+          <label class="admin-label">
+            标题
+            <input class="admin-input" id="link-title" required />
+          </label>
+          <label class="admin-label">
+            网址
+            <input class="admin-input" id="link-url" type="url" required />
+          </label>
+          <label class="admin-label">
+            图标（支持 URL / 站点 favicon / jsDelivr 图标库）
+            <div class="icon-picker-row">
+              <input class="admin-input" id="link-icon" placeholder="点击右侧按钮选择图标" />
+              <button type="button" class="admin-btn" onclick="openIconPicker()">选择图标</button>
+            </div>
+            <div id="icon-preview" class="icon-preview"></div>
+          </label>
+          <label class="admin-label">
+            图标大小
+            <select class="admin-input" id="link-iconSize">
+              <option value="1x1">1x1（默认）</option>
+              <option value="2x1">2x1（宽）</option>
+              <option value="1x2">1x2（高）</option>
+              <option value="2x2">2x2（大）</option>
+            </select>
+          </label>
+          <label class="admin-label">
+            排序
+            <input class="admin-input" id="link-sortOrder" type="number" value="0" />
+          </label>
+          <div class="admin-actions">
+            <button class="admin-btn" type="submit">保存</button>
+            <button type="button" class="admin-btn admin-btn--ghost" onclick="closeModal()">取消</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal icon-picker-modal" id="icon-picker-modal">
+      <div class="modal__content">
+        <h3 class="modal__title">选择图标</h3>
+        <div class="admin-form" style="gap:var(--space-3)">
+          <input
+            class="admin-input"
+            id="icon-search"
+            placeholder="搜索图标（例如 plex / nextcloud / github-light）"
+            aria-label="搜索图标"
+          />
+          <div class="admin-actions" style="gap:var(--space-2);margin:0">
+            <button type="button" class="admin-btn admin-btn--ghost" onclick="useFaviconFromUrl()">用当前网址 favicon</button>
+            <button type="button" class="admin-btn admin-btn--ghost" onclick="clearSelectedIcon()">清空选择</button>
+          </div>
+        </div>
+        <div class="icon-grid" id="icon-grid" style="margin-top:var(--space-3)"></div>
+        <div class="admin-actions" style="margin-top:var(--space-4)">
+          <button class="admin-btn" onclick="confirmIcon()">确认</button>
+          <button class="admin-btn admin-btn--ghost" onclick="document.getElementById('icon-picker-modal').classList.remove('open')">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let links = [];
+
+      async function loadLinks() {
+        const res = await fetch('/api/admin/links');
+        const data = await res.json();
+        links = data.links || [];
+        renderLinks();
+      }
+
+      function renderLinks() {
+        const container = document.getElementById('links-list');
+        if (links.length === 0) {
+          container.innerHTML = `
+            <div class="admin-empty">
+              <div class="admin-empty__icon">&#128279;</div>
+              <p class="admin-empty__text">还没有链接，点击上方按钮添加</p>
+            </div>`;
+          return;
+        }
+        container.innerHTML = links.map(link => `
+          <div class="admin-table__row">
+            <div>
+              <div class="link-icon-preview size-${link.iconSize || '1x1'}">
+                ${link.icon ? `<img src="${escapeHtml(link.icon)}" alt="${escapeHtml(link.title)}" />` : '<span class="link-icon-placeholder">?</span>'}
+              </div>
+            </div>
+            <div class="admin-title">${escapeHtml(link.title)}</div>
+            <div class="admin-sub"><code>${escapeHtml(link.url)}</code></div>
+            <div><span class="admin-badge">${link.iconSize || '1x1'}</span></div>
+            <div class="admin-actions">
+              <button class="admin-btn admin-btn--ghost" onclick="editLink(${link.id})">编辑</button>
+              <button class="admin-btn admin-btn--danger" onclick="deleteLink(${link.id})">删除</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      function escapeHtml(s) {
+        return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+
+      function openModal(link) {
+        const modal = document.getElementById('link-modal');
+        const form = document.getElementById('link-form');
+        const title = document.getElementById('modal-title');
+
+        form.reset();
+        document.getElementById('link-id').value = '';
+
+        if (link) {
+          title.textContent = '编辑链接';
+          document.getElementById('link-id').value = link.id;
+          document.getElementById('link-title').value = link.title;
+          document.getElementById('link-url').value = link.url;
+          document.getElementById('link-icon').value = link.icon || '';
+          document.getElementById('link-iconSize').value = link.iconSize || '1x1';
+          document.getElementById('link-sortOrder').value = link.sortOrder || 0;
+        } else {
+          title.textContent = '添加链接';
+        }
+
+        modal.classList.add('open');
+      }
+
+      function closeModal() {
+        document.getElementById('link-modal').classList.remove('open');
+      }
+
+      function editLink(id) {
+        const link = links.find(l => l.id === id);
+        if (link) openModal(link);
+      }
+
+      async function deleteLink(id) {
+        if (!confirm('确定删除？')) return;
+        await fetch('/api/admin/links/' + id, { method: 'DELETE' });
+        loadLinks();
+      }
+
+      document.getElementById('link-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('link-id').value;
+        const data = {
+          title: document.getElementById('link-title').value,
+          url: document.getElementById('link-url').value,
+          icon: document.getElementById('link-icon').value,
+          iconSize: document.getElementById('link-iconSize').value,
+          sortOrder: parseInt(document.getElementById('link-sortOrder').value) || 0
+        };
+
+        if (id) {
+          await fetch('/api/admin/links/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+        } else {
+          await fetch('/api/admin/links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+        }
+
+        closeModal();
+        loadLinks();
+      };
+
+      loadLinks();
+    </script>
+    <script>
+      let selectedIcon = '';
+      let selectedIconType = '';
+      const iconCache = new Map();
+
+      const DASHBOARD_ICONS_BASE = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons";
+
+      const dashboardPresets = [
+        "github-dark",
+        "github-light",
+        "google-drive",
+        "nextcloud",
+        "plex",
+        "proxmox",
+        "qbit",
+        "syncthing",
+        "tailscale",
+        "unraid",
+        "vscode",
+        "portainer",
+        "docker",
+        "home-assistant",
+      ];
+
+      async function checkUrlOk(url) {
+        try {
+          const res = await fetch(url, { method: "GET", cache: "force-cache" });
+          return res.ok;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      async function resolveDashboardIconUrl(name) {
+        const n = String(name || "").trim().toLowerCase();
+        if (!n) return null;
+        if (iconCache.has(n)) return iconCache.get(n);
+
+        const candidates = [
+          `${DASHBOARD_ICONS_BASE}/svg/${encodeURIComponent(n)}.svg`,
+          `${DASHBOARD_ICONS_BASE}/png/${encodeURIComponent(n)}.png`,
+          `${DASHBOARD_ICONS_BASE}/webp/${encodeURIComponent(n)}.webp`,
+        ];
+
+        for (const url of candidates) {
+          const ok = await checkUrlOk(url);
+          if (!ok) continue;
+          iconCache.set(n, url);
+          return url;
+        }
+        return null;
+      }
+
+      function openIconPicker() {
+        const grid = document.getElementById('icon-grid');
+        const search = document.getElementById("icon-search");
+        if (search) {
+          search.value = "";
+          search.oninput = debounce(() => runIconSearch(search.value), 250);
+          search.onkeydown = (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              runIconSearch(search.value);
+            }
+          };
+        }
+        grid.innerHTML = `<div style="grid-column:1/-1;color:var(--color-text-muted);font-size:var(--text-caption)">加载常用图标中...</div>`;
+        renderPresetIcons();
+        document.getElementById('icon-picker-modal').classList.add('open');
+      }
+
+      function debounce(fn, ms) {
+        let t = null;
+        return function (...args) {
+          clearTimeout(t);
+          t = setTimeout(() => fn.apply(this, args), ms);
+        };
+      }
+
+      async function renderPresetIcons() {
+        const grid = document.getElementById("icon-grid");
+        const urls = await Promise.all(dashboardPresets.map((n) => resolveDashboardIconUrl(n)));
+        const items = dashboardPresets.map((name, idx) => ({ name, url: urls[idx] })).filter((x) => Boolean(x.url));
+        if (!items.length) {
+          grid.innerHTML = `<div style="grid-column:1/-1;color:var(--color-text-muted);font-size:var(--text-caption)">无法加载图标（可能网络限制）。你仍可直接填图标 URL 或使用 favicon。</div>`;
+          return;
+        }
+        grid.innerHTML = items
+          .map(
+            (it) =>
+              `<div class="icon-item" data-type="dashboard" data-name="${escapeHtml(it.name)}" onclick="selectIcon(this)" title="${escapeHtml(it.name)}"><img src="${escapeHtml(it.url)}" alt="${escapeHtml(it.name)}" loading="lazy" /></div>`
+          )
+          .join("");
+      }
+
+      async function runIconSearch(keyword) {
+        const grid = document.getElementById("icon-grid");
+        const kw = String(keyword || "").trim().toLowerCase();
+        if (!kw) return renderPresetIcons();
+
+        const candidates = dashboardPresets.filter((n) => n.includes(kw)).slice(0, 32);
+        if (!candidates.includes(kw) && /^[a-z0-9-]{2,64}$/.test(kw)) candidates.unshift(kw);
+
+        grid.innerHTML = `<div style="grid-column:1/-1;color:var(--color-text-muted);font-size:var(--text-caption)">搜索中...</div>`;
+        const urls = await Promise.all(candidates.map((n) => resolveDashboardIconUrl(n)));
+        const items = candidates.map((name, idx) => ({ name, url: urls[idx] })).filter((x) => Boolean(x.url));
+        if (!items.length) {
+          grid.innerHTML = `<div style="grid-column:1/-1;color:var(--color-text-muted);font-size:var(--text-caption)">未找到图标：<code>${escapeHtml(kw)}</code>。请确认图标名（kebab-case），或用 favicon。</div>`;
+          return;
+        }
+        grid.innerHTML = items
+          .map(
+            (it) =>
+              `<div class="icon-item" data-type="dashboard" data-name="${escapeHtml(it.name)}" onclick="selectIcon(this)" title="${escapeHtml(it.name)}"><img src="${escapeHtml(it.url)}" alt="${escapeHtml(it.name)}" loading="lazy" /></div>`
+          )
+          .join("");
+      }
+
+      async function selectIcon(el) {
+        document.querySelectorAll('.icon-item').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+
+        const type = el.dataset.type || "";
+        if (type === "dashboard") {
+          const name = el.dataset.name || "";
+          selectedIconType = "url";
+          selectedIcon = (await resolveDashboardIconUrl(name)) || "";
+        } else {
+          selectedIconType = "";
+          selectedIcon = "";
+        }
+      }
+
+      function clearSelectedIcon() {
+        selectedIconType = "";
+        selectedIcon = "";
+        document.querySelectorAll('.icon-item').forEach(e => e.classList.remove('selected'));
+      }
+
+      function useFaviconFromUrl() {
+        const url = document.getElementById("link-url")?.value || "";
+        try {
+          const u = new URL(url);
+          selectedIconType = "url";
+          selectedIcon = `${u.origin}/favicon.ico`;
+          const prev = document.getElementById("icon-preview");
+          if (prev) prev.innerHTML = `<img src="${escapeHtml(selectedIcon)}" alt="favicon" />`;
+          document.getElementById("link-icon").value = selectedIcon;
+          document.getElementById('icon-picker-modal').classList.remove('open');
+        } catch (e) {
+          alert("请先填写正确的网址");
+        }
+      }
+
+      function confirmIcon() {
+        if (!selectedIcon) return alert('请选择一个图标');
+        document.getElementById('link-icon').value = selectedIcon;
+        document.getElementById('icon-preview').innerHTML = `<img src="${escapeHtml(selectedIcon)}" alt="icon" />`;
+        document.getElementById('icon-picker-modal').classList.remove('open');
+      }
+
+      function exportData() {
+        fetch('/api/admin/export', { credentials: 'same-origin' })
+          .then(r => r.json())
+          .then(data => {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `blog-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+          })
+          .catch(e => alert('导出失败: ' + e.message));
+      }
+
+      async function importData() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = async () => {
+          const file = input.files[0];
+          if (!file) return;
+          if (!confirm(`确定要导入 ${file.name} 吗？这将覆盖现有数据。`)) return;
+          const text = await file.text();
+          try {
+            const data = JSON.parse(text);
+            const r = await fetch('/api/admin/import', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify(data)
+            });
+            const result = await r.json();
+            if (result.ok) {
+              alert('导入成功！');
+              loadLinks();
+            } else {
+              alert('导入失败: ' + result.error);
+            }
+          } catch (e) {
+            alert('解析失败: ' + e.message);
+          }
+        };
+        input.click();
+      }
+    </script>
+  </body>
 </html>
