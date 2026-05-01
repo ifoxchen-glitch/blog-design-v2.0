@@ -1,5 +1,10 @@
 name: Docker Publish
 
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
 on:
   schedule:
     - cron: '19 3 * * *'
@@ -16,11 +21,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
