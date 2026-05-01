@@ -272,6 +272,25 @@
     }
   }
 
+  async function loadNavLinks() {
+    const menu = document.getElementById("nav-links-menu");
+    if (!menu) return;
+    try {
+      const { links } = await fetchJson("/api/links");
+      if (!links || links.length === 0) return;
+      const items = links.map(
+        (l) => `<li><a href="${escapeHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.title)}</a></li>`
+      );
+      items.push('<li class="nav-dropdown__separator"></li>');
+      items.push('<li><a href="links.html">查看全部</a></li>');
+      menu.innerHTML = items.join("");
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
+  loadNavLinks();
+
   const page = document.title || "";
   if (location.pathname.endsWith("/index.html") || location.pathname.endsWith("/")) hydrateIndex();
   if (location.pathname.endsWith("/archive.html")) hydrateArchive();
