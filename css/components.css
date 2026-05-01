@@ -406,6 +406,7 @@
   text-decoration: none;
   color: var(--color-text);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.3s ease, color 0.3s ease;
+  position: relative;
 }
 
 .post-card::before {
@@ -1038,30 +1039,10 @@ a.pill:hover {
   box-shadow: 0 0 10px var(--preview, var(--color-accent));
 }
 
-.theme-option:hover {
-  border-color: var(--preview);
-  box-shadow: 0 0 10px var(--preview);
-}
-
 [data-mode="light"] .theme-option {
   background: #f8f9fa !important;
   color: #212529 !important;
   border-color: #dee2e6 !important;
-}
-
-.theme-option::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--preview);
-}
-
-.theme-option:hover {
-  border-color: var(--preview);
-  box-shadow: 0 0 10px var(--preview);
 }
 
 .theme-modal__close {
