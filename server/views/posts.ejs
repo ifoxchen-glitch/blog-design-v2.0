@@ -94,19 +94,19 @@
               </div>
               <div class="admin-sub"><%= (p.updatedAt || "").slice(0, 19).replace("T", " ") %></div>
               <div class="admin-actions">
-                <a class="admin-btn admin-btn--ghost" href="/admin/posts/<%= p.id %>/edit">编辑</a>
+                <a class="admin-btn admin-btn--ghost admin-btn--sm" href="/admin/posts/<%= p.id %>/edit">编辑</a>
                 <% if (p.status === "published") { %>
-                  <a class="admin-btn admin-btn--ghost" href="/post.html?slug=<%= encodeURIComponent(p.slug) %>" target="_blank" rel="noreferrer">预览</a>
+                  <a class="admin-btn admin-btn--ghost admin-btn--sm" href="/post.html?slug=<%= encodeURIComponent(p.slug) %>" target="_blank" rel="noreferrer">预览</a>
                   <form method="post" action="/admin/posts/<%= p.id %>/unpublish" class="admin-inline">
-                    <button class="admin-btn admin-btn--ghost" type="submit">下架</button>
+                    <button class="admin-btn admin-btn--ghost admin-btn--sm" type="submit">下架</button>
                   </form>
                 <% } else { %>
                   <form method="post" action="/admin/posts/<%= p.id %>/publish" class="admin-inline">
-                    <button class="admin-btn admin-btn--ok" type="submit">发布</button>
+                    <button class="admin-btn admin-btn--ok admin-btn--sm" type="submit">发布</button>
                   </form>
                 <% } %>
                 <form method="post" action="/admin/posts/<%= p.id %>/delete" class="admin-inline" onsubmit="return confirm('确定删除「<%= p.title %>」？')">
-                  <button class="admin-btn admin-btn--danger" type="submit">删除</button>
+                  <button class="admin-btn admin-btn--danger admin-btn--sm" type="submit">删除</button>
                 </form>
               </div>
             </div>

@@ -153,8 +153,8 @@
             <div class="admin-sub"><code>${escapeHtml(link.url)}</code></div>
             <div><span class="admin-badge">${link.iconSize || '1x1'}</span></div>
             <div class="admin-actions">
-              <button class="admin-btn admin-btn--ghost" onclick="editLink(${link.id})">编辑</button>
-              <button class="admin-btn admin-btn--danger" onclick="deleteLink(${link.id})">删除</button>
+              <button class="admin-btn admin-btn--ghost admin-btn--sm" onclick="editLink(${link.id})">编辑</button>
+              <button class="admin-btn admin-btn--danger admin-btn--sm" onclick="deleteLink(${link.id})">删除</button>
             </div>
           </div>
         `).join('');
