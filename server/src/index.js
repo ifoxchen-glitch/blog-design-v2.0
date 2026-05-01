@@ -7,7 +7,7 @@ const crypto = require("node:crypto");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const { optional, required } = require("./env");
-const { openDb, migrate, ensureSeed, listTagsForPost, setPostTags, listCategoriesForPost, setPostCategories } = require("./db");
+const { openDb, migrate, ensureSeed, listTagsForPost, listTagsForPosts, listCategoriesForPosts, setPostTags, listCategoriesForPost, setPostCategories } = require("./db");
 const { renderMarkdownToSafeHtml } = require("./markdown");
 const { nowIso, normalizeSlug, splitTags, toInt } = require("./utils");
 const { verifyAdminLogin, requireAdmin, requireAdminPage } = require("./auth");
@@ -28,7 +28,16 @@ const UPLOAD_DIR = path.join(SERVER_PUBLIC, "uploads");
 function requireAgentApiKey(req, res, next) {
   const apiKey = req.headers["x-api-key"] || req.query["api_key"];
   if (!AGENT_API_KEY) return res.status(401).json({ error: "agent_api_not_configured" });
-  if (!apiKey || apiKey !== AGENT_API_KEY) return res.status(401).json({ error: "invalid_api_key" });
+  if (!apiKey) return res.status(401).json({ error: "invalid_api_key" });
+  try {
+    const a = Buffer.from(apiKey, "utf8");
+    const b = Buffer.from(AGENT_API_KEY, "utf8");
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return res.status(401).json({ error: "invalid_api_key" });
+    }
+  } catch {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
   next();
 }
 
@@ -64,12 +73,25 @@ app.use(session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: "lax" },
+  cookie: {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  },
 }));
 
-// Serve the existing prototype as the front-end.
-app.use(express.static(BLOG_ROOT));
-// Admin-only assets (optional).
+// Security headers
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  next();
+});
+
+// Serve the existing prototype as the front-end (with caching).
+app.use(express.static(BLOG_ROOT, { maxAge: "7d", etag: true }));
+// Admin-only assets (no caching).
 app.use("/admin-static", express.static(SERVER_PUBLIC));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
@@ -435,10 +457,14 @@ app.get("/api/posts", (req, res) => {
   )
   .all(params);
 
+  const postIds = rows.map((p) => p.id);
+  const tagsMap = listTagsForPosts(db, postIds);
+  const catsMap = listCategoriesForPosts(db, postIds);
+
   const posts = rows.map((p) => ({
     ...p,
-    tags: listTagsForPost(db, p.id),
-    categories: listCategoriesForPost(db, p.id),
+    tags: tagsMap[p.id] || [],
+    categories: catsMap[p.id] || [],
   }));
 
   res.json({ posts, limit, offset, total });

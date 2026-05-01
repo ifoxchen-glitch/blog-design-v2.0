@@ -148,6 +148,46 @@ function listTagsForPost(db, postId) {
     .all(postId);
 }
 
+function listTagsForPosts(db, postIds) {
+  if (!postIds.length) return {};
+  const placeholders = postIds.map(() => "?").join(",");
+  const rows = db
+    .prepare(
+      `
+      SELECT pt.postId, t.name, t.slug
+      FROM tags t
+      JOIN post_tags pt ON pt.tagId = t.id
+      WHERE pt.postId IN (${placeholders})
+      ORDER BY t.name ASC
+    `
+    )
+    .all(...postIds);
+  const map = {};
+  for (const id of postIds) map[id] = [];
+  for (const row of rows) map[row.postId].push({ name: row.name, slug: row.slug });
+  return map;
+}
+
+function listCategoriesForPosts(db, postIds) {
+  if (!postIds.length) return {};
+  const placeholders = postIds.map(() => "?").join(",");
+  const rows = db
+    .prepare(
+      `
+      SELECT pc.postId, c.name, c.slug
+      FROM categories c
+      JOIN post_categories pc ON pc.categoryId = c.id
+      WHERE pc.postId IN (${placeholders})
+      ORDER BY c.name ASC
+    `
+    )
+    .all(...postIds);
+  const map = {};
+  for (const id of postIds) map[id] = [];
+  for (const row of rows) map[row.postId].push({ name: row.name, slug: row.slug });
+  return map;
+}
+
 function upsertTags(db, tagNames) {
   const createdAt = nowIso();
   const insertTag = db.prepare(`
@@ -232,6 +272,8 @@ module.exports = {
   migrate,
   ensureSeed,
   listTagsForPost,
+  listTagsForPosts,
+  listCategoriesForPosts,
   setPostTags,
   listCategoriesForPost,
   setPostCategories,
