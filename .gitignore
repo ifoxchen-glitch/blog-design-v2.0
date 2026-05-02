@@ -11,3 +11,6 @@ server/data.db
 *.swp
 *~
 NDH6SA~M
+# Claude Code local files
+.claude/
+
