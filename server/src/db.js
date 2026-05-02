@@ -3,13 +3,16 @@ const fs = require("node:fs");
 const Database = require("better-sqlite3");
 const { nowIso, normalizeSlug } = require("./utils");
 
+let _db = null;
+
 function openDb() {
+  if (_db) return _db;
   const dbPath = path.join(__dirname, "..", "db", "blog.sqlite");
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  const db = new Database(dbPath);
-  db.pragma("foreign_keys = ON");
-  db.pragma("journal_mode = WAL");
-  return db;
+  _db = new Database(dbPath);
+  _db.pragma("foreign_keys = ON");
+  _db.pragma("journal_mode = WAL");
+  return _db;
 }
 
 function migrate(db) {
