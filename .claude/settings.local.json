@@ -2,7 +2,31 @@
   "permissions": {
     "allow": [
       "Bash(node -c src/index.js)",
-      "Bash(node -c \"c:/Users/陈科/MyProject/blog-design-v2.0/server/src/index.js\")"
+      "Bash(node -c \"c:/Users/陈科/MyProject/blog-design-v2.0/server/src/index.js\")",
+      "Bash(curl -s http://192.168.3.100:8787/api/links)",
+      "Bash(curl -s -X POST -d \"email=admin@example.com&password=wrong\" -w \"\\\\nHTTP %{http_code}\\\\n\" http://192.168.3.100:8787/admin/login)",
+      "Bash(curl -s http://192.168.3.100:8787/rss.xml)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST -F \"file=@<\\(echo '<svg><script>alert\\(1\\)</script></svg>'\\)\" -F \"filename=test.svg\" http://192.168.3.100:8787/api/admin/upload)",
+      "Bash(echo '<svg xmlns=\"http://www.w3.org/2000/svg\"></script></svg>')",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" -X POST -F \"file=@/tmp/test.svg\" http://192.168.3.100:8787/api/admin/upload)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" -X POST -H \"Content-Type: application/json\" -d '{\"title\":\"test\",\"url\":\"javascript:alert\\(1\\)\",\"icon\":\"javascript:alert\\(2\\)\"}' http://192.168.3.100:8787/api/admin/links)",
+      "Bash(curl -s -c /tmp/blog_cookies.txt -X POST -d \"email=admin@example.com&password=admin\" -w \"\\\\nHTTP %{http_code}\\\\n\" http://192.168.3.100:8787/admin/login)",
+      "Bash(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i C:/Users/陈科/.ssh/blog_deploy root@192.168.3.100 \"docker restart blog && sleep 2 && docker ps --filter name=blog --format '{{.Status}}'\")",
+      "Bash(curl -s -b /tmp/blog_cookies.txt -w \"\\\\nHTTP %{http_code}\\\\n\" -X POST -F \"file=@/tmp/test.svg\" http://192.168.3.100:8787/api/admin/upload)",
+      "Bash(curl -s -b /tmp/blog_cookies.txt -w \"\\\\nHTTP %{http_code}\\\\n\" -X POST -H \"Content-Type: application/json\" -d '{\"title\":\"test\",\"url\":\"javascript:alert\\(1\\)\",\"icon\":\"javascript:alert\\(2\\)\"}' http://192.168.3.100:8787/api/admin/links)",
+      "Bash(curl -s -b /tmp/blog_cookies.txt -w \"\\\\nHTTP %{http_code}\\\\n\" -X POST -H \"Content-Type: application/json\" -d '{\"title\":\"test\",\"url\":\"https://example.com\",\"icon\":\"https://example.com/icon.png\"}' http://192.168.3.100:8787/api/admin/links)",
+      "Bash(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i C:/Users/陈科/.ssh/blog_deploy root@192.168.3.100 \"docker logs blog --tail 20\")",
+      "Bash(curl -s -b /tmp/blog_cookies.txt -w \"\\\\nHTTP %{http_code}\\\\n\" -X POST -F \"image=@/tmp/test.svg\" http://192.168.3.100:8787/api/admin/upload)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://192.168.3.100:8787/css/tokens.css)",
+      "Bash(curl -s http://192.168.3.100:8787/post.html)",
+      "Bash(curl -s -I http://192.168.3.100:8787/post.html)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'fix: 禁用 CSP upgrade-insecure-requests 以支持内网 HTTP 访问 *)",
+      "Bash(bash deploy.sh)",
+      "Bash(git commit -m 'fix: 手动设置 CSP 头，禁用 helmet 默认的 upgrade-insecure-requests *)",
+      "Bash(curl -s -I http://192.168.3.100:8787/admin/links)",
+      "Bash(git commit -m 'fix: CSP connect-src 允许 cdn.jsdelivr.net 用于图标探活 *)",
+      "Bash(git commit *)"
     ]
   }
 }
