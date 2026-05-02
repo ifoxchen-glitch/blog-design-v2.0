@@ -265,7 +265,7 @@
 
       async function checkUrlOk(url) {
         try {
-          const res = await fetch(url, { method: "GET", cache: "force-cache" });
+          const res = await fetch(url, { method: "HEAD", cache: "force-cache" });
           return res.ok;
         } catch (e) {
           return false;

@@ -61,33 +61,9 @@
       </div>
     </footer>
     
+    <script src="js/utils.js"></script>
     <script src="js/theme.js"></script>
     <script src="js/blog.js"></script>
-    <div class="theme-modal" id="theme-modal">
-      <div class="theme-modal__content">
-        <div class="theme-modal__header">
-          <h3 class="theme-modal__title">选择主题</h3>
-<button class="theme-modal__mode-btn" id="modal-mode-btn" aria-label="切换深浅模式">
-            <svg id="modal-mode-icon-sun" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="display:none"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm20-2h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 20v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z"/></svg>
-            <svg id="modal-mode-icon-moon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          </button>
-        </div>
-        <div class="theme-grid">
-          <button class="theme-option" data-theme="cyberpunk" style="--preview:#00c8ff">赛博朋克</button>
-          <button class="theme-option" data-theme="aurora" style="--preview:#22d3ee">极光蓝</button>
-          <button class="theme-option" data-theme="synthwave" style="--preview:#f472b6">合成波</button>
-          <button class="theme-option" data-theme="neon" style="--preview:#39ff14">霓虹绿</button>
-          <button class="theme-option" data-theme="matrix" style="--preview:#00ff00">黑客帝国</button>
-          <button class="theme-option" data-theme="nord" style="--preview:#88c0d0">北境</button>
-          <button class="theme-option" data-theme="dracula" style="--preview:#ff79c6">德古拉</button>
-          <button class="theme-option" data-theme="github" style="--preview:#58a6ff">GitHub</button>
-          <button class="theme-option" data-theme="monokai" style="--preview:#f92672">暮光</button>
-          <button class="theme-option" data-theme="sunset" style="--preview:#ff7b54">日落</button>
-          <button class="theme-option" data-theme="forest" style="--preview:#7fcc7f">森林</button>
-        </div>
-        <button class="theme-modal__close" id="theme-close">关闭</button>
-      </div>
-    </div>
     <script>
       (function(){
         const grid = document.getElementById('link-grid');
@@ -97,30 +73,12 @@
           try{
             const res = await fetch('/api/links');
             const data = await res.json();
-            renderLinks(data.links);
+            grid.innerHTML = window.BlogUtils.renderLinkCards(data.links);
           }catch(e){
             console.warn(e);
           }
         }
-        
-        function renderLinks(links){
-          if(!links || links.length===0){
-            grid.innerHTML = '<p style="color:var(--color-text-muted);text-align:center;grid-column:1/-1">暂无链接</p>';
-            return;
-          }
-          grid.innerHTML = links.map(link => {
-            const sizeClass = 'link-' + (link.iconSize||'1x1');
-            const iconHtml = link.icon 
-              ? `<img src="${escapeHtml(link.icon)}" alt="${escapeHtml(link.title)}" class="link-icon-img" />`
-              : `<span class="link-icon-text">${escapeHtml(link.title.charAt(0))}</span>`;
-            return `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" class="link-card ${sizeClass}">${iconHtml}<span class="link-title">${escapeHtml(link.title)}</span></a>`;
-          }).join('');
-        }
-        
-        function escapeHtml(s){
-          return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        }
-        
+
         loadLinks();
       })();
     </script>

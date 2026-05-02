@@ -159,36 +159,39 @@
       const { posts, total } = await fetchJson(apiUrl);
       grid.innerHTML = posts.map((p) => buildPostCard(p, { headingTag: "h2" })).join("");
 
-      const totalPages = Math.ceil(total / limit);
       const currentPage = Math.floor(offset / limit) + 1;
-      const displayPages = Math.max(1, Math.ceil(total / limit));
-      
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+
       const pagination = document.querySelector(".pagination");
-      if (pagination && total > 0) {
-        const params = new URLSearchParams();
-        if (type) params.set("type", type);
-        if (category) params.set("category", category);
-        if (tag) params.set("tag", tag);
-        
-        const buildUrl = (offset) => {
-          const p = new URLSearchParams(params.toString());
-          if (offset > 0) p.set("offset", String(offset));
-          return "archive.html" + (p.toString() ? "?" + p.toString() : "");
-        };
-        
-        let paginationHtml = "";
-        if (offset > 0) {
-          paginationHtml += `<a href="${buildUrl(offset - limit)}">上一页</a>`;
+      if (pagination) {
+        if (total <= 0) {
+          pagination.innerHTML = "";
         } else {
-          paginationHtml += `<span aria-disabled="true">上一页</span>`;
+          const params = new URLSearchParams();
+          if (type) params.set("type", type);
+          if (category) params.set("category", category);
+          if (tag) params.set("tag", tag);
+
+          const buildUrl = (offset) => {
+            const p = new URLSearchParams(params.toString());
+            if (offset > 0) p.set("offset", String(offset));
+            return "archive.html" + (p.toString() ? "?" + p.toString() : "");
+          };
+
+          let paginationHtml = "";
+          if (offset > 0) {
+            paginationHtml += `<a href="${buildUrl(offset - limit)}">上一页</a>`;
+          } else {
+            paginationHtml += `<span aria-disabled="true">上一页</span>`;
+          }
+          paginationHtml += `<span>${currentPage} / ${totalPages}</span>`;
+          if (offset + limit < total) {
+            paginationHtml += `<a href="${buildUrl(offset + limit)}">下一页</a>`;
+          } else {
+            paginationHtml += `<span aria-disabled="true">下一页</span>`;
+          }
+          pagination.innerHTML = paginationHtml;
         }
-        paginationHtml += `<span>${currentPage} / ${displayPages}</span>`;
-        if (offset + limit < total) {
-          paginationHtml += `<a href="${buildUrl(offset + limit)}">下一页</a>`;
-        } else {
-          paginationHtml += `<span aria-disabled="true">下一页</span>`;
-        }
-        pagination.innerHTML = paginationHtml;
       }
 
       const desc = document.querySelector(".page-desc");
@@ -294,6 +297,6 @@
   const page = document.title || "";
   if (location.pathname.endsWith("/index.html") || location.pathname.endsWith("/")) hydrateIndex();
   if (location.pathname.endsWith("/archive.html")) hydrateArchive();
-  if (location.pathname.endsWith("/post.html") || page.includes("单篇")) hydratePost();
+  if (location.pathname.endsWith("/post.html")) hydratePost();
 })();
 

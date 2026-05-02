@@ -2,6 +2,8 @@ const path = require("node:path");
 const express = require("express");
 const session = require("express-session");
 const multer = require("multer");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const crypto = require("node:crypto");
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
@@ -20,6 +22,7 @@ const ADMIN_EMAIL = optional("ADMIN_EMAIL", "admin@example.com");
 const ADMIN_PASSWORD = optional("ADMIN_PASSWORD", "admin");
 const ADMIN_PASSWORD_HASH = optional("ADMIN_PASSWORD_HASH", "");
 const AGENT_API_KEY = optional("AGENT_API_KEY", "");
+const SITE_URL = optional("SITE_URL", "https://ifoxchen.com").replace(/\/+$/, "");
 
 const BLOG_ROOT = path.join(__dirname, "..", ".."); // blog-design/
 const SERVER_PUBLIC = path.join(__dirname, "..", "public");
@@ -27,7 +30,10 @@ const UPLOAD_DIR = path.join(SERVER_PUBLIC, "uploads");
 
 function requireAgentApiKey(req, res, next) {
   const apiKey = req.headers["x-api-key"] || req.query["api_key"];
-  if (!AGENT_API_KEY) return res.status(401).json({ error: "agent_api_not_configured" });
+  if (!AGENT_API_KEY) {
+    console.warn("AGENT_API_KEY not configured; rejecting agent request");
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
   if (!apiKey) return res.status(401).json({ error: "invalid_api_key" });
   try {
     const a = Buffer.from(apiKey, "utf8");
@@ -39,6 +45,14 @@ function requireAgentApiKey(req, res, next) {
     return res.status(401).json({ error: "invalid_api_key" });
   }
   next();
+}
+
+function safeUrl(s, { allowDataImage = false } = {}) {
+  const v = String(s ?? "").trim();
+  if (!v) return "";
+  if (v.startsWith("/") || /^https?:\/\//i.test(v)) return v;
+  if (allowDataImage && /^data:image\/(png|jpeg|jpg|gif|webp);/i.test(v)) return v;
+  return null;
 }
 
 const db = openDb();
@@ -57,7 +71,7 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"];
+    const allowed = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, allowed.includes(ext));
   },
@@ -81,11 +95,30 @@ app.use(session({
 }));
 
 // Security headers
-app.use((req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "SAMEORIGIN");
-  res.setHeader("X-XSS-Protection", "1; mode=block");
-  next();
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+const loginLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) =>
+    res.status(429).render("login", {
+      adminEmail: ADMIN_EMAIL,
+      error: "登录尝试过多，请 5 分钟后再试",
+    }),
 });
 
 // Serve the existing prototype as the front-end (with caching).
@@ -123,8 +156,11 @@ app.get("/api/admin/links", requireAdmin, (req, res) => {
 
 app.post("/api/admin/links", requireAdmin, (req, res) => {
   const title = String(req.body.title ?? "").trim() || "未命名";
-  const url = String(req.body.url ?? "").trim();
-  const icon = String(req.body.icon ?? "").trim() || "";
+  const url = safeUrl(req.body.url);
+  const iconRaw = String(req.body.icon ?? "").trim();
+  const icon = iconRaw ? safeUrl(iconRaw, { allowDataImage: true }) : "";
+  if (url === null) return res.status(400).json({ error: "invalid_url" });
+  if (icon === null) return res.status(400).json({ error: "invalid_icon" });
   const iconSize = ["1x1", "2x1", "1x2", "2x2"].includes(req.body.iconSize) ? req.body.iconSize : "1x1";
   const now = nowIso();
 
@@ -138,8 +174,11 @@ app.post("/api/admin/links", requireAdmin, (req, res) => {
 app.put("/api/admin/links/:id", requireAdmin, (req, res) => {
   const id = toInt(req.params.id, 0);
   const title = String(req.body.title ?? "").trim() || "未命名";
-  const url = String(req.body.url ?? "").trim();
-  const icon = String(req.body.icon ?? "").trim();
+  const url = safeUrl(req.body.url);
+  const iconRaw = String(req.body.icon ?? "").trim();
+  const icon = iconRaw ? safeUrl(iconRaw, { allowDataImage: true }) : "";
+  if (url === null) return res.status(400).json({ error: "invalid_url" });
+  if (icon === null) return res.status(400).json({ error: "invalid_icon" });
   const iconSize = ["1x1", "2x1", "1x2", "2x2"].includes(req.body.iconSize) ? req.body.iconSize : "1x1";
   const sortOrder = toInt(req.body.sortOrder, 0);
   const now = nowIso();
@@ -161,7 +200,9 @@ app.get("/api/admin/export", requireAdmin, (req, res) => {
   const posts = db.prepare(`SELECT * FROM posts`).all();
   const tags = db.prepare(`SELECT * FROM tags`).all();
   const postTags = db.prepare(`SELECT * FROM post_tags`).all();
-  res.json({ version: 1, exportedAt: nowIso(), links, posts, tags, postTags });
+  const categories = db.prepare(`SELECT * FROM categories`).all();
+  const postCategories = db.prepare(`SELECT * FROM post_categories`).all();
+  res.json({ version: 2, exportedAt: nowIso(), links, posts, tags, postTags, categories, postCategories });
 });
 
 app.post("/api/admin/import", requireAdmin, (req, res) => {
@@ -169,7 +210,6 @@ app.post("/api/admin/import", requireAdmin, (req, res) => {
   if (!data.version) return res.status(400).json({ error: "invalid_format" });
 
   const tx = db.transaction(() => {
-    db.pragma("foreign_keys = OFF");
     if (data.posts) {
       db.prepare(`DELETE FROM posts`).run();
       const insertPost = db.prepare(`INSERT INTO posts (id, title, slug, excerpt, coverImageUrl, contentMarkdown, contentHtml, status, publishedAt, createdAt, updatedAt) VALUES (@id, @title, @slug, @excerpt, @coverImageUrl, @contentMarkdown, @contentHtml, @status, @publishedAt, @createdAt, @updatedAt)`);
@@ -184,20 +224,32 @@ app.post("/api/admin/import", requireAdmin, (req, res) => {
       db.prepare(`DELETE FROM post_tags`).run();
       data.postTags.forEach(pt => db.prepare(`INSERT INTO post_tags (postId, tagId) VALUES (@postId, @tagId)`).run(pt));
     }
+    if (data.categories) {
+      db.prepare(`DELETE FROM post_categories`).run();
+      db.prepare(`DELETE FROM categories`).run();
+      const now = nowIso();
+      const insertCategory = db.prepare(`INSERT INTO categories (id, name, slug, createdAt) VALUES (@id, @name, @slug, @createdAt)`);
+      data.categories.forEach(cat => insertCategory.run({ ...cat, createdAt: cat.createdAt || now }));
+    }
+    if (data.postCategories) {
+      const insertPC = db.prepare(`INSERT INTO post_categories (postId, categoryId) VALUES (@postId, @categoryId)`);
+      data.postCategories.forEach(pc => insertPC.run(pc));
+    }
     if (data.links) {
       db.prepare(`DELETE FROM external_links`).run();
       const insertLink = db.prepare(`INSERT INTO external_links (title, url, icon, iconSize, sortOrder, createdAt, updatedAt) VALUES (@title, @url, @icon, @iconSize, @sortOrder, @createdAt, @updatedAt)`);
       data.links.forEach(link => insertLink.run(link));
     }
-    db.pragma("foreign_keys = ON");
   });
 
+  db.pragma("foreign_keys = OFF");
   try {
     tx();
     res.json({ ok: true });
   } catch (err) {
-    db.pragma("foreign_keys = ON");
     res.status(500).json({ error: err.message });
+  } finally {
+    db.pragma("foreign_keys = ON");
   }
 });
 
@@ -294,86 +346,7 @@ app.post("/api/agent/sync-tags", requireAgentApiKey, (req, res) => {
   res.json({ ok: true, synced: inserted });
 });
 
-app.post("/api/agent/sync-obsidian", requireAgentApiKey, (req, res) => {
-  const { vaultPath, slugPrefix } = req.body;
-  
-  const vault = vaultPath || path.join(process.env.HOME || process.env.USERPROFILE, "obsidian");
-  const postsDir = path.join(vault, "posts");
-  const prefix = slugPrefix || "obsidian-";
-
-  if (!require("node:fs").existsSync(postsDir)) {
-    return res.status(400).json({ error: "obsidian_vault_not_found", path: postsDir });
-  }
-
-  const fs = require("node:fs");
-  const files = fs.readdirSync(postsDir).filter(f => f.endsWith(".md"));
-  const now = nowIso();
-  const synced = [];
-
-  for (const file of files) {
-    try {
-      const filePath = path.join(postsDir, file);
-      const content = fs.readFileSync(filePath, "utf8");
-      
-      let frontmatter = {};
-      if (content.startsWith("---")) {
-        const end = content.indexOf("---", 3);
-        if (end > 0) {
-          const fmText = content.slice(3, end).trim();
-          fmText.split("\n").forEach(line => {
-            const [key, ...vals] = line.split(":");
-            if (key && vals.length) {
-              frontmatter[key.trim()] = vals.join(":").trim();
-            }
-          });
-        }
-      }
-
-      const mdContent = content.replace(/^---[\s\S]*?---/, "").trim();
-      const title = frontmatter.title || file.replace(".md", "");
-      const slug = normalizeSlug(prefix + (frontmatter.slug || title));
-      const tags = frontmatter.tags ? frontmatter.tags.split(",").map(t => t.trim()) : [];
-      const categories = frontmatter.categories ? frontmatter.categories.split(",").map(c => c.trim()) : [];
-      const postStatus = frontmatter.status === "published" ? "published" : "draft";
-      const publishedAt = postStatus === "published" ? now : null;
-
-      try {
-        const info = db
-          .prepare(`
-            INSERT INTO posts (title, slug, excerpt, coverImageUrl, contentMarkdown, contentHtml, status, publishedAt, createdAt, updatedAt)
-            VALUES (@title, @slug, @excerpt, @coverImageUrl, @contentMarkdown, NULL, @status, @publishedAt, @createdAt, @updatedAt)
-            ON CONFLICT(slug) DO UPDATE SET title=@title, contentMarkdown=@contentMarkdown, updatedAt=@updatedAt
-          `)
-          .run({
-            title,
-            slug,
-            excerpt: frontmatter.excerpt || null,
-            coverImageUrl: frontmatter.cover || null,
-            contentMarkdown: mdContent,
-            status: postStatus,
-            publishedAt,
-            createdAt: now,
-            updatedAt: now
-          });
-
-        const postId = info.lastInsertRowid || db.prepare("SELECT id FROM posts WHERE slug = ?").get(slug)?.id;
-        
-        if (postId) {
-          setPostTags(db, postId, tags);
-          setPostCategories(db, postId, categories);
-        }
-
-        synced.push(title);
-      } catch (e) {
-        console.error("Sync error for", file, e.message);
-      }
-    } catch (e) {
-      console.error("Read error for", file, e.message);
-    }
-  }
-
-  res.json({ ok: true, synced: synced.length, files: synced });
-});
+// sync-obsidian endpoint removed: accepted user-supplied vaultPath and could read arbitrary .md files on disk.
 
 // -----------------------
 // Public API
@@ -439,32 +412,38 @@ app.get("/api/posts", (req, res) => {
   }
 
   const joins = [joinTags, joinCategories].filter(Boolean).join(" ");
-  const countSql = `SELECT COUNT(*) as total FROM posts p${joins ? ' ' + joins : ''} WHERE ${where.join(" AND ")}`;
-  const countResult = db.prepare(countSql).get(params);
-  const total = countResult?.total || 0;
-
   const rows = db
     .prepare(
       `
-      SELECT p.id, p.title, p.slug, p.excerpt, p.coverImageUrl, p.publishedAt, p.createdAt, p.updatedAt
+      SELECT p.id, p.title, p.slug, p.excerpt, p.coverImageUrl, p.publishedAt, p.createdAt, p.updatedAt,
+             COUNT(*) OVER() AS _total
       FROM posts p
       ${joins}
       WHERE ${where.join(" AND ")}
       ORDER BY COALESCE(p.publishedAt, p.createdAt) DESC
       LIMIT @limit OFFSET @offset
     `
-  )
-  .all(params);
+    )
+    .all(params);
+
+  let total = rows.length ? rows[0]._total : 0;
+  if (!rows.length && offset > 0) {
+    const countSql = `SELECT COUNT(*) as total FROM posts p${joins ? ' ' + joins : ''} WHERE ${where.join(" AND ")}`;
+    total = db.prepare(countSql).get(params)?.total || 0;
+  }
 
   const postIds = rows.map((p) => p.id);
   const tagsMap = listTagsForPosts(db, postIds);
   const catsMap = listCategoriesForPosts(db, postIds);
 
-  const posts = rows.map((p) => ({
-    ...p,
-    tags: tagsMap[p.id] || [],
-    categories: catsMap[p.id] || [],
-  }));
+  const posts = rows.map((p) => {
+    const { _total, ...rest } = p;
+    return {
+      ...rest,
+      tags: tagsMap[p.id] || [],
+      categories: catsMap[p.id] || [],
+    };
+  });
 
   res.json({ posts, limit, offset, total });
 });
@@ -512,7 +491,7 @@ app.get("/rss.xml", (req, res) => {
     )
     .all();
 
-  const siteUrl = "https://ifoxchen.com";
+  const siteUrl = SITE_URL;
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 <channel>
@@ -679,33 +658,34 @@ app.delete("/api/admin/posts/:id", requireAdmin, (req, res) => {
 // Admin pages (EJS)
 // -----------------------
 
-app.get("/admin/api", requireAdminPage, (req, res) => {
-  res.render("api", { agentApiKey: AGENT_API_KEY });
-});
-
-app.post("/admin/api/regenerate-key", requireAdminPage, (req, res) => {
-  const newKey = crypto.randomBytes(24).toString("hex");
-  const envPath = path.join(__dirname, "..", ".env");
-  const fs = require("node:fs");
-  
-  if (fs.existsSync(envPath)) {
-    let content = fs.readFileSync(envPath, "utf8");
-    content = content.replace(/AGENT_API_KEY=.*/g, `AGENT_API_KEY=${newKey}`);
-    content += "\n";
-    fs.writeFileSync(envPath, content);
-  }
-  
-  process.env.AGENT_API_KEY = newKey;
-  global.AGENT_API_KEY = newKey;
-  
-  res.json({ ok: true, apiKey: newKey });
-});
+// /admin/api routes removed: rendered missing api.ejs (500). AGENT_API_KEY is managed via server/.env.
+// app.get("/admin/api", requireAdminPage, (req, res) => {
+//   res.render("api", { agentApiKey: AGENT_API_KEY });
+// });
+//
+// app.post("/admin/api/regenerate-key", requireAdminPage, (req, res) => {
+//   const newKey = crypto.randomBytes(24).toString("hex");
+//   const envPath = path.join(__dirname, "..", ".env");
+//   const fs = require("node:fs");
+//
+//   if (fs.existsSync(envPath)) {
+//     let content = fs.readFileSync(envPath, "utf8");
+//     content = content.replace(/AGENT_API_KEY=.*/g, `AGENT_API_KEY=${newKey}`);
+//     content += "\n";
+//     fs.writeFileSync(envPath, content);
+//   }
+//
+//   process.env.AGENT_API_KEY = newKey;
+//   global.AGENT_API_KEY = newKey;
+//
+//   res.json({ ok: true, apiKey: newKey });
+// });
 
 app.get("/admin/login", (req, res) => {
   res.render("login", { adminEmail: ADMIN_EMAIL });
 });
 
-app.post("/admin/login", async (req, res) => {
+app.post("/admin/login", loginLimiter, async (req, res) => {
   const email = String(req.body.email ?? "");
   const password = String(req.body.password ?? "");
   const ok = await verifyAdminLogin(

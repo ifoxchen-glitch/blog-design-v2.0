@@ -14,7 +14,7 @@ function normalizeSlug(input) {
   if (!s) return "";
   const slug = slugify(s, { lower: true, strict: true, trim: true });
   // slugify with strict:true strips non-ASCII (e.g. Chinese); fall back to original
-  return slug || s.toLowerCase().replace(/\s+/g, "-");
+  return slug || s.toLowerCase().replace(/[\/?#%&]+/g, "").replace(/\s+/g, "-");
 }
 
 function splitTags(raw) {

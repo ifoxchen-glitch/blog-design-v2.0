@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -c src/index.js)",
+      "Bash(node -c \"c:/Users/陈科/MyProject/blog-design-v2.0/server/src/index.js\")"
+    ]
+  }
+}
