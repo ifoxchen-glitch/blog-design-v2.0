@@ -9,15 +9,13 @@ const crypto = require("node:crypto");
 require("dotenv").config({ path: path.join(__dirname, "..", "..", ".env") });
 
 const { optional, required } = require("../env");
-const { openDb, migrate, ensureSeed, listTagsForPost, listTagsForPosts, listCategoriesForPosts, setPostTags, listCategoriesForPost, setPostCategories } = require("../db");
-const { ensureRbacSeed } = require("../seeds/rbacSeed");
+const { openDb, listTagsForPost, listTagsForPosts, listCategoriesForPosts, setPostTags, listCategoriesForPost, setPostCategories } = require("../db");
 const { renderMarkdownToSafeHtml } = require("../markdown");
 const { nowIso, normalizeSlug, splitTags, toInt } = require("../utils");
 const { verifyAdminLogin, requireAdmin, requireAdminPage } = require("../auth");
 
 const app = express();
 
-const PORT = toInt(optional("PORT", "8787"), 8787);
 const SESSION_SECRET = required("SESSION_SECRET", crypto.randomBytes(32).toString("hex"));
 const ADMIN_EMAIL = optional("ADMIN_EMAIL", "admin@example.com");
 const ADMIN_PASSWORD = optional("ADMIN_PASSWORD", "admin");
@@ -57,13 +55,6 @@ function safeUrl(s, { allowDataImage = false } = {}) {
 }
 
 const db = openDb();
-migrate(db);
-ensureSeed(db);
-ensureRbacSeed(db, {
-  adminEmail: ADMIN_EMAIL,
-  adminPassword: ADMIN_PASSWORD,
-  adminPasswordHash: ADMIN_PASSWORD_HASH,
-});
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
