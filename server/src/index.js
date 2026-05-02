@@ -10,6 +10,7 @@ require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const { optional, required } = require("./env");
 const { openDb, migrate, ensureSeed, listTagsForPost, listTagsForPosts, listCategoriesForPosts, setPostTags, listCategoriesForPost, setPostCategories } = require("./db");
+const { ensureRbacSeed } = require("./seeds/rbacSeed");
 const { renderMarkdownToSafeHtml } = require("./markdown");
 const { nowIso, normalizeSlug, splitTags, toInt } = require("./utils");
 const { verifyAdminLogin, requireAdmin, requireAdminPage } = require("./auth");
@@ -58,6 +59,11 @@ function safeUrl(s, { allowDataImage = false } = {}) {
 const db = openDb();
 migrate(db);
 ensureSeed(db);
+ensureRbacSeed(db, {
+  adminEmail: ADMIN_EMAIL,
+  adminPassword: ADMIN_PASSWORD,
+  adminPasswordHash: ADMIN_PASSWORD_HASH,
+});
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
