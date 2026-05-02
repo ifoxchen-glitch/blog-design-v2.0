@@ -74,6 +74,140 @@ function migrate(db) {
     CREATE INDEX IF NOT EXISTS idx_post_tags_tagId ON post_tags(tagId);
     CREATE INDEX IF NOT EXISTS idx_post_categories_categoryId ON post_categories(categoryId);
     CREATE INDEX IF NOT EXISTS idx_external_links_sortOrder ON external_links(sortOrder);
+
+    -- ============================================================
+    -- Phase 1 (Admin v2): RBAC + 审计 + 多站点 + 前台读者预留
+    -- 新表统一使用 snake_case，与旧表的 camelCase 区分；通过这种命名
+    -- 风格差异即可一眼看出是 v2 域的表。详见 docs/04-admin-architecture.md §5。
+    -- ============================================================
+
+    -- 5.1 后台用户
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT,
+      avatar_url TEXT,
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'disabled')),
+      is_super_admin INTEGER NOT NULL DEFAULT 0,
+      last_login_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    -- 5.2 角色
+    CREATE TABLE IF NOT EXISTS roles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      code TEXT NOT NULL UNIQUE,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    -- 5.3 用户-角色关联
+    CREATE TABLE IF NOT EXISTS user_roles (
+      user_id INTEGER NOT NULL,
+      role_id INTEGER NOT NULL,
+      PRIMARY KEY (user_id, role_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+    );
+
+    -- 5.4 权限（资源:操作 格式）
+    CREATE TABLE IF NOT EXISTS permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      code TEXT NOT NULL UNIQUE,
+      resource TEXT NOT NULL,
+      action TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    -- 5.5 角色-权限关联
+    CREATE TABLE IF NOT EXISTS role_permissions (
+      role_id INTEGER NOT NULL,
+      permission_id INTEGER NOT NULL,
+      PRIMARY KEY (role_id, permission_id),
+      FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+      FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+    );
+
+    -- 5.6 后台菜单（树形）
+    CREATE TABLE IF NOT EXISTS menus (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      parent_id INTEGER DEFAULT NULL REFERENCES menus(id),
+      name TEXT NOT NULL,
+      path TEXT,
+      icon TEXT,
+      permission_code TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL
+    );
+
+    -- 5.7 操作审计日志
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      username TEXT,
+      action TEXT NOT NULL,
+      resource_type TEXT NOT NULL,
+      resource_id TEXT,
+      detail TEXT,
+      ip TEXT,
+      user_agent TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    -- 5.8 多站点（预留）
+    CREATE TABLE IF NOT EXISTS sites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      domain TEXT,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    -- 5.9 前台读者用户（预留：评论/收藏体系）
+    CREATE TABLE IF NOT EXISTS front_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT,
+      avatar_url TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    -- 5.10 访问统计原始记录
+    CREATE TABLE IF NOT EXISTS page_views (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      path TEXT NOT NULL,
+      referrer TEXT,
+      ip TEXT,
+      user_agent TEXT,
+      session_id TEXT,
+      front_user_id INTEGER REFERENCES front_users(id),
+      created_at TEXT NOT NULL
+    );
+
+    -- v2 索引
+    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_permissions_code ON permissions(code);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_page_views_created_at ON page_views(created_at);
+    CREATE INDEX IF NOT EXISTS idx_page_views_path ON page_views(path);
   `);
 }
 
