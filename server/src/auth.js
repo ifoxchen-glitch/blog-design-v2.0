@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 function constantTimeEquals(a, b) {
   const sa = String(a ?? "");
@@ -25,9 +26,63 @@ function requireAdminPage(req, res, next) {
   return res.redirect("/admin/login");
 }
 
+async function verifyV2Login(db, { email, password }) {
+  if (!email || !password) return null;
+
+  const user = db
+    .prepare(
+      `SELECT id, username, email, password_hash, display_name, avatar_url,
+              status, is_super_admin
+         FROM users
+        WHERE email = ? AND status = 'active'`
+    )
+    .get(String(email));
+  if (!user) return null;
+
+  const ok = await bcrypt.compare(String(password), String(user.password_hash || ""));
+  if (!ok) return null;
+
+  const roles = db
+    .prepare(
+      `SELECT r.code FROM user_roles ur
+         JOIN roles r ON r.id = ur.role_id AND r.status = 'active'
+        WHERE ur.user_id = ?`
+    )
+    .all(user.id)
+    .map((row) => row.code);
+
+  return { ...user, roles };
+}
+
+function signV2AccessToken(user) {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET not configured");
+  const expiresIn = process.env.ADMIN_JWT_ACCESS_EXPIRES || "2h";
+  return jwt.sign(
+    {
+      userId: user.id,
+      username: user.username,
+      roles: Array.isArray(user.roles) ? user.roles : [],
+      type: "admin",
+    },
+    secret,
+    { expiresIn }
+  );
+}
+
+function signV2RefreshToken(user) {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET not configured");
+  const expiresIn = process.env.ADMIN_JWT_REFRESH_EXPIRES || "7d";
+  return jwt.sign({ userId: user.id, type: "refresh" }, secret, { expiresIn });
+}
+
 module.exports = {
   verifyAdminLogin,
   requireAdmin,
   requireAdminPage,
+  verifyV2Login,
+  signV2AccessToken,
+  signV2RefreshToken,
 };
 
