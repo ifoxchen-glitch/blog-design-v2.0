@@ -77,6 +77,43 @@ function signV2RefreshToken(user) {
   return jwt.sign({ userId: user.id, type: "refresh" }, secret, { expiresIn });
 }
 
+function verifyV2Refresh(db, refreshToken) {
+  if (!refreshToken) return { ok: false, code: "missing" };
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET not configured");
+
+  let payload;
+  try {
+    payload = jwt.verify(String(refreshToken), secret);
+  } catch (err) {
+    if (err.name === "TokenExpiredError") return { ok: false, code: "expired" };
+    return { ok: false, code: "invalid" };
+  }
+  if (payload.type !== "refresh") return { ok: false, code: "wrong_type" };
+  if (!payload.userId) return { ok: false, code: "invalid" };
+
+  const user = db
+    .prepare(
+      `SELECT id, username, email, display_name, avatar_url,
+              status, is_super_admin
+         FROM users
+        WHERE id = ? AND status = 'active'`
+    )
+    .get(payload.userId);
+  if (!user) return { ok: false, code: "user_disabled" };
+
+  const roles = db
+    .prepare(
+      `SELECT r.code FROM user_roles ur
+         JOIN roles r ON r.id = ur.role_id AND r.status = 'active'
+        WHERE ur.user_id = ?`
+    )
+    .all(user.id)
+    .map((row) => row.code);
+
+  return { ok: true, user: { ...user, roles } };
+}
+
 module.exports = {
   verifyAdminLogin,
   requireAdmin,
@@ -84,5 +121,6 @@ module.exports = {
   verifyV2Login,
   signV2AccessToken,
   signV2RefreshToken,
+  verifyV2Refresh,
 };
 
