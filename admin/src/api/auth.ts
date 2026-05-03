@@ -75,8 +75,6 @@ export async function apiMe(
 export async function apiMenus(
   client: AxiosInstance = request,
 ): Promise<MenuNode[]> {
-  const res = await client.get<ApiResponse<{ menus: MenuNode[] }>>(
-    '/api/v2/auth/menus',
-  )
-  return res.data.data.menus
+  const res = await client.get<ApiResponse<MenuNode[]>>('/api/v2/auth/menus')
+  return res.data.data
 }
