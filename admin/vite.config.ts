@@ -8,5 +8,13 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    proxy: {
+      // Forward all /api/* requests to the adminApp (Express @ :3000).
+      // The path is preserved (/api/v2/auth/login -> :3000/api/v2/auth/login).
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
   },
 })
