@@ -4,5 +4,6 @@ const handlers = require("./authHandlers");
 const router = express.Router();
 
 router.post("/login", handlers.login);
+router.post("/refresh", handlers.refresh);
 
 module.exports = router;

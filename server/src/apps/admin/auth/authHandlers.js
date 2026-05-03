@@ -1,5 +1,10 @@
 const { openDb } = require("../../../db");
-const { verifyV2Login, signV2AccessToken, signV2RefreshToken } = require("../../../auth");
+const {
+  verifyV2Login,
+  signV2AccessToken,
+  signV2RefreshToken,
+  verifyV2Refresh,
+} = require("../../../auth");
 const { nowIso } = require("../../../utils");
 
 async function login(req, res) {
@@ -51,4 +56,43 @@ async function login(req, res) {
   });
 }
 
-module.exports = { login };
+async function refresh(req, res) {
+  const { refreshToken } = req.body || {};
+  if (!refreshToken) {
+    return res.status(400).json({ code: 400, message: "Missing refreshToken" });
+  }
+
+  const db = openDb();
+
+  let result;
+  try {
+    result = verifyV2Refresh(db, refreshToken);
+  } catch (err) {
+    return res.status(500).json({ code: 500, message: err.message });
+  }
+
+  if (!result.ok) {
+    const message =
+      result.code === "expired"
+        ? "Refresh token expired"
+        : result.code === "user_disabled"
+        ? "User not found or disabled"
+        : "Invalid refresh token";
+    return res.status(401).json({ code: 401, message });
+  }
+
+  let accessToken;
+  try {
+    accessToken = signV2AccessToken(result.user);
+  } catch (err) {
+    return res.status(500).json({ code: 500, message: err.message });
+  }
+
+  return res.status(200).json({
+    code: 200,
+    message: "success",
+    data: { accessToken },
+  });
+}
+
+module.exports = { login, refresh };
