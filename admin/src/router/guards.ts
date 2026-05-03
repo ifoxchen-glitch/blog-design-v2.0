@@ -122,6 +122,8 @@ export function installGuards(
   router.afterEach((to) => {
     if (isLoginRoute(to)) {
       resetGuardState()
+      const perm = usePermissionStore()
+      perm.reset()
     }
   })
 }
