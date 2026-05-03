@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { installGuards } from './guards'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -19,7 +20,15 @@ const router = createRouter({
       component: () => import('../views/login/index.vue'),
       meta: { public: true },
     },
+    {
+      path: '/403',
+      name: 'forbidden',
+      component: () => import('../views/error/403.vue'),
+      meta: { public: true },
+    },
   ],
 })
+
+installGuards(router)
 
 export default router
