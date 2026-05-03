@@ -26,6 +26,17 @@ const router = createRouter({
       component: () => import('../views/error/403.vue'),
       meta: { public: true },
     },
+    {
+      path: '/dashboard',
+      component: () => import('../components/layout/AdminLayout.vue'),
+      children: [
+        {
+          path: '',
+          name: 'dashboard',
+          component: () => import('../views/dashboard/index.vue'),
+        },
+      ],
+    },
   ],
 })
 
