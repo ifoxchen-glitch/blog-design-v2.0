@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
+import { NConfigProvider, NMessageProvider } from 'naive-ui'
 </script>
 
 <template>
-  <HelloWorld />
+  <NConfigProvider>
+    <NMessageProvider>
+      <RouterView />
+    </NMessageProvider>
+  </NConfigProvider>
 </template>
