@@ -1,5 +1,6 @@
 const express = require("express");
 const devCors = require("../middleware/cors");
+const authRouter = require("./admin/auth/authRouter");
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.get("/health", (req, res) => {
 });
 
 const v2Router = express.Router();
+v2Router.use("/auth", authRouter);
 app.use("/api/v2", v2Router);
 
 module.exports = app;
