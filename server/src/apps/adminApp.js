@@ -4,6 +4,7 @@ const authRouter = require("./admin/auth/authRouter");
 const usersRouter = require("./admin/rbac/usersRouter");
 const rolesRouter = require("./admin/rbac/rolesRouter");
 const permissionsRouter = require("./admin/rbac/permissionsRouter");
+const menusRouter = require("./admin/rbac/menusRouter");
 
 const app = express();
 
@@ -23,6 +24,7 @@ v2Router.use("/auth", authRouter);
 v2Router.use("/admin/rbac/users", usersRouter);
 v2Router.use("/admin/rbac/roles", rolesRouter);
 v2Router.use("/admin/rbac/permissions", permissionsRouter);
+v2Router.use("/admin/rbac/menus", menusRouter);
 app.use("/api/v2", v2Router);
 
 module.exports = app;
