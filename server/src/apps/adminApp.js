@@ -3,6 +3,7 @@ const devCors = require("../middleware/cors");
 const authRouter = require("./admin/auth/authRouter");
 const usersRouter = require("./admin/rbac/usersRouter");
 const rolesRouter = require("./admin/rbac/rolesRouter");
+const permissionsRouter = require("./admin/rbac/permissionsRouter");
 
 const app = express();
 
@@ -21,6 +22,7 @@ const v2Router = express.Router();
 v2Router.use("/auth", authRouter);
 v2Router.use("/admin/rbac/users", usersRouter);
 v2Router.use("/admin/rbac/roles", rolesRouter);
+v2Router.use("/admin/rbac/permissions", permissionsRouter);
 app.use("/api/v2", v2Router);
 
 module.exports = app;
