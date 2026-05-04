@@ -11,6 +11,7 @@ const tagsRouter = require("./admin/cms/tagsRouter");
 const categoriesRouter = require("./admin/cms/categoriesRouter");
 const linksRouter = require("./admin/cms/linksRouter");
 const mediaRouter = require("./admin/cms/mediaRouter");
+const cmsRouter = require("./admin/cms/cmsRouter");
 
 const app = express();
 
@@ -18,8 +19,10 @@ app.disable("x-powered-by");
 app.set("trust proxy", 1);
 
 app.use(devCors());
-app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+// T2.15: import 一份完整 export JSON 可达数 MB(中等规模博客 100~500 篇文章 + tags/categories),
+//        默认 1mb 会被挡。这里整体放宽到 10mb 以容纳全库导入。
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(auditLogger());
 
 app.get("/health", (req, res) => {
@@ -37,6 +40,7 @@ v2Router.use("/admin/cms/tags", tagsRouter);
 v2Router.use("/admin/cms/categories", categoriesRouter);
 v2Router.use("/admin/cms/links", linksRouter);
 v2Router.use("/admin/cms", mediaRouter);
+v2Router.use("/admin/cms", cmsRouter);
 app.use("/api/v2", v2Router);
 
 module.exports = app;
