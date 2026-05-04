@@ -46,6 +46,8 @@ const PERMISSIONS = [
   { code: "analytics:view", resource: "analytics", action: "view",      name: "查看数据统计",   description: "访问数据分析仪表盘" },
   { code: "ops:backup",     resource: "ops",       action: "backup",    name: "执行备份",       description: "触发数据库备份任务" },
   { code: "ops:logs",       resource: "ops",       action: "logs",      name: "查看审计日志",   description: "浏览操作审计日志" },
+  { code: "cms:export",     resource: "cms",       action: "export",    name: "导出全库",       description: "导出文章/标签/分类/友链全库 JSON（仅超管）" },
+  { code: "cms:import",     resource: "cms",       action: "import",    name: "导入全库",       description: "用 JSON 文件覆盖式还原全库数据，破坏性，仅超管可用" },
   { code: "menu:manage",    resource: "menu",      action: "manage",    name: "管理后台菜单",   description: "维护后台侧边栏菜单" },
 ];
 
