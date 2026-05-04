@@ -10,6 +10,7 @@ const postsRouter = require("./admin/cms/postsRouter");
 const tagsRouter = require("./admin/cms/tagsRouter");
 const categoriesRouter = require("./admin/cms/categoriesRouter");
 const linksRouter = require("./admin/cms/linksRouter");
+const mediaRouter = require("./admin/cms/mediaRouter");
 
 const app = express();
 
@@ -35,6 +36,7 @@ v2Router.use("/admin/cms/posts", postsRouter);
 v2Router.use("/admin/cms/tags", tagsRouter);
 v2Router.use("/admin/cms/categories", categoriesRouter);
 v2Router.use("/admin/cms/links", linksRouter);
+v2Router.use("/admin/cms", mediaRouter);
 app.use("/api/v2", v2Router);
 
 module.exports = app;
