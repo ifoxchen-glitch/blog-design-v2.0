@@ -53,6 +53,12 @@ const router = createRouter({
           component: () => import('../views/rbac/permissions/index.vue'),
           meta: { permission: 'role:assign' },
         },
+        {
+          path: '/cms/rbac/menus',
+          name: 'rbac-menus',
+          component: () => import('../views/rbac/menus/index.vue'),
+          meta: { permission: 'menu:manage' },
+        },
       ],
     },
   ],
