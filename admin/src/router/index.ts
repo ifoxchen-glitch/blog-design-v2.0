@@ -35,6 +35,12 @@ const router = createRouter({
           name: 'dashboard',
           component: () => import('../views/dashboard/index.vue'),
         },
+        {
+          path: '/cms/rbac/users',
+          name: 'rbac-users',
+          component: () => import('../views/rbac/users/index.vue'),
+          meta: { permission: 'user:list' },
+        },
       ],
     },
   ],
