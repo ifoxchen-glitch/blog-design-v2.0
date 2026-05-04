@@ -218,8 +218,36 @@ function deletePost(req, res) {
   return res.status(200).json({ code: 200, message: "success", data: { deleted: true } });
 }
 
+function publishPost(req, res) {
+  const db = openDb();
+  const id = toInt(req.params.id, 0);
+  if (!id) return res.status(400).json({ code: 400, message: "Invalid id" });
+
+  const updatedAt = nowIso();
+  const publishedAt = nowIso();
+  const info = db
+    .prepare(`UPDATE posts SET status='published', publishedAt=@publishedAt, updatedAt=@updatedAt WHERE id=@id`)
+    .run({ id, publishedAt, updatedAt });
+  if (info.changes === 0) return res.status(404).json({ code: 404, message: "Post not found" });
+  return res.status(200).json({ code: 200, message: "success", data: { id, status: "published", publishedAt, updatedAt } });
+}
+
+function unpublishPost(req, res) {
+  const db = openDb();
+  const id = toInt(req.params.id, 0);
+  if (!id) return res.status(400).json({ code: 400, message: "Invalid id" });
+
+  const updatedAt = nowIso();
+  const info = db
+    .prepare(`UPDATE posts SET status='draft', updatedAt=@updatedAt WHERE id=@id`)
+    .run({ id, updatedAt });
+  if (info.changes === 0) return res.status(404).json({ code: 404, message: "Post not found" });
+  return res.status(200).json({ code: 200, message: "success", data: { id, status: "draft", updatedAt } });
+}
+
 // TODO(T2.8): contentHtml 仍然 lazy-render；前端编辑页若需要可加 ?withHtml=1 参数。
 // TODO(T2.8): 暂未实现批量删除/发布；如需 bulk ops 后续追加 POST /bulk 路由。
+// TODO(T2.9): unpublishPost 故意不清 publishedAt（与 legacy 等价），保留首次发布时间用于审计/排序。
 
 module.exports = {
   listPosts,
@@ -227,4 +255,6 @@ module.exports = {
   createPost,
   updatePost,
   deletePost,
+  publishPost,
+  unpublishPost,
 };

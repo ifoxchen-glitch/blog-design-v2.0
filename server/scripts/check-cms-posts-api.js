@@ -200,6 +200,48 @@ function cleanupTestPosts() {
     check("deletePost nonexistent -> 404", r.statusCode === 404);
   }
 
+  // ---------- publishPost / unpublishPost ----------
+  let pubId = 0;
+  {
+    const r = await call(handlers.createPost, makeReq({ body: {
+      title: "testpost_pub", slug: "testpost-pub", contentMarkdown: "# Pub",
+    }}));
+    pubId = r.body && r.body.data ? r.body.data.id : 0;
+    check("createPost (for publish test) default draft", r.body && r.body.data && r.body.data.status === "draft");
+  }
+  {
+    const r = await call(handlers.publishPost, makeReq({ params: { id: String(pubId) } }));
+    check("publishPost -> 200", r.statusCode === 200);
+    const d = r.body && r.body.data;
+    check("publishPost returns status=published", d && d.status === "published");
+    check("publishPost returns publishedAt", d && !!d.publishedAt);
+    // verify DB
+    const row = db.prepare("SELECT status, publishedAt FROM posts WHERE id=?").get(pubId);
+    check("publishPost DB row status=published", row && row.status === "published" && !!row.publishedAt);
+  }
+  {
+    const r = await call(handlers.unpublishPost, makeReq({ params: { id: String(pubId) } }));
+    check("unpublishPost -> 200", r.statusCode === 200);
+    const d = r.body && r.body.data;
+    check("unpublishPost returns status=draft", d && d.status === "draft");
+    // verify DB: status reverted, publishedAt KEPT (legacy parity)
+    const row = db.prepare("SELECT status, publishedAt FROM posts WHERE id=?").get(pubId);
+    check("unpublishPost DB row status=draft", row && row.status === "draft");
+    check("unpublishPost preserves publishedAt (legacy parity)", row && !!row.publishedAt);
+  }
+  {
+    const r = await call(handlers.publishPost, makeReq({ params: { id: "0" } }));
+    check("publishPost invalid id -> 400", r.statusCode === 400);
+  }
+  {
+    const r = await call(handlers.publishPost, makeReq({ params: { id: "999999" } }));
+    check("publishPost nonexistent -> 404", r.statusCode === 404);
+  }
+  {
+    const r = await call(handlers.unpublishPost, makeReq({ params: { id: "999999" } }));
+    check("unpublishPost nonexistent -> 404", r.statusCode === 404);
+  }
+
   // ---------- performance: list 1000 posts < 200ms ----------
   // seed 1000 testpost rows, then time a single listPosts call
   {
