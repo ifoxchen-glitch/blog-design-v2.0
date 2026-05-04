@@ -15,16 +15,16 @@ function check(label, ok, detail) {
 
 // 1) permissions
 const permCount = db.prepare("SELECT COUNT(*) AS c FROM permissions").get().c;
-check("permissions = 12", permCount === 12, `actual=${permCount}`);
+check("permissions = 14", permCount === 14, `actual=${permCount}`);
 
 const expectedPerms = [
   "post:list","post:create","post:update","post:delete","post:publish",
-  "user:list","user:create","role:assign",
+  "user:list","user:create","user:update","user:delete","role:assign",
   "analytics:view","ops:backup","ops:logs","menu:manage",
 ];
 const actualPerms = db.prepare("SELECT code FROM permissions ORDER BY code").all().map(r => r.code);
 const missingPerms = expectedPerms.filter(c => !actualPerms.includes(c));
-check("all 12 permission codes present", missingPerms.length === 0, missingPerms.length ? "missing: " + missingPerms.join(",") : "");
+check("all 14 permission codes present", missingPerms.length === 0, missingPerms.length ? "missing: " + missingPerms.join(",") : "");
 
 // 2) roles
 const roleCount = db.prepare("SELECT COUNT(*) AS c FROM roles").get().c;
@@ -35,14 +35,14 @@ for (const code of ["super_admin","content_admin","viewer"]) {
   check(`role exists: ${code}`, !!r, r ? `name=${r.name}` : "");
 }
 
-// 3) super_admin role bound to all 12 permissions
+// 3) super_admin role bound to all 14 permissions
 const saPerms = db.prepare(`
   SELECT COUNT(*) AS c
   FROM role_permissions rp
   JOIN roles r ON r.id = rp.role_id
   WHERE r.code = 'super_admin'
 `).get().c;
-check("super_admin bound to all 12 permissions", saPerms === 12, `actual=${saPerms}`);
+check("super_admin bound to all 14 permissions", saPerms === 14, `actual=${saPerms}`);
 
 // content_admin: 6 permissions (5 post:* + analytics:view)
 const caPerms = db.prepare(`

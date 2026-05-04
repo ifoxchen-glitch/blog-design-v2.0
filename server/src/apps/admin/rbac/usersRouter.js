@@ -11,5 +11,6 @@ router.post("/", jwtAuth, requirePermission("user:create"), handlers.createUser)
 router.put("/:id", jwtAuth, requirePermission("user:update"), handlers.updateUser);
 router.delete("/:id", jwtAuth, requirePermission("user:delete"), handlers.deleteUser);
 router.post("/:id/reset-password", jwtAuth, requirePermission("user:update"), handlers.resetPassword);
+router.put("/:id/roles", jwtAuth, requirePermission("role:assign"), handlers.assignRoles);
 
 module.exports = router;

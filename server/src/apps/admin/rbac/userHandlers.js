@@ -37,11 +37,16 @@ function setUserRoles(db, userId, roleIds) {
   const ins = db.prepare(
     "INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)"
   );
+  // Filter against active roles so unknown / disabled IDs are silently ignored
+  // (matches docs/06-phase2-rbac-backend-plan.md §2.2 edge case).
+  const validIds = new Set(
+    db.prepare("SELECT id FROM roles WHERE status = 'active'").all().map((r) => r.id)
+  );
   const tx = db.transaction(() => {
     del.run(userId);
     for (const rid of roleIds) {
       const n = Number(rid);
-      if (Number.isFinite(n)) ins.run(userId, n);
+      if (Number.isFinite(n) && validIds.has(n)) ins.run(userId, n);
     }
   });
   tx();
@@ -292,6 +297,42 @@ function resetPassword(req, res) {
   });
 }
 
+function assignRoles(req, res) {
+  const db = openDb();
+  const id = toInt(req.params.id, 0);
+  if (!id) return res.status(400).json({ code: 400, message: "Invalid id" });
+
+  const target = db
+    .prepare("SELECT id, is_super_admin FROM users WHERE id = ?")
+    .get(id);
+  if (!target) return res.status(404).json({ code: 404, message: "User not found" });
+  if (target.is_super_admin === 1) {
+    return res.status(403).json({
+      code: 403,
+      message: "Cannot modify super admin roles",
+    });
+  }
+
+  const { role_ids } = req.body || {};
+  if (
+    !Array.isArray(role_ids) ||
+    !role_ids.every((x) => Number.isFinite(Number(x)))
+  ) {
+    return res.status(400).json({
+      code: 400,
+      message: "role_ids must be an array of integers",
+    });
+  }
+
+  setUserRoles(db, id, role_ids);
+  const roles = listUserRoles(db, id);
+  return res.status(200).json({
+    code: 200,
+    message: "success",
+    data: { userId: id, roles },
+  });
+}
+
 module.exports = {
   listUsers,
   getUser,
@@ -299,4 +340,5 @@ module.exports = {
   updateUser,
   deleteUser,
   resetPassword,
+  assignRoles,
 };
