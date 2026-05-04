@@ -7,6 +7,7 @@ const rolesRouter = require("./admin/rbac/rolesRouter");
 const permissionsRouter = require("./admin/rbac/permissionsRouter");
 const menusRouter = require("./admin/rbac/menusRouter");
 const postsRouter = require("./admin/cms/postsRouter");
+const tagsRouter = require("./admin/cms/tagsRouter");
 
 const app = express();
 
@@ -29,6 +30,7 @@ v2Router.use("/admin/rbac/roles", rolesRouter);
 v2Router.use("/admin/rbac/permissions", permissionsRouter);
 v2Router.use("/admin/rbac/menus", menusRouter);
 v2Router.use("/admin/cms/posts", postsRouter);
+v2Router.use("/admin/cms/tags", tagsRouter);
 app.use("/api/v2", v2Router);
 
 module.exports = app;
