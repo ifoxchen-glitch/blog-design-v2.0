@@ -41,6 +41,12 @@ const router = createRouter({
           component: () => import('../views/rbac/users/index.vue'),
           meta: { permission: 'user:list' },
         },
+        {
+          path: '/cms/rbac/roles',
+          name: 'rbac-roles',
+          component: () => import('../views/rbac/roles/index.vue'),
+          meta: { permission: 'role:assign' },
+        },
       ],
     },
   ],
