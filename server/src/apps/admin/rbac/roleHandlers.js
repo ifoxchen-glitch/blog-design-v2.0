@@ -194,10 +194,67 @@ function deleteRole(req, res) {
   return res.status(200).json({ code: 200, message: "success", data: { deleted: true } });
 }
 
+function assignPermissions(req, res) {
+  const db = openDb();
+  const id = toInt(req.params.id, 0);
+  if (!id) return res.status(400).json({ code: 400, message: "Invalid id" });
+
+  const target = db.prepare("SELECT id, code FROM roles WHERE id = ?").get(id);
+  if (!target) return res.status(404).json({ code: 404, message: "Role not found" });
+  if (target.code === "super_admin") {
+    return res.status(403).json({ code: 403, message: "Cannot modify super_admin permissions" });
+  }
+
+  const { permission_ids } = req.body || {};
+  if (
+    !Array.isArray(permission_ids) ||
+    !permission_ids.every((x) => Number.isFinite(Number(x)))
+  ) {
+    return res.status(400).json({
+      code: 400,
+      message: "permission_ids must be an array of integers",
+    });
+  }
+
+  const validIds = new Set(
+    db.prepare("SELECT id FROM permissions").all().map((r) => r.id)
+  );
+
+  const del = db.prepare("DELETE FROM role_permissions WHERE role_id = ?");
+  const ins = db.prepare(
+    "INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)"
+  );
+  const tx = db.transaction(() => {
+    del.run(id);
+    for (const pid of permission_ids) {
+      const n = Number(pid);
+      if (Number.isFinite(n) && validIds.has(n)) ins.run(id, n);
+    }
+  });
+  tx();
+
+  const permissions = db
+    .prepare(`
+      SELECT p.id, p.code, p.resource, p.action, p.name
+        FROM role_permissions rp
+        JOIN permissions p ON p.id = rp.permission_id
+       WHERE rp.role_id = ?
+       ORDER BY p.id
+    `)
+    .all(id);
+
+  return res.status(200).json({
+    code: 200,
+    message: "success",
+    data: { roleId: id, permissions },
+  });
+}
+
 module.exports = {
   listRoles,
   getRole,
   createRole,
   updateRole,
   deleteRole,
+  assignPermissions,
 };

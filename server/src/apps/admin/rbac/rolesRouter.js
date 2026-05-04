@@ -10,5 +10,6 @@ router.get("/:id", jwtAuth, requirePermission("role:assign"), handlers.getRole);
 router.post("/", jwtAuth, requirePermission("role:assign"), handlers.createRole);
 router.put("/:id", jwtAuth, requirePermission("role:assign"), handlers.updateRole);
 router.delete("/:id", jwtAuth, requirePermission("role:assign"), handlers.deleteRole);
+router.put("/:id/permissions", jwtAuth, requirePermission("role:assign"), handlers.assignPermissions);
 
 module.exports = router;
