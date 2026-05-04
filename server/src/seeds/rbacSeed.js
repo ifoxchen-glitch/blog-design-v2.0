@@ -2,7 +2,7 @@
  * RBAC seed data for Phase 1 (T1.4).
  *
  * 在系统首次启动时初始化：
- *   1) 12 条基础权限 (permissions)
+ *   1) 14 条基础权限 (permissions)
  *   2) 3 个基础角色 (roles)
  *   3) 角色-权限绑定 (role_permissions)
  *   4) 超管账号 (users) —— 从 .env 的 ADMIN_EMAIL/ADMIN_PASSWORD 迁移
@@ -17,7 +17,7 @@ const bcrypt = require("bcryptjs");
 const { nowIso } = require("../utils");
 
 // ============================================================
-// 1) 权限 —— 12 条
+// 1) 权限 —— 14 条
 // ============================================================
 const PERMISSIONS = [
   { code: "post:list",      resource: "post",      action: "list",      name: "查看文章列表",   description: "浏览文章列表与详情" },
@@ -27,6 +27,8 @@ const PERMISSIONS = [
   { code: "post:publish",   resource: "post",      action: "publish",   name: "发布/下架文章",  description: "切换文章发布状态" },
   { code: "user:list",      resource: "user",      action: "list",      name: "查看用户",       description: "浏览后台用户列表" },
   { code: "user:create",    resource: "user",      action: "create",    name: "创建用户",       description: "新增后台用户" },
+  { code: "user:update",    resource: "user",      action: "update",    name: "更新用户",       description: "修改后台用户资料 / 状态" },
+  { code: "user:delete",    resource: "user",      action: "delete",    name: "删除用户",       description: "永久删除后台用户" },
   { code: "role:assign",    resource: "role",      action: "assign",    name: "分配角色",       description: "管理角色及其权限" },
   { code: "analytics:view", resource: "analytics", action: "view",      name: "查看数据统计",   description: "访问数据分析仪表盘" },
   { code: "ops:backup",     resource: "ops",       action: "backup",    name: "执行备份",       description: "触发数据库备份任务" },
