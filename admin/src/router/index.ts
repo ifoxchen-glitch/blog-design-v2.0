@@ -110,7 +110,7 @@ const router = createRouter({
           path: '/cms/ops/monitor',
           name: 'cms-ops-monitor',
           component: () => import('../views/cms/ops/monitor/index.vue'),
-          meta: { permission: 'ops:logs' },
+          meta: { permission: 'ops:monitor' },
         },
         {
           path: '/cms/rbac/users',

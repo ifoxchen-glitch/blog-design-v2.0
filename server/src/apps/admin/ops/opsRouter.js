@@ -215,7 +215,7 @@ function getDiskUsage() {
 router.get(
   "/monitor",
   jwtAuth,
-  requirePermission("ops:logs"),
+  requirePermission("ops:monitor"),
   (req, res) => {
     const db = openDb();
     const totalMem = os.totalmem();
