@@ -56,8 +56,8 @@ async function loadAll() {
 
     trendLabels.value = trend.labels
     trendSeries.value = [
-      { name: 'PV', data: trend.pv, color: '#2080f0' },
-      { name: 'UV', data: trend.uv, color: '#18a058' },
+      { name: 'PV', data: trend.pv, color: '#3b82f6' },
+      { name: 'UV', data: trend.uv, color: '#10b981' },
     ]
 
     topPosts.value = posts.items.map((i) => ({ name: i.title, value: i.viewCount }))
@@ -68,7 +68,7 @@ async function loadAll() {
 
     hourlyLabels.value = hourly.labels
     hourlySeries.value = [
-      { name: 'PV', data: hourly.pv, color: '#2080f0' },
+      { name: 'PV', data: hourly.pv, color: '#3b82f6' },
     ]
   } catch (e) {
     console.error('Dashboard load failed:', e)
@@ -103,118 +103,211 @@ watch(() => auth.user, loadAll)
 
 <template>
   <NSpin :show="loading">
-    <NSpace vertical size="large">
-      <NCard>
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px">
-          <div>
-            <h3 style="margin: 0; font-size: 18px">欢迎回来，{{ auth.user?.username ?? '访客' }}</h3>
-            <p style="margin: 4px 0 0; color: #666">Dashboard 数据概览，所有统计实时来自数据库。</p>
-          </div>
-          <NSpace>
-            <NSelect
-              v-model:value="trendDays"
-              :options="[
-                { label: '近 7 天', value: 7 },
-                { label: '近 14 天', value: 14 },
-                { label: '近 30 天', value: 30 },
-              ]"
-              style="width: 120px"
-            />
-            <NButton @click="exportCsv">导出报表</NButton>
-          </NSpace>
+    <div class="dashboard">
+      <!-- 顶部标题栏 -->
+      <div class="dash-header">
+        <div class="dash-title">
+          <h1>欢迎回来，{{ auth.user?.username ?? '访客' }}</h1>
+          <p>Dashboard 数据概览，所有统计实时来自数据库。</p>
         </div>
-      </NCard>
+        <NSpace class="dash-actions">
+          <NSelect
+            v-model:value="trendDays"
+            :options="[
+              { label: '近 7 天', value: 7 },
+              { label: '近 14 天', value: 14 },
+              { label: '近 30 天', value: 30 },
+            ]"
+            size="small"
+            style="width: 110px"
+          />
+          <NButton size="small" strong secondary @click="exportCsv">导出报表</NButton>
+        </NSpace>
+      </div>
 
+      <!-- 统计卡片 -->
       <NGrid :cols="4" :x-gap="16" :y-gap="16" responsive="screen">
-        <NGridItem span="1 s:2 m:1">
-          <NCard>
-            <NStatistic label="文章总数" :value="stats.postCount" />
+        <NGridItem span="2 m:1">
+          <NCard class="stat-card" :bordered="false">
+            <div class="stat-label">文章总数</div>
+            <div class="stat-value" style="color: #3b82f6;">{{ stats.postCount }}</div>
           </NCard>
         </NGridItem>
-        <NGridItem span="1 s:2 m:1">
-          <NCard>
-            <NStatistic label="标签总数" :value="stats.tagCount" />
+        <NGridItem span="2 m:1">
+          <NCard class="stat-card" :bordered="false">
+            <div class="stat-label">标签总数</div>
+            <div class="stat-value" style="color: #8b5cf6;">{{ stats.tagCount }}</div>
           </NCard>
         </NGridItem>
-        <NGridItem span="1 s:2 m:1">
-          <NCard>
-            <NStatistic label="分类总数" :value="stats.categoryCount" />
+        <NGridItem span="2 m:1">
+          <NCard class="stat-card" :bordered="false">
+            <div class="stat-label">分类总数</div>
+            <div class="stat-value" style="color: #f59e0b;">{{ stats.categoryCount }}</div>
           </NCard>
         </NGridItem>
-        <NGridItem span="1 s:2 m:1">
-          <NCard>
-            <NStatistic label="今日访问" :value="stats.todayPv" />
-            <div style="font-size: 12px; color: #888; margin-top: 4px">UV: {{ stats.todayUv }}</div>
+        <NGridItem span="2 m:1">
+          <NCard class="stat-card" :bordered="false">
+            <div class="stat-label">今日访问</div>
+            <div class="stat-value" style="color: #10b981;">{{ stats.todayPv }}</div>
+            <div class="stat-sub">UV {{ stats.todayUv }}</div>
           </NCard>
         </NGridItem>
       </NGrid>
 
-      <NGrid :cols="3" :x-gap="16" :y-gap="16" responsive="screen">
-        <NGridItem span="3 s:3 m:2">
-          <NCard>
+      <!-- 图表区域 -->
+      <NGrid :cols="3" :x-gap="16" :y-gap="16" responsive="screen" style="margin-top: 16px;">
+        <NGridItem span="3 m:2">
+          <NCard class="chart-card" :bordered="false" title="访问趋势">
             <LineChart
-              title="访问趋势"
               :labels="trendLabels"
               :series="trendSeries"
-              :height="320"
+              :height="300"
             />
           </NCard>
         </NGridItem>
-        <NGridItem span="3 s:3 m:1">
-          <NCard>
+        <NGridItem span="3 m:1">
+          <NCard class="chart-card" :bordered="false" title="文章阅读量 Top 10">
             <BarChart
-              title="文章阅读量 Top 10"
               :items="topPosts"
-              :height="320"
+              :height="300"
             />
           </NCard>
         </NGridItem>
       </NGrid>
 
-      <NGrid :cols="2" :x-gap="16" :y-gap="16" responsive="screen">
-        <NGridItem span="2 s:2 m:1">
-          <NCard>
+      <NGrid :cols="2" :x-gap="16" :y-gap="16" responsive="screen" style="margin-top: 16px;">
+        <NGridItem span="2 m:1">
+          <NCard class="chart-card" :bordered="false" title="标签文章分布">
             <PieChart
-              title="标签文章分布"
               :data="tagPieData"
-              :height="280"
+              :height="260"
             />
           </NCard>
         </NGridItem>
-        <NGridItem span="2 s:2 m:1">
-          <NCard>
+        <NGridItem span="2 m:1">
+          <NCard class="chart-card" :bordered="false" title="分类文章分布">
             <PieChart
-              title="分类文章分布"
               :data="catPieData"
-              :height="280"
+              :height="260"
             />
           </NCard>
         </NGridItem>
       </NGrid>
 
-      <!-- Referrer + Hourly -->
-      <NGrid :cols="3" :x-gap="16" :y-gap="16" responsive="screen">
-        <NGridItem span="3 s:3 m:2">
-          <NCard>
+      <NGrid :cols="3" :x-gap="16" :y-gap="16" responsive="screen" style="margin-top: 16px;">
+        <NGridItem span="3 m:2">
+          <NCard class="chart-card" :bordered="false" title="访问来源 Top 10">
             <BarChart
-              title="访问来源 Top 10"
               :items="referrers"
-              :height="260"
-              color="#18a058"
+              :height="240"
+              color="#10b981"
             />
           </NCard>
         </NGridItem>
-        <NGridItem span="3 s:3 m:1">
-          <NCard>
+        <NGridItem span="3 m:1">
+          <NCard class="chart-card" :bordered="false" title="今日时段分布">
             <LineChart
-              title="今日时段分布"
               :labels="hourlyLabels"
               :series="hourlySeries"
-              :height="260"
+              :height="240"
             />
           </NCard>
         </NGridItem>
       </NGrid>
-    </NSpace>
+    </div>
   </NSpin>
 </template>
+
+<style scoped>
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.dash-title h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.3px;
+}
+
+.dash-title p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.dash-actions {
+  align-items: center;
+}
+
+.stat-card {
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  background: #fff;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.stat-card :deep(.n-card__content) {
+  padding: 20px;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.stat-sub {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+.chart-card {
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  background: #fff;
+}
+
+.chart-card :deep(.n-card-header) {
+  padding: 16px 20px 0;
+}
+
+.chart-card :deep(.n-card-header__main) {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.chart-card :deep(.n-card__content) {
+  padding: 12px 20px 20px;
+}
+</style>
