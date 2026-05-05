@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="TRow, TQuery extends object = Record<string, unknown>">
-import { computed, ref } from 'vue'
+import { ref, watch } from 'vue'
 import {
   NDataTable,
   NPagination,
@@ -56,19 +56,20 @@ function clearSelection() {
   emit('update:selectedRowKeys', [])
 }
 
+// 数据变化时清空选中状态，避免旧 key 在新数据中不存在导致 NDataTable 内部出错
+watch(
+  () => table.data.value,
+  () => {
+    selectedRowKeys.value = []
+    emit('update:selectedRowKeys', [])
+  },
+)
+
 defineExpose({
   refresh: table.refresh,
   reset: table.reset,
   clearSelection,
 })
-
-const totalPages = computed(() =>
-  Math.max(1, Math.ceil(table.total.value / table.pageSize.value)),
-)
-
-const showEmpty = computed(
-  () => !table.loading.value && table.data.value.length === 0,
-)
 
 const queryAsRecord = table.query as Record<string, unknown>
 </script>
@@ -121,10 +122,11 @@ const queryAsRecord = table.query as Record<string, unknown>
       :checked-row-keys="selectedRowKeys"
       :pagination="false"
       :bordered="false"
+      :scroll-x="1800"
       remote
       @update:checked-row-keys="handleSelectionChange"
     >
-      <template v-if="showEmpty" #empty>
+      <template #empty>
         <slot name="empty">
           <NEmpty description="暂无数据" />
         </slot>
@@ -143,7 +145,6 @@ const queryAsRecord = table.query as Record<string, unknown>
         :page="table.page.value"
         :page-size="table.pageSize.value"
         :item-count="table.total.value"
-        :page-count="totalPages"
         :page-sizes="[10, 20, 50, 100]"
         show-size-picker
         @update:page="table.handlePageChange"

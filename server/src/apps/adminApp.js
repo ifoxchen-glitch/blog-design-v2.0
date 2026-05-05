@@ -12,6 +12,7 @@ const categoriesRouter = require("./admin/cms/categoriesRouter");
 const linksRouter = require("./admin/cms/linksRouter");
 const mediaRouter = require("./admin/cms/mediaRouter");
 const cmsRouter = require("./admin/cms/cmsRouter");
+const opsRouter = require("./admin/ops/opsRouter");
 
 const app = express();
 
@@ -41,6 +42,7 @@ v2Router.use("/admin/cms/categories", categoriesRouter);
 v2Router.use("/admin/cms/links", linksRouter);
 v2Router.use("/admin/cms", mediaRouter);
 v2Router.use("/admin/cms", cmsRouter);
+v2Router.use("/admin/ops", opsRouter);
 app.use("/api/v2", v2Router);
 
 module.exports = app;

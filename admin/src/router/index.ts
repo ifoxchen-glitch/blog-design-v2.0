@@ -84,6 +84,24 @@ const router = createRouter({
           meta: { permission: 'cms:export' },
         },
         {
+          path: '/cms/ops/backup',
+          name: 'cms-ops-backup',
+          component: () => import('../views/cms/backup/index.vue'),
+          meta: { permission: 'ops:backup' },
+        },
+        {
+          path: '/cms/ops/logs',
+          name: 'cms-ops-logs',
+          component: () => import('../views/cms/ops/logs/index.vue'),
+          meta: { permission: 'ops:logs' },
+        },
+        {
+          path: '/cms/ops/monitor',
+          name: 'cms-ops-monitor',
+          component: () => import('../views/cms/ops/monitor/index.vue'),
+          meta: { permission: 'ops:logs' },
+        },
+        {
           path: '/cms/rbac/users',
           name: 'rbac-users',
           component: () => import('../views/rbac/users/index.vue'),

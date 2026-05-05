@@ -15,6 +15,11 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      // Uploaded images are served by frontApp (legacy static dir).
+      '/admin-static': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+      },
     },
   },
 })
