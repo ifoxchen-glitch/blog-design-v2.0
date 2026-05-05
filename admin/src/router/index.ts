@@ -36,6 +36,17 @@ const router = createRouter({
           component: () => import('../views/dashboard/index.vue'),
         },
         {
+          path: '/cms/dashboard',
+          name: 'cms-dashboard',
+          component: () => import('../views/dashboard/index.vue'),
+        },
+        {
+          path: '/cms/analytics',
+          name: 'cms-analytics',
+          component: () => import('../views/dashboard/index.vue'),
+          meta: { permission: 'analytics:view' },
+        },
+        {
           path: '/cms/tags',
           name: 'cms-tags',
           component: () => import('../views/cms/tags/index.vue'),

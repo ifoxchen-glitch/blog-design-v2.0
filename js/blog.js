@@ -298,5 +298,15 @@
   if (location.pathname.endsWith("/index.html") || location.pathname.endsWith("/")) hydrateIndex();
   if (location.pathname.endsWith("/archive.html")) hydrateArchive();
   if (location.pathname.endsWith("/post.html")) hydratePost();
+
+  // PV 采集：发送一次页面访问记录
+  (function sendPv() {
+    const path = location.pathname + location.search;
+    const ref = document.referrer || "";
+    const img = new Image();
+    img.src = `/api/pv?path=${encodeURIComponent(path)}&ref=${encodeURIComponent(ref)}`;
+    img.style.display = "none";
+    document.body.appendChild(img);
+  })();
 })();
 

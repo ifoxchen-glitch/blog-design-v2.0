@@ -139,6 +139,35 @@ app.post("/api/admin/upload", requireAdmin, upload.single("image"), (req, res) =
 });
 
 // -----------------------
+// Page View Tracking
+// -----------------------
+const TRANSPARENT_GIF = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
+
+app.get("/api/pv", (req, res) => {
+  try {
+    const db = openDb();
+    const path = String(req.query.path ?? "").slice(0, 512);
+    const referrer = String(req.query.ref ?? "").slice(0, 1024);
+    const ip = req.ip || req.connection?.remoteAddress || null;
+    const userAgent = req.headers["user-agent"] || null;
+    const sessionId = req.sessionID || null;
+
+    db.prepare(
+      `INSERT INTO page_views (path, referrer, ip, user_agent, session_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(path, referrer || null, ip, userAgent, sessionId, nowIso());
+  } catch (err) {
+    // PV tracking must never break the page
+    console.error("[pv] insert failed:", err.message);
+  }
+
+  res.setHeader("Content-Type", "image/gif");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.end(TRANSPARENT_GIF);
+});
+
+// -----------------------
 // External Links API
 // -----------------------
 app.get("/api/links", (req, res) => {
