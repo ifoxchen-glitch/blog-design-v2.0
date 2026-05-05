@@ -4,10 +4,10 @@ const { runCleanup } = require("./backupCleanup");
 
 function register() {
   // 每天 02:00 执行自动备份
-  cron.schedule("0 2 * * *", () => {
+  cron.schedule("0 2 * * *", async () => {
     try {
       console.log("[cron] starting scheduled SQLite backup...");
-      const result = createBackup("scheduled", "每日自动备份");
+      const result = await createBackup("scheduled", "每日自动备份");
       console.log(`[cron] backup done: ${result.filename} (${result.size} bytes)`);
       // 备份成功后执行清理
       runCleanup();

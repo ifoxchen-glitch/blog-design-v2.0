@@ -122,9 +122,9 @@ router.post(
   "/backup",
   jwtAuth,
   requirePermission("ops:backup"),
-  (req, res) => {
+  async (req, res) => {
     try {
-      const result = createBackup("manual", req.body.note);
+      const result = await createBackup("manual", req.body.note);
       res.json({ code: 200, message: "success", data: result });
     } catch (err) {
       console.error("[backup] manual backup failed:", err.message);
@@ -170,7 +170,8 @@ router.get(
     }
     res.setHeader("Content-Disposition", `attachment; filename="${record.filename}"`);
     res.setHeader("Content-Type", "application/octet-stream");
-    res.sendFile(path.resolve(filePath));
+    const stream = fs.createReadStream(filePath);
+    stream.pipe(res);
   }
 );
 

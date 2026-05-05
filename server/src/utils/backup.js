@@ -16,17 +16,13 @@ function generateFilename() {
   return `backup-${ts}.sqlite`;
 }
 
-function createBackup(type = "manual", note = "") {
+async function createBackup(type = "manual", note = "") {
   ensureBackupDir();
   const db = openDb();
   const filename = generateFilename();
   const destPath = path.join(BACKUP_DIR, filename);
 
-  const backup = db.backup(destPath);
-  while (backup.step(-1)) {
-    // transfer all remaining pages
-  }
-  backup.finish();
+  await db.backup(destPath);
 
   const stats = fs.statSync(destPath);
   const size = stats.size;
