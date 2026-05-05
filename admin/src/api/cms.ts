@@ -181,3 +181,86 @@ export async function apiDeleteCategory(
 ): Promise<void> {
   await client.delete<ApiResponse<void>>(`/api/v2/admin/cms/categories/${id}`)
 }
+
+// ============================================================
+// Link(友链)
+// ============================================================
+
+export type LinkIconSize = '1x1' | '2x1' | '1x2' | '2x2'
+
+export interface LinkItem {
+  id: number
+  title: string
+  url: string
+  icon: string
+  iconSize: LinkIconSize
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export async function apiGetLinks(
+  client: AxiosInstance = request,
+): Promise<{ items: LinkItem[]; total: number }> {
+  const res = await client.get<ApiResponse<{ items: LinkItem[]; total: number }>>(
+    '/api/v2/admin/cms/links',
+  )
+  return res.data.data
+}
+
+export interface CreateLinkPayload {
+  title: string
+  url: string
+  icon?: string
+  iconSize?: LinkIconSize
+  sortOrder?: number
+}
+
+export async function apiCreateLink(
+  data: CreateLinkPayload,
+  client: AxiosInstance = request,
+): Promise<LinkItem> {
+  const res = await client.post<ApiResponse<LinkItem>>(
+    '/api/v2/admin/cms/links',
+    data,
+  )
+  return res.data.data
+}
+
+export interface UpdateLinkPayload {
+  title?: string
+  url?: string
+  icon?: string
+  iconSize?: LinkIconSize
+  sortOrder?: number
+}
+
+export async function apiUpdateLink(
+  id: number,
+  data: UpdateLinkPayload,
+  client: AxiosInstance = request,
+): Promise<LinkItem> {
+  const res = await client.put<ApiResponse<LinkItem>>(
+    `/api/v2/admin/cms/links/${id}`,
+    data,
+  )
+  return res.data.data
+}
+
+export async function apiDeleteLink(
+  id: number,
+  client: AxiosInstance = request,
+): Promise<void> {
+  await client.delete<ApiResponse<void>>(`/api/v2/admin/cms/links/${id}`)
+}
+
+export async function apiReorderLinks(
+  items: Array<{ id: number; sortOrder: number }>,
+  client: AxiosInstance = request,
+): Promise<{ reordered: number }> {
+  const res = await client.post<ApiResponse<{ reordered: number }>>(
+    '/api/v2/admin/cms/links/reorder',
+    { items },
+  )
+  return res.data.data
+}
