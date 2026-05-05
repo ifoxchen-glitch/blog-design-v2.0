@@ -110,6 +110,7 @@ const MENUS = [
       { name: "系统监控", path: "/cms/ops/monitor", icon: "PulseOutline",    permission: "ops:logs" },
     ],
   },
+  { name: "数据导入导出", path: "/cms/backup",   icon: "ArchiveOutline",     permission: "cms:export",     sort: 6 },
 ];
 
 // ============================================================
