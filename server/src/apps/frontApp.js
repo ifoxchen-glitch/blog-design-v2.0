@@ -892,4 +892,22 @@ app.get("/admin/links", requireAdminPage, (req, res) => {
   res.render("links");
 });
 
+// ---- EJS admin deprecation (Phase 5) ----
+app.get("/admin/*", (req, res, next) => {
+  const keep = ["/admin/login", "/admin/logout"];
+  if (keep.includes(req.path)) return next();
+  res.status(410).type("html").send(
+    "<h1>410 Gone</h1><p>该页面已迁移到新版后台，请访问 <a href='/'>/admin/</a></p>"
+  );
+});
+
+app.post("/api/admin/*", (req, res) => {
+  res.status(410).json({
+    code: 410,
+    error: "deprecated",
+    message: "该 API 已迁移到 v2，请使用 /api/v2/",
+    redirectTo: "/api/v2/",
+  });
+});
+
 module.exports = app;

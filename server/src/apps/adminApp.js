@@ -2,6 +2,7 @@ const path = require("node:path");
 const express = require("express");
 const devCors = require("../middleware/cors");
 const auditLogger = require("../middleware/auditLogger");
+const { loginLimiter, generalLimiter } = require("../middleware/rateLimits");
 const authRouter = require("./admin/auth/authRouter");
 const usersRouter = require("./admin/rbac/usersRouter");
 const rolesRouter = require("./admin/rbac/rolesRouter");
@@ -37,7 +38,8 @@ app.get("/health", (req, res) => {
 });
 
 const v2Router = express.Router();
-v2Router.use("/auth", authRouter);
+v2Router.use(generalLimiter);
+v2Router.use("/auth", loginLimiter, authRouter);
 v2Router.use("/admin/rbac/users", usersRouter);
 v2Router.use("/admin/rbac/roles", rolesRouter);
 v2Router.use("/admin/rbac/permissions", permissionsRouter);

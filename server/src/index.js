@@ -6,6 +6,11 @@ const { optional } = require("./env");
 const { openDb, migrate, ensureSeed } = require("./db");
 const { ensureRbacSeed } = require("./seeds/rbacSeed");
 
+// ---- Startup validation (Phase 5) ----
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret) throw new Error("JWT_SECRET not configured. Set it in server/.env");
+if (jwtSecret.length < 32) throw new Error("JWT_SECRET must be at least 32 characters long");
+
 const db = openDb();
 migrate(db);
 ensureSeed(db);
