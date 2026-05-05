@@ -35,6 +35,7 @@ import {
   apiCreateLink,
   apiUpdateLink,
   apiDeleteLink,
+  apiReorderLinks,
   type LinkItem,
   type LinkIconSize,
 } from '../../../api/cms'
@@ -282,6 +283,50 @@ async function handleSubmit() {
   }
 }
 
+// ========== Drag Sort ==========
+const sortModalVisible = ref(false)
+const sortList = ref<LinkItem[]>([])
+const dragSrcIndex = ref<number | null>(null)
+
+async function openSort() {
+  try {
+    const res = await apiGetLinks()
+    sortList.value = [...res.items]
+    sortModalVisible.value = true
+  } catch (e: unknown) {
+    message.error(extractLinkError(e, '加载友链失败'))
+  }
+}
+
+function onDragStart(idx: number) {
+  dragSrcIndex.value = idx
+}
+
+function onDragOver(e: DragEvent, _idx: number) {
+  e.preventDefault()
+}
+
+function onDrop(e: DragEvent, targetIdx: number) {
+  e.preventDefault()
+  const src = dragSrcIndex.value
+  if (src === null || src === targetIdx) return
+  const item = sortList.value.splice(src, 1)[0]
+  sortList.value.splice(targetIdx, 0, item)
+  dragSrcIndex.value = null
+}
+
+async function saveSort() {
+  try {
+    const items = sortList.value.map((item, idx) => ({ id: item.id, sortOrder: idx }))
+    await apiReorderLinks(items)
+    message.success('排序已保存')
+    sortModalVisible.value = false
+    refreshTable()
+  } catch (e: unknown) {
+    message.error(extractLinkError(e, '保存排序失败'))
+  }
+}
+
 async function handleDelete(row: LinkItem) {
   try {
     await apiDeleteLink(row.id)
@@ -379,13 +424,18 @@ const columns: DataTableColumns<LinkItem> = [
 <template>
   <div>
     <PageHeader title="友链管理" subtitle="维护博客友情链接(按 sortOrder 升序展示)">
-      <NButton
-        v-permission="'link:create'"
-        type="primary"
-        @click="openCreate"
-      >
-        新建友链
-      </NButton>
+      <NSpace>
+        <NButton v-permission="'link:update'" @click="openSort">
+          拖拽排序
+        </NButton>
+        <NButton
+          v-permission="'link:create'"
+          type="primary"
+          @click="openCreate"
+        >
+          新建友链
+        </NButton>
+      </NSpace>
     </PageHeader>
 
     <DataTable
@@ -462,6 +512,63 @@ const columns: DataTableColumns<LinkItem> = [
         </NFormItem>
       </NForm>
     </FormDrawer>
+
+    <!-- Sort Modal -->
+    <NModal
+      v-model:show="sortModalVisible"
+      title="拖拽排序"
+      preset="card"
+      style="width: 480px; max-width: 90vw"
+      :bordered="false"
+      segmented
+    >
+      <NSpace vertical size="medium">
+        <div
+          style="
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            padding: 4px;
+          "
+        >
+          <div
+            v-for="(item, idx) in sortList"
+            :key="item.id"
+            draggable="true"
+            style="
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              padding: 8px 12px;
+              border-radius: 4px;
+              cursor: move;
+              transition: background 0.15s;
+            "
+            @dragstart="onDragStart(idx)"
+            @dragover="onDragOver($event, idx)"
+            @drop="onDrop($event, idx)"
+          >
+            <span style="color: #999; font-size: 14px; user-select: none">☰</span>
+            <img
+              v-if="item.icon"
+              :src="item.icon"
+              width="24"
+              height="24"
+              style="object-fit: contain; flex-shrink: 0"
+              loading="lazy"
+            />
+            <span v-else style="width: 24px; flex-shrink: 0"></span>
+            <span style="font-size: 14px">{{ item.title }}</span>
+          </div>
+        </div>
+
+        <NSpace justify="end">
+          <NButton @click="sortModalVisible = false">取消</NButton>
+          <NButton type="primary" @click="saveSort">保存</NButton>
+        </NSpace>
+      </NSpace>
+    </NModal>
 
     <!-- Icon Picker Modal -->
     <NModal
