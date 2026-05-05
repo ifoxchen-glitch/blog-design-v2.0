@@ -36,6 +36,12 @@ const router = createRouter({
           component: () => import('../views/dashboard/index.vue'),
         },
         {
+          path: '/cms/tags',
+          name: 'cms-tags',
+          component: () => import('../views/cms/tags/index.vue'),
+          meta: { permission: 'tag:list' },
+        },
+        {
           path: '/cms/rbac/users',
           name: 'rbac-users',
           component: () => import('../views/rbac/users/index.vue'),
