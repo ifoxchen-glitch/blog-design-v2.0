@@ -388,7 +388,8 @@ app.get("/rss.xml", (req, res) => {
 // Deprecated API catch-all — legacy frontApp /api/admin/* and /admin/* routes
 // have been removed in Phase 5. Returns 410 for any remaining references.
 // -----------------------
-app.get("/admin/*", (req, res) => {
+app.use("/admin", (req, res, next) => {
+  if (req.method !== "GET") return next();
   res.status(410).type("html").send(
     "<h1>410 Gone</h1><p>该页面已迁移到新版后台，请访问 <a href='/'>/admin/</a></p>"
   );
