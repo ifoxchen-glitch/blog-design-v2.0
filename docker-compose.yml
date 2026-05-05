@@ -10,6 +10,7 @@ services:
       - NODE_ENV=production
       - PORT=8787
       - ADMIN_PORT=3000
+      - BIND_HOST=${BIND_HOST:-0.0.0.0}
       - SESSION_SECRET=${SESSION_SECRET:-change-me-in-production}
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}

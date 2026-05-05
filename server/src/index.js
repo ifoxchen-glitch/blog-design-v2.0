@@ -25,14 +25,14 @@ const adminApp = require("./apps/adminApp");
 
 const FRONT_PORT = parseInt(process.env.PORT, 10) || 8787;
 const ADMIN_PORT = parseInt(process.env.ADMIN_PORT, 10) || 3000;
+const BIND_HOST = process.env.BIND_HOST || "0.0.0.0";
 
-frontApp.listen(FRONT_PORT, () => {
-  console.log(`Front : http://localhost:${FRONT_PORT}`);
-  console.log(`Legacy admin (EJS) : http://localhost:${FRONT_PORT}/admin/login`);
+frontApp.listen(FRONT_PORT, BIND_HOST, () => {
+  console.log(`Front blog : http://${BIND_HOST}:${FRONT_PORT}`);
 });
 
-adminApp.listen(ADMIN_PORT, () => {
-  console.log(`Admin v2 API : http://localhost:${ADMIN_PORT}/api/v2`);
+adminApp.listen(ADMIN_PORT, BIND_HOST, () => {
+  console.log(`Admin v2 SPA/API : http://${BIND_HOST}:${ADMIN_PORT}`);
 });
 
 // Register cron jobs
