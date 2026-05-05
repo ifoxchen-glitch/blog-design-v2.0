@@ -1,4 +1,4 @@
-<script setup lang="ts" generic="TRow, TQuery extends object = Record<string, unknown>">
+<script setup lang="ts" generic="TQuery extends object = Record<string, unknown>">
 import { ref, watch } from 'vue'
 import {
   NDataTable,
@@ -15,13 +15,13 @@ import { RefreshOutline } from '@vicons/ionicons5'
 import { useTable } from '../../composables/useTable'
 
 interface Props {
-  columns: DataTableColumns<TRow>
+  columns: DataTableColumns<any>
   fetch: (
     params: TQuery & { page: number; pageSize: number },
-  ) => Promise<{ list: TRow[]; total: number }>
+  ) => Promise<{ list: any[]; total: number }>
   initialQuery?: TQuery
   pageSize?: number
-  rowKey?: (row: TRow) => DataTableRowKey
+  rowKey?: (row: any) => DataTableRowKey
   selectable?: boolean
   searchPlaceholder?: string
 }
@@ -38,7 +38,7 @@ const emit = defineEmits<{
   (e: 'update:selectedRowKeys', keys: DataTableRowKey[]): void
 }>()
 
-const table = useTable<TRow, TQuery>({
+const table = useTable<any, TQuery>({
   fetch: props.fetch,
   initialQuery: props.initialQuery,
   pageSize: props.pageSize,

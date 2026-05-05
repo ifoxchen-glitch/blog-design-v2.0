@@ -1,3 +1,4 @@
+const path = require("node:path");
 const express = require("express");
 const devCors = require("../middleware/cors");
 const auditLogger = require("../middleware/auditLogger");
@@ -16,6 +17,10 @@ const opsRouter = require("./admin/ops/opsRouter");
 const analyticsRouter = require("./admin/analytics/analyticsRouter");
 
 const app = express();
+
+// Serve admin SPA (built from admin/dist) at root
+const adminDist = path.join(__dirname, "..", "..", "..", "admin", "dist");
+app.use(express.static(adminDist));
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -46,5 +51,12 @@ v2Router.use("/admin/cms", cmsRouter);
 v2Router.use("/admin/ops", opsRouter);
 v2Router.use("/admin/analytics", analyticsRouter);
 app.use("/api/v2", v2Router);
+
+// SPA catch-all middleware (Express 5: bare * is invalid, use middleware instead)
+app.use((req, res, next) => {
+  if (req.method !== "GET") return next();
+  if (req.path.startsWith("/api/")) return next();
+  res.sendFile(path.join(adminDist, "index.html"));
+});
 
 module.exports = app;

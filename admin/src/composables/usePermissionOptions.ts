@@ -30,6 +30,7 @@ export function usePermissionOptions(immediate = true) {
     key: string | number
     label: string
     children?: PermissionTreeNode[]
+    [key: string]: unknown
   }
   const permissionTree = computed<PermissionTreeNode[]>(() => {
     const groups = new Map<string, PermissionTreeNode>()

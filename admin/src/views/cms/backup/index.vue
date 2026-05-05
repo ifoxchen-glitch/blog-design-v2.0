@@ -26,7 +26,6 @@ import {
   useDialog,
   useMessage,
   type UploadCustomRequestOptions,
-  type UploadFileInfo,
 } from 'naive-ui'
 import {
   CloudDownloadOutline,

@@ -96,9 +96,11 @@ export function buildUploadConfig(tokenStore: TokenStore): UploadConfig {
     max: UPLOAD_MAX_BYTES,
     multiple: false,
     accept: 'image/*',
-    setHeaders: () => {
+    setHeaders: (): Record<string, string> => {
       const t = tokenStore.getAccess()
-      return t ? { Authorization: `Bearer ${t}` } : {}
+      const headers: Record<string, string> = {}
+      if (t) headers['Authorization'] = `Bearer ${t}`
+      return headers
     },
     format: transformUploadResponse,
   }

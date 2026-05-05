@@ -10,7 +10,7 @@ import {
   useMessage,
   type DataTableColumns,
 } from 'naive-ui'
-import { CloudUploadOutline, DownloadOutline, TrashOutline, ArchiveOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline, DownloadOutline, TrashOutline } from '@vicons/ionicons5'
 import PageHeader from '../../../../components/common/PageHeader.vue'
 import DataTable from '../../../../components/common/DataTable.vue'
 import { apiGetBackups, apiCreateBackup, apiDeleteBackup, apiDownloadBackupUrl, type BackupItem } from '../../../../api/ops'

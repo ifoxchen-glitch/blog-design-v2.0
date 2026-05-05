@@ -32,6 +32,7 @@ import {
   NSpin,
   useMessage,
   useDialog,
+  type CascaderOption,
   type DataTableColumns,
   type FormInst,
   type FormRules,
@@ -102,11 +103,7 @@ const menuCascaderOptions = computed(() => {
     findAndExclude(menuTree.value)
   }
 
-  function walk(nodes: MenuItem[]): Array<{
-    label: string
-    value: number
-    children?: Array<{ label: string; value: number; children?: unknown[] }>
-  }> {
+  function walk(nodes: MenuItem[]): CascaderOption[] {
     return nodes
       .filter((n) => !excluded.has(n.id))
       .map((n) => {
