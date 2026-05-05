@@ -10,35 +10,40 @@
   <Support>https://github.com/ifoxchen-glitch/blog-design-v2.0/issues</Support>
   <Project>https://github.com/ifoxchen-glitch/blog-design-v2.0</Project>
   <Overview>
-    ifoxchen's personal blog (ifoxchen.com) — 全栈博客双端口架构。
-    前台端口 8787（Express 5 + 静态 HTML 博客），
-    后台管理端口 3000（Vue 3 SPA + JWT/RBAC API）。
-    首次启动会自动创建超管账号，默认邮箱 admin@example.com，密码为 ADMIN_PASSWORD 环境变量值。
+    ifoxchen's personal blog - fullstack blog with dual-port architecture.
+    Front port 8787 (Express 5 + static HTML blog).
+    Admin port 3000 (Vue 3 SPA + JWT/RBAC API).
+    Super admin auto-created on first boot with ADMIN_EMAIL / ADMIN_PASSWORD.
   </Overview>
   <Category>Productivity: Tools</Category>
   <WebUI>http://[IP]:[PORT:8787]/</WebUI>
-  <TemplateURL/>
-  <Icon>https://raw.githubusercontent.com/ifoxchen-glitch/blog-design-v2.0/main/docs/logo.png</Icon>
+  <Icon>https://avatars.githubusercontent.com/u/242892413</Icon>
   <ExtraParams>--restart=unless-stopped</ExtraParams>
   <PostArgs/>
   <CPUset/>
-  <DateInstalled></DateInstalled>
+  <DateInstalled/>
   <DonateText/>
   <DonateLink/>
   <Requires/>
-  <Config Name="前台端口" Target="8787" Default="8787" Mode="tcp" Description="博客前台访问端口" Type="Port" Display="always" Required="true" Mask="false">8787</Config>
-  <Config Name="后台端口" Target="3000" Default="3000" Mode="tcp" Description="Vue 3 后台管理 SPA 端口" Type="Port" Display="always" Required="true" Mask="false">3000</Config>
-  <Config Name="JWT_SECRET" Target="JWT_SECRET" Default="" Mode="" Description="JWT 签名密钥，至少 32 位字符。首次启动前必须设置，否则容器会崩溃。可用命令 openssl rand -hex 32 生成。" Type="Variable" Display="always" Required="true" Mask="true"/>
-  <Config Name="SESSION_SECRET" Target="SESSION_SECRET" Default="change-me-in-production" Mode="" Description="Express Session 密钥，用于旧版 session 兼容" Type="Variable" Display="always" Required="true" Mask="true">change-me-in-production</Config>
-  <Config Name="ADMIN_EMAIL" Target="ADMIN_EMAIL" Default="admin@example.com" Mode="" Description="超管账号邮箱，首次启动时自动创建该用户" Type="Variable" Display="always" Required="true" Mask="false">admin@example.com</Config>
-  <Config Name="ADMIN_PASSWORD" Target="ADMIN_PASSWORD" Default="admin123" Mode="" Description="超管账号密码，首次启动时自动创建。登录后台用此密码。" Type="Variable" Display="always" Required="true" Mask="true">admin123</Config>
-  <Config Name="ADMIN_PASSWORD_HASH" Target="ADMIN_PASSWORD_HASH" Default="" Mode="" Description="(可选) bcrypt 哈希后的密码，优先级高于 ADMIN_PASSWORD。若设置则忽略明文密码。" Type="Variable" Display="advanced" Required="false" Mask="true"/>
-  <Config Name="NODE_ENV" Target="NODE_ENV" Default="production" Mode="" Description="运行环境" Type="Variable" Display="advanced" Required="false" Mask="false">production</Config>
-  <Config Name="PORT" Target="PORT" Default="8787" Mode="" Description="前台服务监听端口（容器内）" Type="Variable" Display="advanced" Required="false" Mask="false">8787</Config>
-  <Config Name="ADMIN_PORT" Target="ADMIN_PORT" Default="3000" Mode="" Description="后台服务监听端口（容器内）" Type="Variable" Display="advanced" Required="false" Mask="false">3000</Config>
-  <Config Name="TZ" Target="TZ" Default="Asia/Shanghai" Mode="" Description="时区" Type="Variable" Display="advanced" Required="false" Mask="false">Asia/Shanghai</Config>
-  <Config Name="SITE_URL" Target="SITE_URL" Default="https://ifoxchen.com" Mode="" Description="站点公网 URL，用于 RSS 生成" Type="Variable" Display="advanced" Required="false" Mask="false">https://ifoxchen.com</Config>
-  <Config Name="AGENT_API_KEY" Target="AGENT_API_KEY" Default="" Mode="" Description="(可选) 外部 Agent 发布 API 密钥，留空则关闭 Agent 接口" Type="Variable" Display="advanced" Required="false" Mask="true"/>
-  <Config Name="数据库持久化" Target="/app/server/db" Default="/mnt/user/appdata/blog/db" Mode="rw" Description="SQLite 数据库目录，必须持久化以防数据丢失" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/blog/db</Config>
-  <Config Name="上传文件持久化" Target="/app/server/public/uploads" Default="/mnt/user/appdata/blog/uploads" Mode="rw" Description="博客图片/媒体上传目录" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/blog/uploads</Config>
+
+  <!-- Ports -->
+  <Config Name="Front Blog Port" Target="8787" Default="8787" Mode="tcp" Description="Blog front-end port" Type="Port" Display="always" Required="true" Mask="false">8787</Config>
+  <Config Name="Admin SPA Port" Target="3000" Default="3000" Mode="tcp" Description="Vue 3 admin SPA port" Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+
+  <!-- Paths -->
+  <Config Name="Database" Target="/app/server/db" Default="/mnt/user/appdata/blog/db" Mode="rw" Description="SQLite database directory" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/blog/db</Config>
+  <Config Name="Uploads" Target="/app/server/public/uploads" Default="/mnt/user/appdata/blog/uploads" Mode="rw" Description="Media uploads directory" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/blog/uploads</Config>
+
+  <!-- Variables -->
+  <Config Name="JWT_SECRET" Target="JWT_SECRET" Default="" Mode="" Description="JWT signing secret, min 32 chars. REQUIRED. Generate with: openssl rand -hex 32" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="SESSION_SECRET" Target="SESSION_SECRET" Default="change-me-in-production" Mode="" Description="Express session secret" Type="Variable" Display="always" Required="true" Mask="true">change-me-in-production</Config>
+  <Config Name="ADMIN_EMAIL" Target="ADMIN_EMAIL" Default="admin@example.com" Mode="" Description="Super admin email address" Type="Variable" Display="always" Required="true" Mask="false">admin@example.com</Config>
+  <Config Name="ADMIN_PASSWORD" Target="ADMIN_PASSWORD" Default="admin123" Mode="" Description="Super admin password (plain text, bcrypt hashed on first boot)" Type="Variable" Display="always" Required="true" Mask="true">admin123</Config>
+  <Config Name="ADMIN_PASSWORD_HASH" Target="ADMIN_PASSWORD_HASH" Default="" Mode="" Description="Optional: pre-computed bcrypt hash (overrides ADMIN_PASSWORD)" Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="NODE_ENV" Target="NODE_ENV" Default="production" Mode="" Description="Node environment" Type="Variable" Display="advanced" Required="false" Mask="false">production</Config>
+  <Config Name="PORT" Target="PORT" Default="8787" Mode="" Description="Front service port (inside container)" Type="Variable" Display="advanced" Required="false" Mask="false">8787</Config>
+  <Config Name="ADMIN_PORT" Target="ADMIN_PORT" Default="3000" Mode="" Description="Admin service port (inside container)" Type="Variable" Display="advanced" Required="false" Mask="false">3000</Config>
+  <Config Name="TZ" Target="TZ" Default="Asia/Shanghai" Mode="" Description="Timezone" Type="Variable" Display="advanced" Required="false" Mask="false">Asia/Shanghai</Config>
+  <Config Name="SITE_URL" Target="SITE_URL" Default="https://ifoxchen.com" Mode="" Description="Public site URL for RSS generation" Type="Variable" Display="advanced" Required="false" Mask="false">https://ifoxchen.com</Config>
+  <Config Name="AGENT_API_KEY" Target="AGENT_API_KEY" Default="" Mode="" Description="Optional: external agent publish API key" Type="Variable" Display="advanced" Required="false" Mask="true"/>
 </Container>
