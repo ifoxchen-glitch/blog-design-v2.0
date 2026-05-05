@@ -1,131 +1,75 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, nextTick } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import {
+  NButton,
   NCard,
   NSpace,
   NStatistic,
   NGrid,
   NGridItem,
   NSpin,
+  NSelect,
 } from 'naive-ui'
-import * as echarts from 'echarts'
 import { useAuthStore } from '../../stores/auth'
 import {
   apiGetDashboardStats,
   apiGetTrend,
   apiGetTopPosts,
   apiGetDistribution,
+  apiGetReferrers,
+  apiGetHourly,
 } from '../../api/analytics'
+import LineChart from '../../components/charts/LineChart.vue'
+import BarChart from '../../components/charts/BarChart.vue'
+import PieChart from '../../components/charts/PieChart.vue'
 
 const auth = useAuthStore()
 
 const loading = ref(false)
 const stats = ref({ postCount: 0, tagCount: 0, categoryCount: 0, todayPv: 0, todayUv: 0 })
 
-// Chart refs
-const trendRef = ref<HTMLDivElement | null>(null)
-const topPostsRef = ref<HTMLDivElement | null>(null)
-const tagPieRef = ref<HTMLDivElement | null>(null)
-const catPieRef = ref<HTMLDivElement | null>(null)
+const trendDays = ref(7)
+const trendLabels = ref<string[]>([])
+const trendSeries = ref<Array<{ name: string; data: number[]; color?: string }>>([])
 
-let trendChart: echarts.ECharts | null = null
-let topPostsChart: echarts.ECharts | null = null
-let tagPieChart: echarts.ECharts | null = null
-let catPieChart: echarts.ECharts | null = null
+const topPosts = ref<Array<{ name: string; value: number }>>([])
+const tagPieData = ref<Array<{ name: string; value: number }>>([])
+const catPieData = ref<Array<{ name: string; value: number }>>([])
+
+const referrers = ref<Array<{ name: string; value: number }>>([])
+
+const hourlyLabels = ref<string[]>([])
+const hourlySeries = ref<Array<{ name: string; data: number[]; color?: string }>>([])
 
 async function loadAll() {
   loading.value = true
   try {
-    const [s, trend, topPosts, dist] = await Promise.all([
+    const [s, trend, posts, dist, refs, hourly] = await Promise.all([
       apiGetDashboardStats(),
-      apiGetTrend(7),
+      apiGetTrend(trendDays.value),
       apiGetTopPosts(10),
       apiGetDistribution(),
+      apiGetReferrers(10),
+      apiGetHourly(),
     ])
     stats.value = s
 
-    await nextTick()
+    trendLabels.value = trend.labels
+    trendSeries.value = [
+      { name: 'PV', data: trend.pv, color: '#2080f0' },
+      { name: 'UV', data: trend.uv, color: '#18a058' },
+    ]
 
-    // Trend line chart
-    if (trendRef.value) {
-      trendChart = echarts.init(trendRef.value)
-      trendChart.setOption({
-        title: { text: '近 7 天访问趋势', left: 'center', textStyle: { fontSize: 14 } },
-        tooltip: { trigger: 'axis' },
-        legend: { data: ['PV', 'UV'], bottom: 0 },
-        grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
-        xAxis: { type: 'category', data: trend.labels },
-        yAxis: { type: 'value' },
-        series: [
-          { name: 'PV', type: 'line', smooth: true, data: trend.pv, itemStyle: { color: '#2080f0' } },
-          { name: 'UV', type: 'line', smooth: true, data: trend.uv, itemStyle: { color: '#18a058' } },
-        ],
-      })
-    }
+    topPosts.value = posts.items.map((i) => ({ name: i.title, value: i.viewCount }))
+    tagPieData.value = dist.tags.filter((t) => t.count > 0).map((t) => ({ name: t.name, value: t.count }))
+    catPieData.value = dist.categories.filter((c) => c.count > 0).map((c) => ({ name: c.name, value: c.count }))
 
-    // Top posts bar chart
-    if (topPostsRef.value) {
-      topPostsChart = echarts.init(topPostsRef.value)
-      topPostsChart.setOption({
-        title: { text: '文章阅读量 Top 10', left: 'center', textStyle: { fontSize: 14 } },
-        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-        xAxis: { type: 'value' },
-        yAxis: {
-          type: 'category',
-          data: topPosts.items.map((i) => i.title).reverse(),
-          axisLabel: { width: 120, overflow: 'truncate' },
-        },
-        series: [
-          {
-            name: '阅读量',
-            type: 'bar',
-            data: topPosts.items.map((i) => i.viewCount).reverse(),
-            itemStyle: { color: '#f0a020', borderRadius: [0, 4, 4, 0] },
-          },
-        ],
-      })
-    }
+    referrers.value = refs.items.map((r) => ({ name: r.domain || '直接访问', value: r.count }))
 
-    // Tag pie chart
-    if (tagPieRef.value) {
-      tagPieChart = echarts.init(tagPieRef.value)
-      tagPieChart.setOption({
-        title: { text: '标签文章分布', left: 'center', textStyle: { fontSize: 14 } },
-        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-        series: [
-          {
-            type: 'pie',
-            radius: ['40%', '70%'],
-            avoidLabelOverlap: false,
-            itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
-            label: { show: false },
-            emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
-            data: dist.tags.filter((t) => t.count > 0).map((t) => ({ name: t.name, value: t.count })),
-          },
-        ],
-      })
-    }
-
-    // Category pie chart
-    if (catPieRef.value) {
-      catPieChart = echarts.init(catPieRef.value)
-      catPieChart.setOption({
-        title: { text: '分类文章分布', left: 'center', textStyle: { fontSize: 14 } },
-        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-        series: [
-          {
-            type: 'pie',
-            radius: ['40%', '70%'],
-            avoidLabelOverlap: false,
-            itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
-            label: { show: false },
-            emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
-            data: dist.categories.filter((c) => c.count > 0).map((c) => ({ name: c.name, value: c.count })),
-          },
-        ],
-      })
-    }
+    hourlyLabels.value = hourly.labels
+    hourlySeries.value = [
+      { name: 'PV', data: hourly.pv, color: '#2080f0' },
+    ]
   } catch (e) {
     console.error('Dashboard load failed:', e)
   } finally {
@@ -133,26 +77,52 @@ async function loadAll() {
   }
 }
 
-function handleResize() {
-  trendChart?.resize()
-  topPostsChart?.resize()
-  tagPieChart?.resize()
-  catPieChart?.resize()
+function exportCsv() {
+  const lines: string[] = ['日期,PV,UV']
+  for (let i = 0; i < trendLabels.value.length; i++) {
+    lines.push(`${trendLabels.value[i]},${trendSeries.value[0]?.data[i] ?? 0},${trendSeries.value[1]?.data[i] ?? 0}`)
+  }
+  lines.push('')
+  lines.push('文章标题,阅读量')
+  for (const item of topPosts.value) {
+    lines.push(`"${item.name}",${item.value}`)
+  }
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `dashboard-report-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
-onMounted(() => {
-  loadAll()
-  window.addEventListener('resize', handleResize)
-})
-
+watch(trendDays, loadAll)
+onMounted(loadAll)
 watch(() => auth.user, loadAll)
 </script>
 
 <template>
   <NSpin :show="loading">
     <NSpace vertical size="large">
-      <NCard :title="`欢迎回来，${auth.user?.username ?? '访客'}`">
-        <p>这是 Dashboard 数据概览。所有统计数据实时来自数据库。</p>
+      <NCard>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px">
+          <div>
+            <h3 style="margin: 0; font-size: 18px">欢迎回来，{{ auth.user?.username ?? '访客' }}</h3>
+            <p style="margin: 4px 0 0; color: #666">Dashboard 数据概览，所有统计实时来自数据库。</p>
+          </div>
+          <NSpace>
+            <NSelect
+              v-model:value="trendDays"
+              :options="[
+                { label: '近 7 天', value: 7 },
+                { label: '近 14 天', value: 14 },
+                { label: '近 30 天', value: 30 },
+              ]"
+              style="width: 120px"
+            />
+            <NButton @click="exportCsv">导出报表</NButton>
+          </NSpace>
+        </div>
       </NCard>
 
       <NGrid :cols="4" :x-gap="16" :y-gap="16" responsive="screen">
@@ -182,12 +152,21 @@ watch(() => auth.user, loadAll)
       <NGrid :cols="3" :x-gap="16" :y-gap="16" responsive="screen">
         <NGridItem span="3 s:3 m:2">
           <NCard>
-            <div ref="trendRef" style="width: 100%; height: 320px" />
+            <LineChart
+              title="访问趋势"
+              :labels="trendLabels"
+              :series="trendSeries"
+              :height="320"
+            />
           </NCard>
         </NGridItem>
         <NGridItem span="3 s:3 m:1">
           <NCard>
-            <div ref="topPostsRef" style="width: 100%; height: 320px" />
+            <BarChart
+              title="文章阅读量 Top 10"
+              :items="topPosts"
+              :height="320"
+            />
           </NCard>
         </NGridItem>
       </NGrid>
@@ -195,12 +174,44 @@ watch(() => auth.user, loadAll)
       <NGrid :cols="2" :x-gap="16" :y-gap="16" responsive="screen">
         <NGridItem span="2 s:2 m:1">
           <NCard>
-            <div ref="tagPieRef" style="width: 100%; height: 280px" />
+            <PieChart
+              title="标签文章分布"
+              :data="tagPieData"
+              :height="280"
+            />
           </NCard>
         </NGridItem>
         <NGridItem span="2 s:2 m:1">
           <NCard>
-            <div ref="catPieRef" style="width: 100%; height: 280px" />
+            <PieChart
+              title="分类文章分布"
+              :data="catPieData"
+              :height="280"
+            />
+          </NCard>
+        </NGridItem>
+      </NGrid>
+
+      <!-- Referrer + Hourly -->
+      <NGrid :cols="3" :x-gap="16" :y-gap="16" responsive="screen">
+        <NGridItem span="3 s:3 m:2">
+          <NCard>
+            <BarChart
+              title="访问来源 Top 10"
+              :items="referrers"
+              :height="260"
+              color="#18a058"
+            />
+          </NCard>
+        </NGridItem>
+        <NGridItem span="3 s:3 m:1">
+          <NCard>
+            <LineChart
+              title="今日时段分布"
+              :labels="hourlyLabels"
+              :series="hourlySeries"
+              :height="260"
+            />
           </NCard>
         </NGridItem>
       </NGrid>

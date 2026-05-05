@@ -59,3 +59,30 @@ export async function apiGetDistribution(
   const res = await client.get<ApiResponse<DistributionData>>('/api/v2/admin/analytics/distribution')
   return res.data.data
 }
+
+export interface ReferrerItem {
+  domain: string
+  count: number
+}
+
+export async function apiGetReferrers(
+  limit = 10,
+  client: AxiosInstance = request,
+): Promise<{ items: ReferrerItem[] }> {
+  const res = await client.get<ApiResponse<{ items: ReferrerItem[] }>>('/api/v2/admin/analytics/referrers', {
+    params: { limit },
+  })
+  return res.data.data
+}
+
+export interface HourlyData {
+  labels: string[]
+  pv: number[]
+}
+
+export async function apiGetHourly(
+  client: AxiosInstance = request,
+): Promise<HourlyData> {
+  const res = await client.get<ApiResponse<HourlyData>>('/api/v2/admin/analytics/hourly')
+  return res.data.data
+}

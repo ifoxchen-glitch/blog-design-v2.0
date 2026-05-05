@@ -136,4 +136,75 @@ router.get("/distribution", (req, res) => {
   });
 });
 
+/**
+ * GET /api/v2/admin/analytics/referrers?limit=10
+ * 返回 Referrer 来源 Top N
+ */
+router.get("/referrers", (req, res) => {
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
+  const db = openDb();
+
+  const rows = db.prepare(`
+    SELECT
+      CASE
+        WHEN referrer IS NULL OR referrer = '' THEN ''
+        ELSE SUBSTR(referrer, INSTR(referrer, '://') + 3, INSTR(SUBSTR(referrer, INSTR(referrer, '://') + 3), '/') - 1)
+      END as domain,
+      COUNT(*) as count
+    FROM page_views
+    WHERE referrer IS NOT NULL AND referrer != ''
+    GROUP BY domain
+    ORDER BY count DESC
+    LIMIT ?
+  `).all(limit);
+
+  // 处理 SQLite 不支持的 INSTR 在空串时的异常（直接用 JS 兜底）
+  const items = rows.map((r) => {
+    let domain = r.domain || '';
+    if (!domain && r.referrer) {
+      try {
+        domain = new URL(r.referrer).hostname;
+      } catch {
+        domain = r.referrer;
+      }
+    }
+    return { domain, count: r.count };
+  });
+
+  res.json({
+    code: 200,
+    message: "success",
+    data: { items },
+  });
+});
+
+/**
+ * GET /api/v2/admin/analytics/hourly
+ * 返回今天 24 小时 PV 分布
+ */
+router.get("/hourly", (req, res) => {
+  const db = openDb();
+  const today = new Date().toISOString().slice(0, 10);
+  const start = `${today}T00:00:00.000Z`;
+  const end = `${today}T23:59:59.999Z`;
+
+  const labels = [];
+  const pv = [];
+
+  for (let h = 0; h < 24; h++) {
+    const hourStart = `${today}T${String(h).padStart(2, '0')}:00:00.000Z`;
+    const hourEnd = `${today}T${String(h).padStart(2, '0')}:59:59.999Z`;
+    const count = db.prepare(`SELECT COUNT(*) as c FROM page_views WHERE created_at >= ? AND created_at < ?`)
+      .get(hourStart, hourEnd)?.c || 0;
+    labels.push(`${String(h).padStart(2, '0')}:00`);
+    pv.push(count);
+  }
+
+  res.json({
+    code: 200,
+    message: "success",
+    data: { labels, pv },
+  });
+});
+
 module.exports = router;
