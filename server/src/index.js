@@ -1,4 +1,6 @@
+const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
@@ -7,9 +9,40 @@ const { openDb, migrate, ensureSeed } = require("./db");
 const { ensureRbacSeed } = require("./seeds/rbacSeed");
 
 // ---- Startup validation (Phase 5) ----
-const jwtSecret = process.env.JWT_SECRET;
-if (!jwtSecret) throw new Error("JWT_SECRET not configured. Set it in server/.env");
-if (jwtSecret.length < 32) throw new Error("JWT_SECRET must be at least 32 characters long");
+// Unraid Docker UI 在某些版本有环境变量丢失的 bug。
+// 如果 JWT_SECRET 未设置，尝试从持久化文件读取，否则自动生成并保存。
+// 这样即使 UI 没传变量，容器也能启动（但会打印安全警告）。
+function ensureJwtSecret() {
+  const envSecret = process.env.JWT_SECRET;
+  if (envSecret && envSecret.length >= 32) {
+    return envSecret;
+  }
+
+  const persistPath = path.join(__dirname, "..", "db", ".jwt_secret");
+  if (fs.existsSync(persistPath)) {
+    const persisted = fs.readFileSync(persistPath, "utf8").trim();
+    if (persisted.length >= 32) {
+      console.warn("[WARN] JWT_SECRET not set in environment. Using persisted secret from", persistPath);
+      console.warn("[WARN] It is strongly recommended to set JWT_SECRET explicitly for production.");
+      return persisted;
+    }
+  }
+
+  // Auto-generate fallback
+  const fallback = crypto.randomBytes(48).toString("hex");
+  try {
+    fs.writeFileSync(persistPath, fallback, { mode: 0o600 });
+    console.warn("[WARN] JWT_SECRET not set. Auto-generated a fallback secret and saved to", persistPath);
+    console.warn("[WARN] Please set JWT_SECRET environment variable explicitly for production use.");
+  } catch (err) {
+    console.warn("[WARN] JWT_SECRET not set and failed to persist fallback:", err.message);
+    console.warn("[WARN] Container restart will invalidate all active sessions.");
+  }
+  return fallback;
+}
+
+const jwtSecret = ensureJwtSecret();
+process.env.JWT_SECRET = jwtSecret; // ensure downstream modules see it
 
 const db = openDb();
 migrate(db);
