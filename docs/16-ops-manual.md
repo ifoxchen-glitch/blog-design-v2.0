@@ -247,6 +247,16 @@ docker compose up -d              # 默认使用 :latest 标签
 
 ---
 
+## 附录：EJS 后台下线说明
+
+Phase 5 已完全移除旧的 EJS 后台（server/views/ 中的 .ejs 模板及 frontApp 中的 EJS 路由）。
+
+- 旧 `/admin/*` 页面：全部返回 410 Gone，引导用户访问新版 SPA 后台
+- 旧 `/api/admin/*` 接口：全部返回 410，引导使用 `/api/v2/`
+- v2 后台 SPA 由 adminApp（端口 3000）独立提供，不再依赖 frontApp 的 EJS 渲染
+
+如果从旧版升级，请确保 `admin/dist/` 已构建（`cd admin && npm run build`），且 Docker 镜像包含 multi-stage 构建。
+
 ## 参考链接
 
 - GitHub 仓库：https://github.com/ifoxchen-glitch/blog-design-v2.0
