@@ -149,7 +149,7 @@ function handleUserSelect(key: string) {
         :collapsed-icon-size="20"
         :options="menuOptions"
         :value="activeMenuKey"
-        :indent="18"
+        :indent="10"
         class="admin-menu"
         @update:value="handleMenuSelect"
       />
@@ -193,8 +193,8 @@ function handleUserSelect(key: string) {
 }
 
 .admin-sider {
-  background: #0f172a !important;
-  color: #94a3b8;
+  background: #0a0e17 !important;
+  color: #6b7280;
 }
 
 .admin-sider :deep(.n-layout-sider-scroll-container) {
@@ -207,57 +207,61 @@ function handleUserSelect(key: string) {
 }
 
 .admin-sider :deep(.n-menu-item) {
-  color: #94a3b8;
+  color: #6b7280;
 }
 
 .admin-sider :deep(.n-menu-item--selected) {
-  color: #fff;
-  background: rgba(56, 189, 248, 0.15) !important;
-  border-right: 3px solid #38bdf8;
+  color: #f0f0f0;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-right: 2px solid #4b5563;
 }
 
 .admin-sider :deep(.n-menu-item:hover) {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06) !important;
+  color: #f0f0f0;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.admin-sider :deep(.n-menu-item-content) {
+  padding-left: 16px !important;
 }
 
 .admin-sider :deep(.n-menu-item-content__icon) {
-  color: #64748b;
+  color: #4b5563;
 }
 
 .admin-sider :deep(.n-menu-item--selected .n-menu-item-content__icon) {
-  color: #38bdf8;
+  color: #9ca3af;
 }
 
 .sider-logo {
   height: 64px;
   display: flex;
   align-items: center;
-  padding: 0 20px;
+  padding: 0 16px;
   gap: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   flex-shrink: 0;
 }
 
 .logo-btn {
-  color: #94a3b8;
+  color: #6b7280;
 }
 
 .logo-btn:hover {
-  color: #fff;
+  color: #f0f0f0;
 }
 
 .logo-text {
   font-size: 18px;
   font-weight: 700;
-  color: #f8fafc;
+  color: #f0f0f0;
   letter-spacing: 0.5px;
 }
 
 .admin-right {
   display: flex;
   flex-direction: column;
-  background: #f1f5f9;
+  background: #0a0e17;
 }
 
 .admin-header {
@@ -266,17 +270,17 @@ function handleUserSelect(key: string) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: #0a0e17 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .header-left :deep(.n-breadcrumb-item__link) {
-  color: #64748b;
+  color: #6b7280;
   font-size: 14px;
 }
 
 .header-left :deep(.n-breadcrumb-item__separator) {
-  color: #cbd5e1;
+  color: #374151;
 }
 
 .user-info {
@@ -290,24 +294,24 @@ function handleUserSelect(key: string) {
 }
 
 .user-info:hover {
-  background: #f1f5f9;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .user-name {
   font-size: 14px;
   font-weight: 500;
-  color: #334155;
+  color: #9ca3af;
 }
 
 .admin-content {
   flex: 1;
   overflow: auto;
   padding: 0;
-  background: #f1f5f9;
+  background: #0a0e17;
 }
 
 .content-wrapper {
-  padding: 20px 24px;
+  padding: 16px 20px;
   min-height: 100%;
 }
 </style>

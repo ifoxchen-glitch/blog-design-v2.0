@@ -237,13 +237,13 @@ watch(() => auth.user, loadAll)
   margin: 0;
   font-size: 22px;
   font-weight: 700;
-  color: #1e293b;
+  color: #f0f0f0;
   letter-spacing: -0.3px;
 }
 
 .dash-title p {
   margin: 4px 0 0;
-  color: #64748b;
+  color: #6b7280;
   font-size: 13px;
 }
 
@@ -252,15 +252,15 @@ watch(() => auth.user, loadAll)
 }
 
 .stat-card {
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  background: #fff;
-  transition: transform 0.15s, box-shadow 0.15s;
+  border-radius: 10px;
+  background: #111827;
+  transition: transform 0.15s;
+  border: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .stat-card:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 .stat-card :deep(.n-card__content) {
@@ -269,7 +269,7 @@ watch(() => auth.user, loadAll)
 
 .stat-label {
   font-size: 13px;
-  color: #64748b;
+  color: #6b7280;
   font-weight: 500;
   margin-bottom: 8px;
   text-transform: uppercase;
@@ -285,15 +285,15 @@ watch(() => auth.user, loadAll)
 
 .stat-sub {
   font-size: 12px;
-  color: #94a3b8;
+  color: #4b5563;
   margin-top: 6px;
   font-weight: 500;
 }
 
 .chart-card {
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  background: #fff;
+  border-radius: 10px;
+  background: #111827;
+  border: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .chart-card :deep(.n-card-header) {
@@ -303,7 +303,7 @@ watch(() => auth.user, loadAll)
 .chart-card :deep(.n-card-header__main) {
   font-size: 14px;
   font-weight: 600;
-  color: #334155;
+  color: #9ca3af;
 }
 
 .chart-card :deep(.n-card__content) {
