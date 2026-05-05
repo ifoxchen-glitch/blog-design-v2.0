@@ -72,6 +72,12 @@ const router = createRouter({
           meta: { permission: 'post:update' },
         },
         {
+          path: '/cms/media',
+          name: 'cms-media',
+          component: () => import('../views/cms/media/index.vue'),
+          meta: { permission: 'post:list' },
+        },
+        {
           path: '/cms/rbac/users',
           name: 'rbac-users',
           component: () => import('../views/rbac/users/index.vue'),
