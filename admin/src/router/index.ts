@@ -60,6 +60,18 @@ const router = createRouter({
           meta: { permission: 'post:list' },
         },
         {
+          path: '/cms/posts/new',
+          name: 'cms-post-new',
+          component: () => import('../views/cms/posts/edit.vue'),
+          meta: { permission: 'post:create' },
+        },
+        {
+          path: '/cms/posts/:id/edit',
+          name: 'cms-post-edit',
+          component: () => import('../views/cms/posts/edit.vue'),
+          meta: { permission: 'post:update' },
+        },
+        {
           path: '/cms/rbac/users',
           name: 'rbac-users',
           component: () => import('../views/rbac/users/index.vue'),

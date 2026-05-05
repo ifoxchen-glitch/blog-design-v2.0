@@ -8,7 +8,8 @@
 import type { TokenStore } from '../../api/tokenStorage'
 
 export const UPLOAD_URL = '/api/v2/admin/cms/upload'
-export const UPLOAD_FIELD_NAME = 'file'
+// (P4) 对齐后端 multer.single("image"),T2.27 修复。
+export const UPLOAD_FIELD_NAME = 'image'
 export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024
 
 interface BackendUploadResponse {
