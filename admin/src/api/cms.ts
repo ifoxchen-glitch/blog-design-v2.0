@@ -264,3 +264,148 @@ export async function apiReorderLinks(
   )
   return res.data.data
 }
+
+// ============================================================
+// Post(文章)
+// ============================================================
+
+export type PostStatus = 'draft' | 'published'
+
+export interface PostTagRef {
+  name: string
+  slug: string
+}
+
+export interface PostCategoryRef {
+  name: string
+  slug: string
+}
+
+export interface PostListItem {
+  id: number
+  title: string
+  slug: string
+  excerpt: string | null
+  coverImageUrl: string | null
+  status: PostStatus
+  publishedAt: string | null
+  createdAt: string
+  updatedAt: string
+  tags: PostTagRef[]
+  categories: PostCategoryRef[]
+}
+
+export interface PostDetail extends PostListItem {
+  contentMarkdown: string
+}
+
+export interface PostListQuery {
+  keyword?: string
+  status?: PostStatus
+  orderBy?: 'updatedAt' | 'createdAt' | 'publishedAt' | 'title' | 'id'
+  order?: 'asc' | 'desc'
+}
+
+export async function apiGetPosts(
+  params: PostListQuery & { page: number; pageSize: number },
+  client: AxiosInstance = request,
+): Promise<{ items: PostListItem[]; total: number; page: number; pageSize: number }> {
+  const res = await client.get<
+    ApiResponse<{
+      items: PostListItem[]
+      total: number
+      page: number
+      pageSize: number
+    }>
+  >('/api/v2/admin/cms/posts', { params })
+  return res.data.data
+}
+
+export async function apiGetPost(
+  id: number,
+  client: AxiosInstance = request,
+): Promise<PostDetail> {
+  const res = await client.get<ApiResponse<PostDetail>>(
+    `/api/v2/admin/cms/posts/${id}`,
+  )
+  return res.data.data
+}
+
+export interface CreatePostPayload {
+  title: string
+  slug?: string
+  excerpt?: string
+  coverImageUrl?: string
+  contentMarkdown?: string
+  status?: PostStatus
+  // 后端 splitTags 接受逗号分隔字符串或数组,这里前端统一传数组
+  tags?: string[]
+  categories?: string[]
+}
+
+export async function apiCreatePost(
+  data: CreatePostPayload,
+  client: AxiosInstance = request,
+): Promise<PostDetail> {
+  const res = await client.post<ApiResponse<PostDetail>>(
+    '/api/v2/admin/cms/posts',
+    data,
+  )
+  return res.data.data
+}
+
+export interface UpdatePostPayload {
+  title?: string
+  slug?: string
+  excerpt?: string
+  coverImageUrl?: string
+  contentMarkdown?: string
+  tags?: string[]
+  categories?: string[]
+}
+
+export async function apiUpdatePost(
+  id: number,
+  data: UpdatePostPayload,
+  client: AxiosInstance = request,
+): Promise<PostDetail> {
+  const res = await client.put<ApiResponse<PostDetail>>(
+    `/api/v2/admin/cms/posts/${id}`,
+    data,
+  )
+  return res.data.data
+}
+
+export async function apiDeletePost(
+  id: number,
+  client: AxiosInstance = request,
+): Promise<void> {
+  await client.delete<ApiResponse<void>>(`/api/v2/admin/cms/posts/${id}`)
+}
+
+export interface PostStatusResult {
+  id: number
+  status: PostStatus
+  publishedAt?: string | null
+  updatedAt: string
+}
+
+export async function apiPublishPost(
+  id: number,
+  client: AxiosInstance = request,
+): Promise<PostStatusResult> {
+  const res = await client.post<ApiResponse<PostStatusResult>>(
+    `/api/v2/admin/cms/posts/${id}/publish`,
+  )
+  return res.data.data
+}
+
+export async function apiUnpublishPost(
+  id: number,
+  client: AxiosInstance = request,
+): Promise<PostStatusResult> {
+  const res = await client.post<ApiResponse<PostStatusResult>>(
+    `/api/v2/admin/cms/posts/${id}/unpublish`,
+  )
+  return res.data.data
+}
