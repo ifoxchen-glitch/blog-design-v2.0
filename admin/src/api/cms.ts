@@ -7,6 +7,9 @@
 //      与 rbac.ts 一致。这里沿用 `{ items, total }`,view 里包一层把 items→list 转给 useTable。
 // (P4) apiUpload 字段名要发 'image'(对齐后端 multer.single("image")),
 //      不是设计文档默认的 'file'。T2.27 PR 修复(本次)。
+// (P7) 设计文档 §0.1 写 export/import 在 `/backup/export`、`/backup/import`,
+//      后端实际是 `/api/v2/admin/cms/export`、`/api/v2/admin/cms/import`(无 backup 中段)。
+//      cmsRouter 直接挂在 /admin/cms 下,T2.32 沿用真实路径。
 //
 // 响应包装:request.ts 拦截器返回原始 AxiosResponse,所以这里走 `res.data.data`
 // 拿到真正的业务数据。
@@ -406,6 +409,55 @@ export async function apiUnpublishPost(
 ): Promise<PostStatusResult> {
   const res = await client.post<ApiResponse<PostStatusResult>>(
     `/api/v2/admin/cms/posts/${id}/unpublish`,
+  )
+  return res.data.data
+}
+
+// ============================================================
+// Backup(全库导出/导入)
+// ============================================================
+//
+// 后端 shape 与 legacy frontApp /api/admin/export 完全一致:
+//   { version: 2, exportedAt, links, posts, tags, postTags, categories, postCategories }
+
+export interface BackupData {
+  version: number
+  exportedAt: string
+  links: unknown[]
+  posts: unknown[]
+  tags: unknown[]
+  postTags: unknown[]
+  categories: unknown[]
+  postCategories: unknown[]
+}
+
+export interface ImportResult {
+  imported: {
+    posts: number
+    tags: number
+    categories: number
+    links: number
+    postTags: number
+    postCategories: number
+  }
+}
+
+export async function apiExportData(
+  client: AxiosInstance = request,
+): Promise<BackupData> {
+  const res = await client.get<ApiResponse<BackupData>>(
+    '/api/v2/admin/cms/export',
+  )
+  return res.data.data
+}
+
+export async function apiImportData(
+  data: BackupData,
+  client: AxiosInstance = request,
+): Promise<ImportResult> {
+  const res = await client.post<ApiResponse<ImportResult>>(
+    '/api/v2/admin/cms/import',
+    data,
   )
   return res.data.data
 }

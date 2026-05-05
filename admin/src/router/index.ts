@@ -78,6 +78,12 @@ const router = createRouter({
           meta: { permission: 'post:list' },
         },
         {
+          path: '/cms/backup',
+          name: 'cms-backup',
+          component: () => import('../views/cms/backup/index.vue'),
+          meta: { permission: 'cms:export' },
+        },
+        {
           path: '/cms/rbac/users',
           name: 'rbac-users',
           component: () => import('../views/rbac/users/index.vue'),
