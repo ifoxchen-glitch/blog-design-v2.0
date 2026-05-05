@@ -29,3 +29,7 @@ frontApp.listen(FRONT_PORT, () => {
 adminApp.listen(ADMIN_PORT, () => {
   console.log(`Admin v2 API : http://localhost:${ADMIN_PORT}/api/v2`);
 });
+
+// Register cron jobs
+require('./jobs/backupSqlite').register();
+// require('./jobs/cleanupAuditLogs').register(); // T4.7
