@@ -115,3 +115,69 @@ export async function apiDeleteTag(
 ): Promise<void> {
   await client.delete<ApiResponse<void>>(`/api/v2/admin/cms/tags/${id}`)
 }
+
+// ============================================================
+// Category
+// ============================================================
+
+export interface CategoryItem {
+  id: number
+  name: string
+  slug: string
+  postCount: number
+  createdAt: string
+}
+
+export async function apiGetCategories(
+  client: AxiosInstance = request,
+): Promise<{ items: CategoryItem[]; total: number }> {
+  const res = await client.get<ApiResponse<{ items: CategoryItem[]; total: number }>>(
+    '/api/v2/admin/cms/categories',
+  )
+  return res.data.data
+}
+
+export interface CreateCategoryPayload {
+  name: string
+  slug?: string
+}
+
+export async function apiCreateCategory(
+  data: CreateCategoryPayload,
+  client: AxiosInstance = request,
+): Promise<CategoryItem> {
+  const body: Record<string, unknown> = { name: data.name }
+  if (data.slug !== undefined) body.slug = data.slug
+  const res = await client.post<ApiResponse<CategoryItem>>(
+    '/api/v2/admin/cms/categories',
+    body,
+  )
+  return res.data.data
+}
+
+export interface UpdateCategoryPayload {
+  name?: string
+  slug?: string
+}
+
+export async function apiUpdateCategory(
+  id: number,
+  data: UpdateCategoryPayload,
+  client: AxiosInstance = request,
+): Promise<CategoryItem> {
+  const body: Record<string, unknown> = {}
+  if (data.name !== undefined) body.name = data.name
+  if (data.slug !== undefined) body.slug = data.slug
+  const res = await client.put<ApiResponse<CategoryItem>>(
+    `/api/v2/admin/cms/categories/${id}`,
+    body,
+  )
+  return res.data.data
+}
+
+export async function apiDeleteCategory(
+  id: number,
+  client: AxiosInstance = request,
+): Promise<void> {
+  await client.delete<ApiResponse<void>>(`/api/v2/admin/cms/categories/${id}`)
+}
