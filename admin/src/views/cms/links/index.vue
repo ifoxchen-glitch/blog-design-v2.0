@@ -21,6 +21,7 @@ import {
   NPopconfirm,
   NForm,
   NFormItem,
+  NModal,
   useMessage,
   type DataTableColumns,
   type FormInst,
@@ -94,6 +95,90 @@ function isValidUrl(value: string, allowDataImage = false): boolean {
   if (/^https?:\/\//i.test(value)) return true
   if (allowDataImage && /^data:image\/(png|jpeg|jpg|gif|webp);/i.test(value)) return true
   return false
+}
+
+// ========== Icon Picker ==========
+const DASHBOARD_ICONS_BASE = 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@main'
+
+const dashboardPresets = [
+  'github-dark', 'github-light', 'google-drive', 'nextcloud', 'plex',
+  'proxmox', 'qbittorrent', 'syncthing', 'tailscale', 'unraid',
+  'vscode', 'portainer', 'docker', 'home-assistant',
+]
+
+function resolveDashboardIconUrl(name: string): string {
+  const n = String(name || '').trim().toLowerCase()
+  // 优先 svg，其次 png
+  return `${DASHBOARD_ICONS_BASE}/svg/${encodeURIComponent(n)}.svg`
+}
+
+const iconPickerVisible = ref(false)
+const iconSearch = ref('')
+const iconSearchLoading = ref(false)
+const iconGridItems = ref<Array<{ name: string; url: string }>>([])
+const selectedIconUrl = ref('')
+
+let iconSearchTimer: ReturnType<typeof setTimeout> | null = null
+
+function runIconSearch(keyword: string) {
+  const kw = String(keyword || '').trim().toLowerCase()
+  iconSearchLoading.value = true
+
+  let candidates: string[]
+  if (!kw) {
+    candidates = [...dashboardPresets]
+  } else {
+    candidates = dashboardPresets.filter((n) => n.includes(kw)).slice(0, 32)
+    if (!candidates.includes(kw) && /^[a-z0-9-]{2,64}$/.test(kw)) {
+      candidates.unshift(kw)
+    }
+  }
+
+  iconGridItems.value = candidates.map((name) => ({
+    name,
+    url: resolveDashboardIconUrl(name),
+  }))
+  iconSearchLoading.value = false
+}
+
+function onIconSearchInput(val: string) {
+  if (iconSearchTimer) clearTimeout(iconSearchTimer)
+  iconSearchTimer = setTimeout(() => runIconSearch(val), 250)
+}
+
+function openIconPicker() {
+  iconPickerVisible.value = true
+  iconSearch.value = ''
+  selectedIconUrl.value = ''
+  runIconSearch('')
+}
+
+function selectIconItem(url: string) {
+  selectedIconUrl.value = url
+}
+
+function confirmIcon() {
+  if (!selectedIconUrl.value) {
+    message.warning('请选择一个图标')
+    return
+  }
+  form.icon = selectedIconUrl.value
+  iconPickerVisible.value = false
+}
+
+function useFavicon() {
+  try {
+    const u = new URL(form.url)
+    form.icon = `${u.origin}/favicon.ico`
+    iconPickerVisible.value = false
+  } catch {
+    message.warning('请先填写正确的网址')
+  }
+}
+
+function clearIcon() {
+  form.icon = ''
+  selectedIconUrl.value = ''
 }
 
 const formRules = computed<FormRules>(() => ({
@@ -332,10 +417,32 @@ const columns: DataTableColumns<LinkItem> = [
           <NInput v-model:value="form.url" placeholder="https://example.com" />
         </NFormItem>
         <NFormItem label="图标" path="icon">
-          <NInput
-            v-model:value="form.icon"
-            placeholder="可选,支持 / 起首相对路径、http(s) URL 或 data:image/..."
-          />
+          <NSpace vertical style="width: 100%">
+            <NSpace>
+              <NInput
+                v-model:value="form.icon"
+                placeholder="可选,支持 / 起首相对路径、http(s) URL 或 data:image/..."
+                style="width: 340px"
+              />
+              <NButton type="primary" ghost @click="openIconPicker">
+                选择图标
+              </NButton>
+              <NButton v-if="form.icon" type="error" ghost @click="clearIcon">
+                清空
+              </NButton>
+            </NSpace>
+            <div v-if="form.icon" style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 12px; color: #666">预览:</span>
+              <NImage
+                :src="form.icon"
+                width="32"
+                height="32"
+                object-fit="contain"
+                preview-disabled
+                :fallback-src="`data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'><rect width='32' height='32' fill='%23eee'/></svg>`"
+              />
+            </div>
+          </NSpace>
         </NFormItem>
         <NFormItem label="尺寸" path="iconSize">
           <NSelect
@@ -355,5 +462,93 @@ const columns: DataTableColumns<LinkItem> = [
         </NFormItem>
       </NForm>
     </FormDrawer>
+
+    <!-- Icon Picker Modal -->
+    <NModal
+      v-model:show="iconPickerVisible"
+      title="选择图标"
+      preset="card"
+      style="width: 560px; max-width: 90vw"
+      :bordered="false"
+      segmented
+    >
+      <NSpace vertical size="medium">
+        <NInput
+          v-model:value="iconSearch"
+          placeholder="搜索图标（例如 plex / nextcloud / github-light）"
+          clearable
+          @input="onIconSearchInput"
+          @keydown.enter="runIconSearch(iconSearch)"
+        />
+        <NSpace>
+          <NButton type="primary" ghost @click="useFavicon">
+            用当前网址 favicon
+          </NButton>
+          <NButton ghost @click="clearIcon">
+            清空选择
+          </NButton>
+        </NSpace>
+
+        <div
+          v-if="iconSearchLoading"
+          style="text-align: center; padding: 24px; color: #999"
+        >
+          搜索中...
+        </div>
+        <div
+          v-else-if="iconGridItems.length === 0"
+          style="text-align: center; padding: 24px; color: #999"
+        >
+          未找到图标。请确认图标名（kebab-case），或用 favicon。
+        </div>
+        <div
+          v-else
+          style="
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+            gap: 8px;
+            max-height: 320px;
+            overflow-y: auto;
+            padding: 4px;
+          "
+        >
+          <div
+            v-for="item in iconGridItems"
+            :key="item.name"
+            :style="{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '6px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              border: selectedIconUrl === item.url
+                ? '2px solid #2080f0'
+                : '2px solid transparent',
+              background: selectedIconUrl === item.url
+                ? '#f0f7ff'
+                : 'transparent',
+              transition: 'all 0.2s',
+            }"
+            :title="item.name"
+            @click="selectIconItem(item.url)"
+          >
+            <img
+              :src="item.url"
+              :alt="item.name"
+              width="32"
+              height="32"
+              style="object-fit: contain"
+              loading="lazy"
+            />
+          </div>
+        </div>
+
+        <NSpace justify="end">
+          <NButton @click="iconPickerVisible = false">取消</NButton>
+          <NButton type="primary" @click="confirmIcon">确认</NButton>
+        </NSpace>
+      </NSpace>
+    </NModal>
   </div>
 </template>
