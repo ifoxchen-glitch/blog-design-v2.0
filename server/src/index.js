@@ -32,4 +32,4 @@ adminApp.listen(ADMIN_PORT, () => {
 
 // Register cron jobs
 require('./jobs/backupSqlite').register();
-// require('./jobs/cleanupAuditLogs').register(); // T4.7
+require('./jobs/cleanupAuditLogs').register();
