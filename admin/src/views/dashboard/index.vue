@@ -4,7 +4,6 @@ import {
   NButton,
   NCard,
   NSpace,
-  NStatistic,
   NGrid,
   NGridItem,
   NSpin,
