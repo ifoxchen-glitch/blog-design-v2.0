@@ -8,7 +8,7 @@
 //      历史网格暂用 n-empty 占位。后端补 GET /api/v2/admin/cms/media 后再接入网格,
 //      issue #61 关闭时附 follow-up TODO
 
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import {
   NButton,
   NCard,
@@ -27,7 +27,26 @@ import ImageUploader from '../../../components/common/ImageUploader.vue'
 
 const message = useMessage()
 const showUploadModal = ref(false)
-const uploadedUrls = ref<string[]>([])
+
+// MVP 临时持久化：后端尚无 media 表，用 localStorage 缓存本次上传记录
+const STORAGE_KEY = 'media:session-urls'
+function loadUrls(): string[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+const uploadedUrls = ref<string[]>(loadUrls())
+watch(
+  uploadedUrls,
+  (urls) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(urls))
+  },
+  { deep: true },
+)
+
 // ImageUploader v-model:多图模式下绑 string[]
 const tempUrls = ref<string[]>([])
 

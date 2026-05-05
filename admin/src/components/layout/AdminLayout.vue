@@ -159,7 +159,7 @@ function handleUserSelect(key: string) {
             {{ crumb.label }}
           </NBreadcrumbItem>
         </NBreadcrumb>
-        <RouterView />
+        <RouterView :key="route.fullPath" />
       </NLayoutContent>
     </NLayout>
   </NLayout>

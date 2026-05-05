@@ -142,7 +142,7 @@ async function openEdit(row: UserItem) {
     displayName: row.displayName ?? '',
     password: '',
     status: row.status,
-    roleIds: row.roles.map((r) => r.id),
+    roleIds: row.roles?.map((r) => r.id) ?? [],
   })
   await reloadRoles()
   drawerVisible.value = true
@@ -259,7 +259,7 @@ async function batchDelete(
 
 // ---- 列定义 ----
 const columns: DataTableColumns<UserItem> = [
-  { type: 'selection', fixed: 'left' },
+  { type: 'selection' },
   { title: 'ID', key: 'id', width: 70 },
   { title: '用户名', key: 'username', width: 140 },
   { title: '邮箱', key: 'email', width: 200 },
@@ -269,7 +269,7 @@ const columns: DataTableColumns<UserItem> = [
     key: 'roles',
     width: 200,
     render(row: UserItem) {
-      if (row.roles.length === 0) return h('span', { style: 'color: #999' }, '—')
+      if (!row.roles || row.roles.length === 0) return h('span', { style: 'color: #999' }, '—')
       return h(
         NSpace,
         { size: 4 },

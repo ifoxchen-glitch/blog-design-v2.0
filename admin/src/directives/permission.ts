@@ -3,10 +3,7 @@ import { usePermissionStore } from '../stores/permission'
 
 type PermissionValue = string | string[]
 
-const removedNodes = new WeakMap<
-  Element,
-  { parent: ParentNode; next: Node | null }
->()
+const HIDDEN_ATTR = 'data-permission-hidden'
 
 function hasPermission(value: PermissionValue): boolean {
   const perm = usePermissionStore()
@@ -16,33 +13,34 @@ function hasPermission(value: PermissionValue): boolean {
   return perm.hasPermission(value)
 }
 
-function remove(el: HTMLElement): void {
-  if (!el.parentNode) return
-  removedNodes.set(el, { parent: el.parentNode, next: el.nextSibling })
-  el.remove()
+function hide(el: HTMLElement): void {
+  if (el.hasAttribute(HIDDEN_ATTR)) return
+  const prev = el.style.display
+  el.setAttribute(HIDDEN_ATTR, prev)
+  el.style.display = 'none'
 }
 
-function restore(el: HTMLElement): void {
-  const info = removedNodes.get(el)
-  if (!info) return
-  info.parent.insertBefore(el, info.next)
-  removedNodes.delete(el)
+function show(el: HTMLElement): void {
+  if (!el.hasAttribute(HIDDEN_ATTR)) return
+  const prev = el.getAttribute(HIDDEN_ATTR) ?? ''
+  el.style.display = prev
+  el.removeAttribute(HIDDEN_ATTR)
 }
 
 export const vPermission = {
   mounted(el: HTMLElement, binding: DirectiveBinding<PermissionValue>) {
     if (!hasPermission(binding.value)) {
-      remove(el)
+      hide(el)
     }
   },
   updated(el: HTMLElement, binding: DirectiveBinding<PermissionValue>) {
     const hasPerm = hasPermission(binding.value)
-    const isRemoved = removedNodes.has(el)
+    const isHidden = el.hasAttribute(HIDDEN_ATTR)
 
-    if (hasPerm && isRemoved) {
-      restore(el)
-    } else if (!hasPerm && !isRemoved) {
-      remove(el)
+    if (hasPerm && isHidden) {
+      show(el)
+    } else if (!hasPerm && !isHidden) {
+      hide(el)
     }
   },
 }
