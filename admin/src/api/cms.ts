@@ -6,7 +6,7 @@
 // (P8) 设计文档 §0.1 写 list API 返回 `{ list, total }`;后端真实返回是 `{ items, total }`,
 //      与 rbac.ts 一致。这里沿用 `{ items, total }`,view 里包一层把 items→list 转给 useTable。
 // (P4) apiUpload 字段名要发 'image'(对齐后端 multer.single("image")),
-//      不是设计文档默认的 'file'。T2.27 PR 修复。
+//      不是设计文档默认的 'file'。T2.27 PR 修复(本次)。
 //
 // 响应包装:request.ts 拦截器返回原始 AxiosResponse,所以这里走 `res.data.data`
 // 拿到真正的业务数据。
@@ -38,7 +38,7 @@ export async function apiUpload(
   client: AxiosInstance = request,
 ): Promise<UploadResultData> {
   const form = new FormData()
-  form.append('file', file)
+  form.append('image', file)
 
   const res = await client.post<ApiResponse<UploadResultData>>(
     '/api/v2/admin/cms/upload',
