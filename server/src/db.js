@@ -211,6 +211,18 @@ function migrate(db) {
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
     CREATE INDEX IF NOT EXISTS idx_page_views_created_at ON page_views(created_at);
     CREATE INDEX IF NOT EXISTS idx_page_views_path ON page_views(path);
+
+    -- Phase 4: 备份管理
+    CREATE TABLE IF NOT EXISTS backups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      filename TEXT NOT NULL UNIQUE,
+      size INTEGER NOT NULL,
+      type TEXT NOT NULL DEFAULT 'manual',
+      status TEXT NOT NULL DEFAULT 'ok',
+      note TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_backups_created_at ON backups(created_at);
   `);
 }
 

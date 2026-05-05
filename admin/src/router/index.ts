@@ -97,7 +97,7 @@ const router = createRouter({
         {
           path: '/cms/ops/backup',
           name: 'cms-ops-backup',
-          component: () => import('../views/cms/backup/index.vue'),
+          component: () => import('../views/cms/ops/backup/index.vue'),
           meta: { permission: 'ops:backup' },
         },
         {
@@ -110,7 +110,7 @@ const router = createRouter({
           path: '/cms/ops/monitor',
           name: 'cms-ops-monitor',
           component: () => import('../views/cms/ops/monitor/index.vue'),
-          meta: { permission: 'ops:logs' },
+          meta: { permission: 'ops:monitor' },
         },
         {
           path: '/cms/rbac/users',
