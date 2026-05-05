@@ -42,6 +42,12 @@ const router = createRouter({
           meta: { permission: 'tag:list' },
         },
         {
+          path: '/cms/categories',
+          name: 'cms-categories',
+          component: () => import('../views/cms/categories/index.vue'),
+          meta: { permission: 'category:list' },
+        },
+        {
           path: '/cms/rbac/users',
           name: 'rbac-users',
           component: () => import('../views/rbac/users/index.vue'),
