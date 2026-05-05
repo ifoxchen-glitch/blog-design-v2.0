@@ -395,7 +395,7 @@ app.use("/admin", (req, res, next) => {
   );
 });
 
-app.post("/api/admin/*", (req, res) => {
+app.use("/api/admin", (req, res) => {
   res.status(410).json({
     code: 410,
     error: "deprecated",
