@@ -22,11 +22,9 @@ function createBackup(type = "manual", note = "") {
   const filename = generateFilename();
   const destPath = path.join(BACKUP_DIR, filename);
 
-  const backup = db.backup(destPath);
-  while (backup.step(-1)) {
-    // transfer all remaining pages
-  }
-  backup.finish();
+  // Use VACUUM INTO for reliable online backup (SQLite 3.27+).
+  // better-sqlite3's db.backup() step() API is flaky in Alpine containers.
+  db.exec(`VACUUM INTO '${destPath.replace(/'/g, "''")}'`);
 
   const stats = fs.statSync(destPath);
   const size = stats.size;
