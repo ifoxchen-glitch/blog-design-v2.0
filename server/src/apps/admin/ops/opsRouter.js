@@ -68,10 +68,18 @@ router.get(
       LIMIT ? OFFSET ?`
     ).all(...params, pageSize, offset);
 
-    // Parse detail JSON for frontend convenience
+    // Normalize snake_case → camelCase for frontend convenience
     const items = logs.map((row) => ({
-      ...row,
+      id: row.id,
+      userId: row.user_id,
+      username: row.username,
+      action: row.action,
+      resourceType: row.resource_type,
+      resourceId: row.resource_id,
       detail: row.detail ? JSON.parse(row.detail) : null,
+      ip: row.ip,
+      userAgent: row.user_agent,
+      createdAt: row.created_at,
     }));
 
     res.json({
