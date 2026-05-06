@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton, NResult } from 'naive-ui'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,25 +20,14 @@ function goBack(): void {
 </script>
 
 <template>
-  <div class="forbidden-page">
-    <NResult
-      status="403"
-      title="403 — 没有访问权限"
-      :description="fromPath ? `你尝试访问的页面 ${fromPath} 需要的权限你目前没有。` : '你没有访问该页面的权限。'"
-    >
-      <template #footer>
-        <NButton @click="goBack">返回</NButton>
-      </template>
-    </NResult>
+  <div class="min-h-svh flex items-center justify-center p-6">
+    <div class="bg-base-100 rounded-2xl border border-base-content/5 p-10 max-w-md w-full text-center">
+      <div class="text-6xl font-extralight text-base-content/10 mb-4">403</div>
+      <h1 class="text-xl font-semibold text-base-content mb-2">没有访问权限</h1>
+      <p class="text-sm text-base-content/50 mb-8">
+        {{ fromPath ? `你尝试访问的页面 ${fromPath} 需要的权限你目前没有。` : '你没有访问该页面的权限。' }}
+      </p>
+      <button class="btn btn-primary px-6" @click="goBack">返回</button>
+    </div>
   </div>
 </template>
-
-<style scoped>
-.forbidden-page {
-  min-height: 100svh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-</style>

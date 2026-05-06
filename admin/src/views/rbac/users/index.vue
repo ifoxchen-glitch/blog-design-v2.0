@@ -481,8 +481,8 @@ const columns: DataTableColumns<UserItem> = [
       :negative-text="undefined"
       :show-icon="false"
     >
-      <div style="margin-top: 12px">
-        <p v-if="resetTarget" style="margin: 0 0 12px; color: #666">
+      <div class="mt-3">
+        <p v-if="resetTarget" class="mb-3 text-base-content/60">
           为用户 <strong>{{ resetTarget.username }}</strong> 设置新密码
         </p>
         <NInput

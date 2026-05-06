@@ -1,24 +1,11 @@
 <script setup lang="ts">
-// 媒体库 MVP — T2.31
-// 设计文档:docs/10-phase2-cms-frontend-plan.md §7
-//
-// 偏离设计文档之处:
-// (P3) 路由用 /cms/media(带 cms 前缀),与 menus seed 对齐
-// (P6) MVP 方案 A:仅上传弹窗 + 复制 URL,后端尚无 media 表与 list API,
-//      历史网格暂用 n-empty 占位。后端补 GET /api/v2/admin/cms/media 后再接入网格,
-//      issue #61 关闭时附 follow-up TODO
-
 import { ref, watch } from 'vue'
 import {
   NButton,
-  NCard,
   NEmpty,
-  NIcon,
   NImage,
   NInput,
   NModal,
-  NSpace,
-  NText,
   useMessage,
 } from 'naive-ui'
 import { CloudUploadOutline, CopyOutline } from '@vicons/ionicons5'
@@ -28,7 +15,6 @@ import ImageUploader from '../../../components/common/ImageUploader.vue'
 const message = useMessage()
 const showUploadModal = ref(false)
 
-// MVP 临时持久化：后端尚无 media 表，用 localStorage 缓存本次上传记录
 const STORAGE_KEY = 'media:session-urls'
 function loadUrls(): string[] {
   try {
@@ -47,7 +33,6 @@ watch(
   { deep: true },
 )
 
-// ImageUploader v-model:多图模式下绑 string[]
 const tempUrls = ref<string[]>([])
 
 function openUploader() {
@@ -64,7 +49,6 @@ function handleUploaderChange(value: string | string[]) {
 }
 
 function handleConfirm() {
-  // 把本次新上传的合入"本次会话内"列表(顶部插入,去重)
   const merged = [...tempUrls.value]
   for (const u of uploadedUrls.value) {
     if (!merged.includes(u)) merged.push(u)
@@ -81,7 +65,6 @@ async function copyUrl(url: string) {
     await navigator.clipboard.writeText(url)
     message.success('已复制 URL')
   } catch {
-    // Fallback:旧浏览器/非 https
     const input = document.createElement('input')
     input.value = url
     document.body.appendChild(input)
@@ -95,48 +78,52 @@ async function copyUrl(url: string) {
 
 <template>
   <div>
-    <PageHeader title="媒体库" subtitle="管理上传的图片资源(MVP:本次会话内列表 + 上传 + 复制 URL)">
+    <PageHeader title="媒体库" subtitle="管理上传的图片资源">
       <NButton type="primary" @click="openUploader">
         <template #icon>
-          <NIcon><CloudUploadOutline /></NIcon>
+          <CloudUploadOutline class="w-4 h-4" />
         </template>
         上传图片
       </NButton>
     </PageHeader>
 
-    <NCard>
-      <template v-if="uploadedUrls.length === 0">
-        <NEmpty description="暂无图片记录">
-          <template #extra>
-            <NText depth="3" style="font-size: 12px">
-              点击右上角"上传图片"按钮开始。后端 media 列表接口建设中,
-              本次会话内上传的 URL 会临时保留在此页便于复制使用。
-            </NText>
-          </template>
-        </NEmpty>
-      </template>
+    <div v-if="uploadedUrls.length === 0" class="py-16">
+      <NEmpty description="暂无图片">
+        <template #extra>
+          <p class="text-sm text-base-content/40 mt-2">
+            点击右上角"上传图片"按钮开始上传
+          </p>
+        </template>
+      </NEmpty>
+    </div>
 
-      <template v-else>
-        <NSpace vertical size="medium">
-          <NText depth="2">本次会话上传记录(刷新页面后丢失,后端补 list 接口后切真历史):</NText>
-          <NSpace
-            v-for="url in uploadedUrls"
-            :key="url"
-            align="center"
-            style="width: 100%"
-          >
-            <NImage :src="url" width="64" height="64" object-fit="cover" />
-            <NInput :value="url" readonly style="width: 480px" />
-            <NButton size="small" @click="copyUrl(url)">
+    <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+      <div
+        v-for="url in uploadedUrls"
+        :key="url"
+        class="group bg-base-100 rounded-xl border border-base-content/5 overflow-hidden hover:border-base-content/10 transition-all"
+      >
+        <div class="aspect-square overflow-hidden bg-base-300/30">
+          <NImage
+            :src="url"
+            class="w-full h-full object-cover"
+            preview-disabled
+            :fallback-src="`data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;100&quot; height=&quot;100&quot;><rect width=&quot;100&quot; height=&quot;100&quot; fill=&quot;%232a323c&quot;/></svg>`"
+          />
+        </div>
+        <div class="p-2">
+          <NInput :value="url" readonly size="small" class="text-xs" />
+          <div class="flex justify-end mt-1.5">
+            <NButton size="tiny" quaternary @click="copyUrl(url)">
               <template #icon>
-                <NIcon><CopyOutline /></NIcon>
+                <CopyOutline class="w-3.5 h-3.5" />
               </template>
               复制
             </NButton>
-          </NSpace>
-        </NSpace>
-      </template>
-    </NCard>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <NModal
       v-model:show="showUploadModal"
@@ -152,10 +139,10 @@ async function copyUrl(url: string) {
         @update:model-value="handleUploaderChange"
       />
       <template #footer>
-        <NSpace justify="end">
+        <div class="flex justify-end gap-2">
           <NButton @click="showUploadModal = false">取消</NButton>
           <NButton type="primary" @click="handleConfirm">完成</NButton>
-        </NSpace>
+        </div>
       </template>
     </NModal>
   </div>

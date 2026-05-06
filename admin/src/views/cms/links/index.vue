@@ -352,7 +352,7 @@ const columns: DataTableColumns<LinkItem> = [
         objectFit: 'contain',
         previewDisabled: true,
         fallbackSrc:
-          'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="%23eee"/></svg>',
+          'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="%232a323c"/></svg>',
       })
     },
   },
@@ -481,8 +481,8 @@ const columns: DataTableColumns<LinkItem> = [
                 清空
               </NButton>
             </NSpace>
-            <div v-if="form.icon" style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 12px; color: #666">预览:</span>
+            <div v-if="form.icon" class="flex items-center gap-2">
+              <span class="text-xs text-base-content/60">预览:</span>
               <NImage
                 :src="form.icon"
                 width="32"

@@ -1,27 +1,13 @@
 <script setup lang="ts">
-// 数据导入导出页 — T2.32
-// 设计文档:docs/10-phase2-cms-frontend-plan.md §8
-//
-// 偏离设计文档之处:
-// (P3) 路由用 /cms/backup(带 cms 前缀),与本期其他 cms 页保持一致
-// (P5) menus seed 没有 /cms/backup 节点,本 PR 在 server/src/seeds/rbacSeed.js
-//      MENUS 顶级追加"数据导入导出"节点,permission: cms:export,
-//      生产 DB 因 seed 跳过策略不会自动加,需在菜单管理页手动新增
-// (P7) 设计文档 §0.1 写 export/import 在 /backup/export、/backup/import,
-//      后端真实路径是 /export、/import(无 backup 中段),api/cms.ts 已对齐
-
 import { ref } from 'vue'
 import axios from 'axios'
 import {
   NAlert,
   NButton,
-  NCard,
   NDescriptions,
   NDescriptionsItem,
   NIcon,
-  NSpace,
   NSpin,
-  NText,
   NUpload,
   useDialog,
   useMessage,
@@ -41,11 +27,9 @@ const dialog = useDialog()
 const exporting = ref(false)
 const importing = ref(false)
 
-// 导入预览
 const previewData = ref<BackupData | null>(null)
-const previewFileName = ref<string>('')
+const previewFileName = ref('')
 
-// ---- 导出 ----
 async function handleExport() {
   exporting.value = true
   try {
@@ -55,7 +39,7 @@ async function handleExport() {
     })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    const today = new Date().toISOString().slice(0, 10)
     a.href = url
     a.download = `blog-backup-${today}.json`
     document.body.appendChild(a)
@@ -72,7 +56,6 @@ async function handleExport() {
   }
 }
 
-// ---- 导入预览 ----
 function handleImportFile(opts: UploadCustomRequestOptions) {
   const raw = opts.file.file
   if (!raw) {
@@ -157,31 +140,49 @@ function extractError(e: unknown, fallback: string): string {
   <div>
     <PageHeader title="数据导入导出" subtitle="全库 JSON 备份 / 还原(仅超管可用)" />
 
-    <NSpace vertical size="large">
-      <NCard title="导出全库">
-        <NSpace vertical size="medium">
-          <NText depth="2">
-            将文章、标签、分类、友链及关联表导出为 JSON 文件,文件名
-            <NText code>blog-backup-YYYY-MM-DD.json</NText>。
-          </NText>
-          <NButton type="primary" :loading="exporting" @click="handleExport">
-            <template #icon>
-              <NIcon><CloudDownloadOutline /></NIcon>
-            </template>
-            导出 JSON 备份
-          </NButton>
-        </NSpace>
-      </NCard>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <!-- Export -->
+      <div class="bg-base-100 rounded-xl border border-base-content/5 p-5 md:p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <CloudDownloadOutline class="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <div class="font-medium">导出全库</div>
+            <div class="text-xs text-base-content/40">将文章、标签、分类、友链导出为 JSON</div>
+          </div>
+        </div>
+        <p class="text-sm text-base-content/50 mb-5">
+          导出文件名格式为 blog-backup-YYYY-MM-DD.json，包含所有内容数据。
+        </p>
+        <NButton type="primary" :loading="exporting" @click="handleExport">
+          <template #icon>
+            <NIcon><CloudDownloadOutline /></NIcon>
+          </template>
+          导出 JSON 备份
+        </NButton>
+      </div>
 
-      <NCard title="导入全库">
-        <NAlert type="warning" :show-icon="true" style="margin-bottom: 16px">
+      <!-- Import -->
+      <div class="bg-base-100 rounded-xl border border-base-content/5 p-5 md:p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center">
+            <CloudUploadOutline class="w-5 h-5 text-error" />
+          </div>
+          <div>
+            <div class="font-medium">导入全库</div>
+            <div class="text-xs text-base-content/40">覆盖式还原，操作不可恢复</div>
+          </div>
+        </div>
+
+        <NAlert type="warning" :show-icon="true" class="mb-5">
           <template #icon>
             <NIcon><WarningOutline /></NIcon>
           </template>
-          导入会<NText strong>覆盖式还原</NText>:原有的文章、标签、分类、友链及关联会被清空再写入,操作不可恢复。
+          导入会<strong>覆盖式还原</strong>:原有的文章、标签、分类、友链及关联会被清空再写入,操作不可恢复。
         </NAlert>
 
-        <NSpace vertical size="medium">
+        <div class="flex flex-col gap-4">
           <NUpload
             :default-upload="true"
             :show-file-list="false"
@@ -197,39 +198,21 @@ function extractError(e: unknown, fallback: string): string {
           </NUpload>
 
           <NSpin :show="importing">
-            <NCard
+            <div
               v-if="previewData"
-              size="small"
-              embedded
-              :bordered="false"
-              class="bg-base-200"
+              class="bg-base-200/50 rounded-xl border border-base-content/5 p-4"
             >
-              <NDescriptions
-                :column="2"
-                label-placement="left"
-                title="导入预览"
-              >
-                <NDescriptionsItem label="文件名">
-                  {{ previewFileName }}
-                </NDescriptionsItem>
-                <NDescriptionsItem label="导出时间">
-                  {{ previewData.exportedAt }}
-                </NDescriptionsItem>
-                <NDescriptionsItem label="文章 (posts)">
-                  {{ previewData.posts.length }}
-                </NDescriptionsItem>
-                <NDescriptionsItem label="标签 (tags)">
-                  {{ previewData.tags.length }}
-                </NDescriptionsItem>
-                <NDescriptionsItem label="分类 (categories)">
-                  {{ previewData.categories.length }}
-                </NDescriptionsItem>
-                <NDescriptionsItem label="友链 (links)">
-                  {{ previewData.links.length }}
-                </NDescriptionsItem>
+              <div class="text-sm font-medium mb-3">导入预览</div>
+              <NDescriptions :column="2" label-placement="left">
+                <NDescriptionsItem label="文件名">{{ previewFileName }}</NDescriptionsItem>
+                <NDescriptionsItem label="导出时间">{{ previewData.exportedAt }}</NDescriptionsItem>
+                <NDescriptionsItem label="文章">{{ previewData.posts.length }}</NDescriptionsItem>
+                <NDescriptionsItem label="标签">{{ previewData.tags.length }}</NDescriptionsItem>
+                <NDescriptionsItem label="分类">{{ previewData.categories.length }}</NDescriptionsItem>
+                <NDescriptionsItem label="友链">{{ previewData.links.length }}</NDescriptionsItem>
               </NDescriptions>
 
-              <NSpace style="margin-top: 16px">
+              <div class="flex gap-2 mt-4">
                 <NButton
                   type="error"
                   :loading="importing"
@@ -238,11 +221,11 @@ function extractError(e: unknown, fallback: string): string {
                   确认导入(覆盖)
                 </NButton>
                 <NButton @click="clearPreview">取消</NButton>
-              </NSpace>
-            </NCard>
+              </div>
+            </div>
           </NSpin>
-        </NSpace>
-      </NCard>
-    </NSpace>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

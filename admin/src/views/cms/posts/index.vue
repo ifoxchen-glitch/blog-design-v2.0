@@ -195,7 +195,7 @@ const columns = computed<DataTableColumns<PostListItem>>(() => {
           objectFit: 'cover',
           previewDisabled: true,
           fallbackSrc:
-            'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%23eee"/></svg>',
+            'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%232a323c"/></svg>',
         })
       },
     },

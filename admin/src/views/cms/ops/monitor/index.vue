@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { NCard, NSpace, NProgress, NStatistic, NGrid, NGridItem, NButton, NIcon } from 'naive-ui'
+import { NProgress, NStatistic, NButton, NIcon, NSpin } from 'naive-ui'
 import { RefreshOutline, PulseOutline } from '@vicons/ionicons5'
 import PageHeader from '../../../../components/common/PageHeader.vue'
 import PieChart from '../../../../components/charts/PieChart.vue'
@@ -70,25 +70,27 @@ onBeforeUnmount(() => {
 
     <div v-if="error" class="text-error mb-4">{{ error }}</div>
 
-    <NGrid :cols="3" :x-gap="16" :y-gap="16" responsive="screen">
-      <NGridItem span="1">
-        <NCard title="CPU 使用率">
-          <NSpace align="center" justify="center" style="padding: 16px 0">
+    <NSpin :show="loading && !data"">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- CPU -->
+        <div class="bg-base-100 rounded-xl border border-base-content/5 p-5">
+          <div class="text-sm font-medium text-base-content mb-4">CPU 使用率</div>
+          <div class="flex items-center justify-center py-2">
             <NProgress
               type="dashboard"
               :percentage="Math.min(100, Math.round(data?.cpu.usage ?? 0))"
               :status="(data?.cpu.usage ?? 0) > 80 ? 'error' : (data?.cpu.usage ?? 0) > 60 ? 'warning' : 'success'"
               style="width: 120px"
             />
-          </NSpace>
+          </div>
           <div class="text-center text-base-content/50 text-sm">
             {{ (data?.cpu.usage ?? 0).toFixed(2) }}%
           </div>
-        </NCard>
-      </NGridItem>
+        </div>
 
-      <NGridItem span="1">
-        <NCard title="内存使用">
+        <!-- Memory -->
+        <div class="bg-base-100 rounded-xl border border-base-content/5 p-5">
+          <div class="text-sm font-medium text-base-content mb-4">内存使用</div>
           <PieChart
             :data="[
               { name: '已用', value: data?.memory.used ?? 0 },
@@ -96,16 +98,16 @@ onBeforeUnmount(() => {
             ]"
             :height="180"
           />
-          <NSpace justify="center" size="small" style="margin-top: 8px">
+          <div class="flex items-center justify-center gap-2 mt-3 text-sm text-base-content/50">
             <span>已用: {{ formatSize(data?.memory.used ?? 0) }}</span>
-            <span class="text-base-content/30">|</span>
+            <span class="text-base-content/20">|</span>
             <span>总计: {{ formatSize(data?.memory.total ?? 0) }}</span>
-          </NSpace>
-        </NCard>
-      </NGridItem>
+          </div>
+        </div>
 
-      <NGridItem span="1">
-        <NCard title="磁盘使用">
+        <!-- Disk -->
+        <div class="bg-base-100 rounded-xl border border-base-content/5 p-5">
+          <div class="text-sm font-medium text-base-content mb-4">磁盘使用</div>
           <PieChart
             :data="[
               { name: '已用', value: data?.disk.used ?? 0 },
@@ -113,43 +115,38 @@ onBeforeUnmount(() => {
             ]"
             :height="180"
           />
-          <NSpace justify="center" size="small" style="margin-top: 8px">
+          <div class="flex items-center justify-center gap-2 mt-3 text-sm text-base-content/50">
             <span>已用: {{ formatSize(data?.disk.used ?? 0) }}</span>
-            <span class="text-base-content/30">|</span>
+            <span class="text-base-content/20">|</span>
             <span>总计: {{ formatSize(data?.disk.total ?? 0) }}</span>
-          </NSpace>
-        </NCard>
-      </NGridItem>
+          </div>
+        </div>
 
-      <NGridItem span="1">
-        <NCard>
+        <!-- Stats -->
+        <div class="bg-base-100 rounded-xl border border-base-content/5 p-5">
           <NStatistic label="运行时间" :value="formatDuration(data?.uptime ?? 0)">
             <template #prefix>
               <NIcon :component="PulseOutline" />
             </template>
           </NStatistic>
-        </NCard>
-      </NGridItem>
+        </div>
 
-      <NGridItem span="1">
-        <NCard>
+        <div class="bg-base-100 rounded-xl border border-base-content/5 p-5">
           <NStatistic label="数据库大小" :value="formatSize(data?.dbSize ?? 0)">
             <template #prefix>
               <NIcon :component="PulseOutline" />
             </template>
           </NStatistic>
-        </NCard>
-      </NGridItem>
+        </div>
 
-      <NGridItem span="1">
-        <NCard>
+        <div class="bg-base-100 rounded-xl border border-base-content/5 p-5">
           <NStatistic label="在线人数（5 分钟）" :value="data?.activeUsers ?? 0">
             <template #prefix>
               <NIcon :component="PulseOutline" />
             </template>
           </NStatistic>
-        </NCard>
-      </NGridItem>
-    </NGrid>
+        </div>
+      </div>
+    </NSpin>
   </div>
 </template>

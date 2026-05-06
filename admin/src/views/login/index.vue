@@ -1,16 +1,9 @@
 <script setup lang="ts">
-// Admin login page. Shape: NCard wrapping NForm with email + password +
-// submit. On success, redirects to ?redirect or /dashboard via
-// router.replace (so the login page doesn't sit in history). On failure,
-// displays the server's message inline via NAlert; the form fields stay
-// filled so the user can correct just the password.
-
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NAlert,
   NButton,
-  NCard,
   NForm,
   NFormItem,
   NInput,
@@ -67,71 +60,69 @@ async function handleSubmit(): Promise<void> {
 </script>
 
 <template>
-  <div class="login-page">
-    <NCard class="login-card" title="管理后台登录" :bordered="true">
-      <NAlert
-        v-if="errorMessage"
-        type="error"
-        :show-icon="false"
-        class="login-alert"
-      >
-        {{ errorMessage }}
-      </NAlert>
-      <NForm
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-placement="top"
-        :show-require-mark="false"
-        @keyup.enter="handleSubmit"
-      >
-        <NFormItem label="邮箱" path="email">
-          <NInput
-            v-model:value="form.email"
-            placeholder="admin@example.com"
-            :disabled="loading"
-            autocomplete="username"
-          />
-        </NFormItem>
-        <NFormItem label="密码" path="password">
-          <NInput
-            v-model:value="form.password"
-            type="password"
-            show-password-on="click"
-            placeholder="请输入密码"
-            :disabled="loading"
-            autocomplete="current-password"
-          />
-        </NFormItem>
-        <NButton
-          type="primary"
-          block
-          :loading="loading"
-          :disabled="loading"
-          @click="handleSubmit"
+  <div class="min-h-svh flex items-center justify-center p-6">
+    <div class="w-full max-w-sm">
+      <!-- Logo -->
+      <div class="flex items-center justify-center gap-3 mb-8">
+        <svg class="h-8 w-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+        </svg>
+        <span class="text-xl font-semibold tracking-tight">Blog Admin</span>
+      </div>
+
+      <!-- Card -->
+      <div class="bg-base-100 rounded-2xl border border-base-content/5 p-6 md:p-8">
+        <div class="text-center mb-6">
+          <h1 class="text-lg font-semibold">管理后台登录</h1>
+          <p class="text-sm text-base-content/50 mt-1">请输入账号密码继续</p>
+        </div>
+
+        <NAlert
+          v-if="errorMessage"
+          type="error"
+          :show-icon="false"
+          class="mb-4"
         >
-          登录
-        </NButton>
-      </NForm>
-    </NCard>
+          {{ errorMessage }}
+        </NAlert>
+
+        <NForm
+          ref="formRef"
+          :model="form"
+          :rules="rules"
+          label-placement="top"
+          :show-require-mark="false"
+          @keyup.enter="handleSubmit"
+        >
+          <NFormItem label="邮箱" path="email">
+            <NInput
+              v-model:value="form.email"
+              placeholder="admin@example.com"
+              :disabled="loading"
+              autocomplete="username"
+            />
+          </NFormItem>
+          <NFormItem label="密码" path="password">
+            <NInput
+              v-model:value="form.password"
+              type="password"
+              show-password-on="click"
+              placeholder="请输入密码"
+              :disabled="loading"
+              autocomplete="current-password"
+            />
+          </NFormItem>
+          <NButton
+            type="primary"
+            block
+            :loading="loading"
+            :disabled="loading"
+            @click="handleSubmit"
+          >
+            登录
+          </NButton>
+        </NForm>
+      </div>
+    </div>
   </div>
 </template>
-
-<style scoped>
-.login-page {
-  min-height: 100svh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.login-card {
-  width: 100%;
-  max-width: 420px;
-}
-
-.login-alert {
-  margin-bottom: 16px;
-}
-</style>
