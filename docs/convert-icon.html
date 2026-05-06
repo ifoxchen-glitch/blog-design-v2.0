@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Convert Icon</title>
+<style>
+  body { background: #222; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; color: #fff; font-family: sans-serif; }
+  canvas { border: 1px solid #444; margin: 20px; }
+  a { color: #38bdf8; }
+</style>
+</head>
+<body>
+  <canvas id="c" width="256" height="256"></canvas>
+  <p>右键点击上方图标 → "图片另存为" → 保存为 icon.png</p>
+  <p><a href="icon.svg" download>下载 SVG 源文件</a></p>
+  <script>
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 64 64">
+      <defs>
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#0f172a"/>
+          <stop offset="100%" stop-color="#1e293b"/>
+        </linearGradient>
+        <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8"/>
+          <stop offset="100%" stop-color="#0ea5e9"/>
+        </linearGradient>
+      </defs>
+      <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#bg)" stroke="#334155" stroke-width="1.5"/>
+      <path d="M20 18 L20 46 Q20 48 22 48 L44 48 Q46 48 46 46 L46 18 Q46 16 44 16 L22 16 Q20 16 20 18 Z" fill="none" stroke="url(#accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="33" y1="16" x2="33" y2="48" stroke="url(#accent)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="24" y1="25" x2="30" y2="25" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+      <line x1="24" y1="32" x2="30" y2="32" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+      <line x1="24" y1="39" x2="28" y2="39" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+      <line x1="37" y1="25" x2="42" y2="25" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>
+      <line x1="37" y1="32" x2="42" y2="32" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>
+      <line x1="37" y1="39" x2="40" y2="39" stroke="#64748b" stroke-width="2" stroke-linecap="round"/>
+    </svg>`;
+    const img = new Image();
+    img.onload = () => {
+      const ctx = document.getElementById('c').getContext('2d');
+      ctx.drawImage(img, 0, 0, 256, 256);
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+  </script>
+</body>
+</html>
