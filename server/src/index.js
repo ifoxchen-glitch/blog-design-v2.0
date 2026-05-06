@@ -19,13 +19,17 @@ function ensureJwtSecret() {
   }
 
   const persistPath = path.join(__dirname, "..", "db", ".jwt_secret");
-  if (fs.existsSync(persistPath)) {
-    const persisted = fs.readFileSync(persistPath, "utf8").trim();
-    if (persisted.length >= 32) {
-      console.warn("[WARN] JWT_SECRET not set in environment. Using persisted secret from", persistPath);
-      console.warn("[WARN] It is strongly recommended to set JWT_SECRET explicitly for production.");
-      return persisted;
+  try {
+    if (fs.existsSync(persistPath)) {
+      const persisted = fs.readFileSync(persistPath, "utf8").trim();
+      if (persisted.length >= 32) {
+        console.warn("[WARN] JWT_SECRET not set in environment. Using persisted secret from", persistPath);
+        console.warn("[WARN] It is strongly recommended to set JWT_SECRET explicitly for production.");
+        return persisted;
+      }
     }
+  } catch (err) {
+    console.warn("[WARN] JWT_SECRET not set and cannot read persisted secret:", err.message);
   }
 
   // Auto-generate fallback
