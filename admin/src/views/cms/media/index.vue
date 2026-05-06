@@ -142,7 +142,7 @@ async function copyUrl(url: string) {
       v-model:show="showUploadModal"
       preset="card"
       title="上传图片"
-      style="width: 640px"
+      style="width: 720px; max-width: 90vw;"
       :bordered="false"
     >
       <ImageUploader

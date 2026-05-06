@@ -178,12 +178,12 @@ function handleRemove(data: { file: UploadFileInfo }) {
       @remove="handleRemove"
     >
       <NUploadDragger v-if="props.drag && showUploadButton">
-        <div style="margin-bottom: 8px">
+        <div class="upload-dragger-inner">
           <NIcon size="32" :depth="3"><CloudUploadOutline /></NIcon>
-        </div>
-        <NText>点击或拖拽图片到此区域上传</NText>
-        <div style="font-size: 12px; color: #999; margin-top: 4px">
-          支持 {{ props.accept }},单文件不超过 {{ props.maxSize }}MB
+          <NText style="white-space: nowrap">点击或拖拽图片到此区域上传</NText>
+          <div class="upload-dragger-tip">
+            支持 {{ props.accept }}，单文件不超过 {{ props.maxSize }}MB
+          </div>
         </div>
       </NUploadDragger>
     </NUpload>
@@ -193,5 +193,26 @@ function handleRemove(data: { file: UploadFileInfo }) {
 <style scoped>
 .image-uploader {
   width: 100%;
+}
+
+.image-uploader :deep(.n-upload-trigger) {
+  display: inline-flex;
+}
+
+.upload-dragger-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px 32px;
+  min-width: 280px;
+  text-align: center;
+}
+
+.upload-dragger-tip {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
 }
 </style>
