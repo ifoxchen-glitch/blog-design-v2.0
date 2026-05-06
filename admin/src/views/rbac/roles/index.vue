@@ -1,14 +1,4 @@
 <script setup lang="ts">
-// 角色管理页 — T2.23
-// 设计文档:docs/09-phase2-rbac-frontend-plan.md §3
-//
-// 偏离设计文档之处:
-// (B) 用 :fetch 而非 :api(对齐实际 DataTable 实现)
-// (H) apiGetRoles 不分页,这里包一层把 { items, total } 转 { list, total } 喂给 useTable
-// (I) NTree 用 cascade 模式,叶子是 permission.id;父节点 key 是 `group-${resource}` 字符串,
-//     不会出现在 checked-keys 里(cascade 只返回叶子)
-// (J) 删除错误码 409 → "角色被引用"、403 → "内置角色不可删";其它统一弹后端 message
-
 import { computed, h, reactive, ref, type VNode } from 'vue'
 import axios from 'axios'
 import {
@@ -28,6 +18,7 @@ import {
   type FormInst,
   type FormRules,
 } from 'naive-ui'
+import { CreateOutline, TrashOutline } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import DataTable from '../../../components/common/DataTable.vue'
 import FormDrawer from '../../../components/common/FormDrawer.vue'
@@ -48,7 +39,6 @@ const permissionStore = usePermissionStore()
 const { permissionTree, loading: permissionsLoading, reload: reloadPermissions } =
   usePermissionOptions(true)
 
-// ---- DataTable fetch(后端不分页,前端包一层适配 useTable) ----
 const fetchRoles = async () => {
   const res = await apiGetRoles()
   return { list: res.items, total: res.total }
@@ -64,7 +54,6 @@ function refreshTable() {
   tableRef.value?.refresh()
 }
 
-// ---- 新建 / 编辑抽屉 ----
 const drawerVisible = ref(false)
 const isEdit = ref(false)
 const editingId = ref<number | null>(null)
@@ -119,7 +108,6 @@ async function openCreate() {
 async function openEdit(row: RoleItem) {
   isEdit.value = true
   editingId.value = row.id
-  // 先打开抽屉再拉详情(避免空白等待)
   Object.assign(form, {
     code: row.code,
     name: row.name,
@@ -179,7 +167,6 @@ async function handleSubmit() {
   }
 }
 
-// ---- 删除 ----
 async function handleDelete(row: RoleItem) {
   try {
     await apiDeleteRole(row.id)
@@ -211,7 +198,6 @@ function extractApiError(e: unknown, fallback: string): string {
   return fallback
 }
 
-// ---- 列定义 ----
 const columns: DataTableColumns<RoleItem> = [
   { title: 'ID', key: 'id', width: 70 },
   { title: '编码', key: 'code', width: 160 },
@@ -224,10 +210,7 @@ const columns: DataTableColumns<RoleItem> = [
     render(row: RoleItem) {
       return h(
         NTag,
-        {
-          type: row.status === 'active' ? 'success' : 'default',
-          size: 'small',
-        },
+        { type: row.status === 'active' ? 'success' : 'default', size: 'small' },
         { default: () => (row.status === 'active' ? '正常' : '禁用') },
       )
     },
@@ -237,18 +220,16 @@ const columns: DataTableColumns<RoleItem> = [
   {
     title: '操作',
     key: 'actions',
-    width: 160,
+    width: 100,
     fixed: 'right',
     render(row: RoleItem) {
       const buttons: VNode[] = []
       const canAssign = permissionStore.hasPermission('role:assign')
       if (canAssign) {
         buttons.push(
-          h(
-            NButton,
-            { size: 'small', onClick: () => openEdit(row) },
-            { default: () => '编辑' },
-          ),
+          h(NButton, { size: 'tiny', quaternary: true, title: '编辑', onClick: () => openEdit(row) }, {
+            icon: () => h(CreateOutline, { style: 'width:14px;height:14px' }),
+          }),
         )
         buttons.push(
           h(
@@ -256,18 +237,16 @@ const columns: DataTableColumns<RoleItem> = [
             { onPositiveClick: () => handleDelete(row) },
             {
               trigger: () =>
-                h(
-                  NButton,
-                  { size: 'small', type: 'error' },
-                  { default: () => '删除' },
-                ),
+                h(NButton, { size: 'tiny', quaternary: true, type: 'error', title: '删除' }, {
+                  icon: () => h(TrashOutline, { style: 'width:14px;height:14px' }),
+                }),
               default: () => '确认删除该角色?',
             },
           ),
         )
       }
       if (buttons.length === 0) return h('span', { class: 'text-base-content/30' }, '—')
-      return h(NSpace, { size: 4 }, { default: () => buttons })
+      return h('div', { class: 'action-cell' }, [h(NSpace, { size: 2 }, { default: () => buttons })])
     },
   },
 ]
@@ -276,11 +255,7 @@ const columns: DataTableColumns<RoleItem> = [
 <template>
   <div>
     <PageHeader title="角色管理" subtitle="管理系统角色及其权限">
-      <NButton
-        v-permission="'role:assign'"
-        type="primary"
-        @click="openCreate"
-      >
+      <NButton v-permission="'role:assign'" type="primary" @click="openCreate">
         新建角色
       </NButton>
     </PageHeader>
@@ -308,22 +283,13 @@ const columns: DataTableColumns<RoleItem> = [
         require-mark-placement="right-hanging"
       >
         <NFormItem label="角色编码" path="code">
-          <NInput
-            v-model:value="form.code"
-            :disabled="isEdit"
-            placeholder="如 content_admin"
-          />
+          <NInput v-model:value="form.code" :disabled="isEdit" placeholder="如 content_admin" />
         </NFormItem>
         <NFormItem label="角色名称" path="name">
           <NInput v-model:value="form.name" placeholder="如 内容管理员" />
         </NFormItem>
         <NFormItem label="描述" path="description">
-          <NInput
-            v-model:value="form.description"
-            type="textarea"
-            placeholder="可选"
-            :autosize="{ minRows: 2, maxRows: 4 }"
-          />
+          <NInput v-model:value="form.description" type="textarea" placeholder="可选" :autosize="{ minRows: 2, maxRows: 4 }" />
         </NFormItem>
         <NFormItem label="状态" path="status">
           <NRadioGroup v-model:value="form.status">

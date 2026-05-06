@@ -1,15 +1,5 @@
 <script setup lang="ts">
-// 友链管理页 — T2.30
-// 设计文档:docs/10-phase2-cms-frontend-plan.md §4
-//
-// 偏离设计文档之处:
-// (P1) DataTable 用 :fetch + #search slot,而非设计文档假设的 :query v-bind
-// (P3) 路由用 /cms/links(带 cms 前缀),与 menus seed 对齐
-// (P8) apiGetLinks 返回 { items, total },前端包一层转 { list, total }
-// (P10) issue #60 验收里写的"拖拽排序"沿用设计文档 §4 简化方案:用 sortOrder 数字字段排序,
-//       拖拽 UI 留待 §5.2 优化(后端 reorderLinks 接口已就绪,前端先不接)
-
-import { computed, h, reactive, ref, type VNode } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import axios from 'axios'
 import {
   NButton,
@@ -23,12 +13,17 @@ import {
   NFormItem,
   NModal,
   useMessage,
-  type DataTableColumns,
   type FormInst,
   type FormRules,
 } from 'naive-ui'
+import {
+  CreateOutline,
+  TrashOutline,
+  GridOutline,
+  AddOutline,
+  LinkOutline,
+} from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
-import DataTable from '../../../components/common/DataTable.vue'
 import FormDrawer from '../../../components/common/FormDrawer.vue'
 import {
   apiGetLinks,
@@ -40,26 +35,28 @@ import {
   type LinkIconSize,
 } from '../../../api/cms'
 import { usePermissionStore } from '../../../stores/permission'
-import { formatDateTime } from '../../../utils/format'
 
 const message = useMessage()
 const permissionStore = usePermissionStore()
 
-const fetchLinks = async () => {
-  const res = await apiGetLinks()
-  return { list: res.items, total: res.total }
+const links = ref<LinkItem[]>([])
+const loading = ref(false)
+
+async function loadLinks() {
+  loading.value = true
+  try {
+    const res = await apiGetLinks()
+    links.value = [...res.items]
+  } catch (e: unknown) {
+    message.error(extractLinkError(e, '加载友链失败'))
+  } finally {
+    loading.value = false
+  }
 }
 
-const tableRef = ref<{
-  refresh: () => Promise<void>
-  reset: () => void
-  clearSelection: () => void
-} | null>(null)
+loadLinks()
 
-function refreshTable() {
-  tableRef.value?.refresh()
-}
-
+// ---- 新建 / 编辑抽屉 ----
 const drawerVisible = ref(false)
 const isEdit = ref(false)
 const editingId = ref<number | null>(null)
@@ -89,7 +86,6 @@ const form = reactive<LinkForm>({
   sortOrder: 0,
 })
 
-// 与后端 safeUrl 对齐:允许 / 起首相对路径或 http(s):// 绝对地址,icon 额外允许 data:image/...
 function isValidUrl(value: string, allowDataImage = false): boolean {
   if (!value) return true
   if (value.startsWith('/')) return true
@@ -109,7 +105,6 @@ const dashboardPresets = [
 
 function resolveDashboardIconUrl(name: string): string {
   const n = String(name || '').trim().toLowerCase()
-  // 优先 svg，其次 png
   return `${DASHBOARD_ICONS_BASE}/svg/${encodeURIComponent(n)}.svg`
 }
 
@@ -275,7 +270,7 @@ async function handleSubmit() {
       message.success('友链已创建')
     }
     drawerVisible.value = false
-    refreshTable()
+    loadLinks()
   } catch (e: unknown) {
     message.error(extractLinkError(e, '保存失败'))
   } finally {
@@ -321,7 +316,7 @@ async function saveSort() {
     await apiReorderLinks(items)
     message.success('排序已保存')
     sortModalVisible.value = false
-    refreshTable()
+    loadLinks()
   } catch (e: unknown) {
     message.error(extractLinkError(e, '保存排序失败'))
   }
@@ -331,120 +326,100 @@ async function handleDelete(row: LinkItem) {
   try {
     await apiDeleteLink(row.id)
     message.success('已删除')
-    refreshTable()
+    loadLinks()
   } catch (e: unknown) {
     message.error(extractLinkError(e, '删除失败'))
   }
 }
-
-const columns: DataTableColumns<LinkItem> = [
-  { title: 'ID', key: 'id', width: 70 },
-  {
-    title: '图标',
-    key: 'icon',
-    width: 64,
-    render(row: LinkItem) {
-      if (!row.icon) return h('span', { class: 'text-base-content/30' }, '—')
-      return h(NImage, {
-        src: row.icon,
-        width: 32,
-        height: 32,
-        objectFit: 'contain',
-        previewDisabled: true,
-        fallbackSrc:
-          'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="%232a323c"/></svg>',
-      })
-    },
-  },
-  { title: '标题', key: 'title', width: 160 },
-  {
-    title: 'URL',
-    key: 'url',
-    ellipsis: { tooltip: true },
-    render(row: LinkItem) {
-      return h(
-        'a',
-        { href: row.url, target: '_blank', rel: 'noopener', class: 'text-primary hover:underline' },
-        row.url,
-      )
-    },
-  },
-  { title: '尺寸', key: 'iconSize', width: 80 },
-  { title: '排序', key: 'sortOrder', width: 80 },
-  {
-    title: '更新时间',
-    key: 'updatedAt',
-    width: 180,
-    render(row: LinkItem) {
-      return formatDateTime(row.updatedAt)
-    },
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 160,
-    fixed: 'right',
-    render(row: LinkItem) {
-      const buttons: VNode[] = []
-      const canUpdate = permissionStore.hasPermission('link:update')
-      const canDelete = permissionStore.hasPermission('link:delete')
-      if (canUpdate) {
-        buttons.push(
-          h(
-            NButton,
-            { size: 'small', onClick: () => openEdit(row) },
-            { default: () => '编辑' },
-          ),
-        )
-      }
-      if (canDelete) {
-        buttons.push(
-          h(
-            NPopconfirm,
-            { onPositiveClick: () => handleDelete(row) },
-            {
-              trigger: () =>
-                h(
-                  NButton,
-                  { size: 'small', type: 'error' },
-                  { default: () => '删除' },
-                ),
-              default: () => '确认删除该友链?',
-            },
-          ),
-        )
-      }
-      if (buttons.length === 0) return h('span', { class: 'text-base-content/30' }, '—')
-      return h(NSpace, { size: 4 }, { default: () => buttons })
-    },
-  },
-]
 </script>
 
 <template>
   <div>
-    <PageHeader title="友链管理" subtitle="维护博客友情链接(按 sortOrder 升序展示)">
+    <PageHeader title="友链管理" subtitle="维护博客友情链接">
       <NSpace>
         <NButton v-permission="'link:update'" @click="openSort">
+          <GridOutline class="w-4 h-4 mr-1" />
           拖拽排序
         </NButton>
-        <NButton
-          v-permission="'link:create'"
-          type="primary"
-          @click="openCreate"
-        >
+        <NButton v-permission="'link:create'" type="primary" @click="openCreate">
+          <template #icon>
+            <AddOutline class="w-4 h-4" />
+          </template>
           新建友链
         </NButton>
       </NSpace>
     </PageHeader>
 
-    <DataTable
-      ref="tableRef"
-      :columns="columns"
-      :fetch="fetchLinks"
-      :row-key="(row: LinkItem) => row.id"
-    />
+    <!-- 卡片网格 -->
+    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+      <div
+        v-for="row in links"
+        :key="row.id"
+        class="group bg-base-100 rounded-xl border border-base-content/5 overflow-hidden hover:border-primary/30 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20"
+      >
+        <!-- 图标区域 -->
+        <div class="relative bg-base-200/50 flex items-center justify-center p-3 aspect-square">
+          <img
+            v-if="row.icon"
+            :src="row.icon"
+            class="max-w-full max-h-full object-contain"
+            loading="lazy"
+          />
+          <LinkOutline v-else class="w-8 h-8 text-base-content/10" />
+        </div>
 
+        <!-- 内容 -->
+        <div class="p-2.5">
+          <div class="font-medium text-xs text-base-content truncate">{{ row.title }}</div>
+          <a
+            :href="row.url"
+            target="_blank"
+            rel="noopener"
+            class="text-[10px] text-base-content/30 truncate block hover:text-primary transition-colors mt-0.5"
+          >
+            {{ row.url }}
+          </a>
+
+          <div class="flex items-center justify-between mt-2">
+            <span class="text-[10px] text-base-content/20 px-1.5 py-0.5 rounded bg-base-content/5">
+              {{ row.iconSize }}
+            </span>
+            <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <NButton
+                v-if="permissionStore.hasPermission('link:update')"
+                size="tiny"
+                quaternary
+                @click="openEdit(row)"
+              >
+                <CreateOutline class="w-3 h-3" />
+              </NButton>
+              <NPopconfirm
+                v-if="permissionStore.hasPermission('link:delete')"
+                @positive-click="handleDelete(row)"
+              >
+                <template #trigger>
+                  <NButton size="tiny" quaternary type="error">
+                    <TrashOutline class="w-3 h-3" />
+                  </NButton>
+                </template>
+                确认删除该友链?
+              </NPopconfirm>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div v-if="links.length === 0 && !loading" class="py-16">
+      <NEmpty description="暂无友链">
+        <template #extra>
+          <p class="text-sm text-base-content/40 mt-2">点击右上角"新建友链"添加</p>
+        </template>
+      </NEmpty>
+    </div>
+
+    <!-- FormDrawer -->
     <FormDrawer
       v-model:show="drawerVisible"
       :title="isEdit ? '编辑友链' : '新建友链'"

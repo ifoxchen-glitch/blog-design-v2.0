@@ -47,3 +47,32 @@ body {
 .fade-leave-to {
   opacity: 0;
 }
+
+/* Table action-cell: hide by default, show on row hover */
+.action-cell {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.n-data-table-tr:hover .action-cell {
+  opacity: 1;
+}
+
+/* Table row checkable cursor */
+.n-data-table-tr {
+  cursor: default;
+}
+
+/* Table striped refinement for dark mode */
+.n-data-table-td--striped {
+  background: var(--color-base-200) !important;
+}
+
+/* Input/search prefix icon */
+.n-input .n-input__prefix {
+  margin-right: 2px;
+}
+
+/* Card grid hover refinement */
+.card-grid-item {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}

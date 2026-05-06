@@ -1,14 +1,4 @@
 <script setup lang="ts">
-// 用户管理页 — T2.22
-// 设计文档:docs/09-phase2-rbac-frontend-plan.md §2
-//
-// 偏离设计文档之处(已在计划中说明):
-// (B) 用 :fetch 而非 :api 对齐实际 DataTable 实现
-// (C) 把 status / keyword 放进 query reactive,DataTable 内部 useTable 的 watch
-//     会在变更时自动 page=1 + refresh,不再需要外部 filterStatus + 手动 fetch
-// (D) DataTable 已暴露 refresh / clearSelection,用 slot 的 scoped 参数即可
-// (G) apiResetPassword 在 rbac.ts 内部把 newPassword 转 snake_case,这里直接传
-
 import { computed, h, reactive, ref, type VNode } from 'vue'
 import {
   NButton,
@@ -27,6 +17,7 @@ import {
   type FormInst,
   type FormRules,
 } from 'naive-ui'
+import { CreateOutline, TrashOutline, KeyOutline } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import DataTable from '../../../components/common/DataTable.vue'
 import FormDrawer from '../../../components/common/FormDrawer.vue'
@@ -47,7 +38,6 @@ const message = useMessage()
 const permissionStore = usePermissionStore()
 const { roleOptions, reload: reloadRoles } = useRoleOptions(true)
 
-// ---- DataTable query (keyword + status) ----
 interface UserQuery {
   keyword: string
   status: 'active' | 'disabled' | ''
@@ -79,7 +69,6 @@ function refreshTable() {
   tableRef.value?.refresh()
 }
 
-// ---- 新建 / 编辑抽屉 ----
 const drawerVisible = ref(false)
 const isEdit = ref(false)
 const editingId = ref<number | null>(null)
@@ -189,7 +178,6 @@ async function handleSubmit() {
   }
 }
 
-// ---- 重置密码 ----
 const resetModalVisible = ref(false)
 const resetTarget = ref<UserItem | null>(null)
 const resetting = ref(false)
@@ -220,7 +208,6 @@ async function confirmReset() {
   }
 }
 
-// ---- 删除 / 批量删除 ----
 async function handleDelete(row: UserItem) {
   try {
     await apiDeleteUser(row.id)
@@ -257,7 +244,6 @@ async function batchDelete(
   refresh()
 }
 
-// ---- 列定义 ----
 const columns: DataTableColumns<UserItem> = [
   { type: 'selection' },
   { title: 'ID', key: 'id', width: 70 },
@@ -316,7 +302,7 @@ const columns: DataTableColumns<UserItem> = [
   {
     title: '操作',
     key: 'actions',
-    width: 240,
+    width: 140,
     fixed: 'right',
     render(row: UserItem) {
       const buttons: VNode[] = []
@@ -324,21 +310,16 @@ const columns: DataTableColumns<UserItem> = [
       const canDelete = permissionStore.hasPermission('user:delete')
       if (canUpdate) {
         buttons.push(
-          h(
-            NButton,
-            { size: 'small', onClick: () => openEdit(row) },
-            { default: () => '编辑' },
-          ),
+          h(NButton, { size: 'tiny', quaternary: true, title: '编辑', onClick: () => openEdit(row) }, {
+            icon: () => h(CreateOutline, { style: 'width:14px;height:14px' }),
+          }),
         )
         buttons.push(
-          h(
-            NButton,
-            { size: 'small', onClick: () => openReset(row) },
-            { default: () => '重置密码' },
-          ),
+          h(NButton, { size: 'tiny', quaternary: true, title: '重置密码', onClick: () => openReset(row) }, {
+            icon: () => h(KeyOutline, { style: 'width:14px;height:14px' }),
+          }),
         )
       }
-      // 超管不可删
       if (canDelete && !row.isSuperAdmin) {
         buttons.push(
           h(
@@ -346,18 +327,16 @@ const columns: DataTableColumns<UserItem> = [
             { onPositiveClick: () => handleDelete(row) },
             {
               trigger: () =>
-                h(
-                  NButton,
-                  { size: 'small', type: 'error' },
-                  { default: () => '删除' },
-                ),
+                h(NButton, { size: 'tiny', quaternary: true, type: 'error', title: '删除' }, {
+                  icon: () => h(TrashOutline, { style: 'width:14px;height:14px' }),
+                }),
               default: () => '确认删除该用户?',
             },
           ),
         )
       }
       if (buttons.length === 0) return h('span', { class: 'text-base-content/30' }, '—')
-      return h(NSpace, { size: 4 }, { default: () => buttons })
+      return h('div', { class: 'action-cell' }, [h(NSpace, { size: 2 }, { default: () => buttons })])
     },
   },
 ]

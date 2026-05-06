@@ -100,16 +100,16 @@ const columns: DataTableColumns<BackupItem> = [
   {
     title: '类型',
     key: 'type',
-    width: 100,
+    width: 90,
     render(row: BackupItem) {
       const map: Record<string, string> = { manual: '手动', scheduled: '自动' }
-      return map[row.type] ?? row.type
+      return h(NTag, { size: 'small' }, { default: () => map[row.type] ?? row.type })
     },
   },
   {
     title: '状态',
     key: 'status',
-    width: 100,
+    width: 90,
     render(row: BackupItem) {
       const typeMap: Record<string, 'success' | 'error' | 'warning' | 'default'> = {
         ok: 'success',
@@ -135,30 +135,32 @@ const columns: DataTableColumns<BackupItem> = [
   {
     title: '操作',
     key: 'actions',
-    width: 140,
+    width: 100,
     fixed: 'right',
     render(row: BackupItem) {
-      return h(NSpace, { size: 4 }, {
-        default: () => [
-          h(
-            NButton,
-            { size: 'small', quaternary: true, onClick: () => handleDownload(row) },
-            { icon: () => h(NIcon, null, { default: () => h(DownloadOutline) }) },
-          ),
-          h(
-            NPopconfirm,
-            { onPositiveClick: () => handleDelete(row) },
-            {
-              trigger: () => h(
-                NButton,
-                { size: 'small', quaternary: true, type: 'error' },
-                { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
-              ),
-              default: () => '确定删除该备份？文件将永久丢失。',
-            },
-          ),
-        ],
-      })
+      return h('div', { class: 'action-cell' }, [
+        h(NSpace, { size: 2 }, {
+          default: () => [
+            h(
+              NButton,
+              { size: 'tiny', quaternary: true, title: '下载', onClick: () => handleDownload(row) },
+              { icon: () => h(DownloadOutline, { style: 'width:14px;height:14px' }) },
+            ),
+            h(
+              NPopconfirm,
+              { onPositiveClick: () => handleDelete(row) },
+              {
+                trigger: () => h(
+                  NButton,
+                  { size: 'tiny', quaternary: true, type: 'error', title: '删除' },
+                  { icon: () => h(TrashOutline, { style: 'width:14px;height:14px' }) },
+                ),
+                default: () => '确定删除该备份?文件将永久丢失。',
+              },
+            ),
+          ],
+        }),
+      ])
     },
   },
 ]

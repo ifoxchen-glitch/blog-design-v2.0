@@ -1,29 +1,19 @@
 <script setup lang="ts">
-// 分类管理页 — T2.29
-// 设计文档:docs/10-phase2-cms-frontend-plan.md §3
-//
-// 偏离设计文档之处:
-// (P1) DataTable 用 :fetch + #search slot,而非设计文档假设的 :query v-bind
-// (P3) 路由用 /cms/categories(带 cms 前缀),与 menus seed 对齐
-// (P8) apiGetCategories 返回 { items, total },前端包一层转 { list, total }
-// (P9) 后端 409 错误码细分 name_taken / slug_taken,前端做友好提示
-
-import { computed, h, reactive, ref, type VNode } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import axios from 'axios'
 import {
   NButton,
   NInput,
-  NSpace,
-  NPopconfirm,
   NForm,
   NFormItem,
+  NPopconfirm,
+  NEmpty,
   useMessage,
-  type DataTableColumns,
   type FormInst,
   type FormRules,
 } from 'naive-ui'
+import { CreateOutline, TrashOutline, SearchOutline, AddOutline } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
-import DataTable from '../../../components/common/DataTable.vue'
 import FormDrawer from '../../../components/common/FormDrawer.vue'
 import {
   apiGetCategories,
@@ -38,21 +28,35 @@ import { formatDateTime } from '../../../utils/format'
 const message = useMessage()
 const permissionStore = usePermissionStore()
 
-const fetchCategories = async () => {
-  const res = await apiGetCategories()
-  return { list: res.items, total: res.total }
+const categories = ref<CategoryItem[]>([])
+const loading = ref(false)
+const search = ref('')
+
+async function loadCategories() {
+  loading.value = true
+  try {
+    const res = await apiGetCategories()
+    categories.value = res.items
+  } catch (e: unknown) {
+    message.error(e instanceof Error ? e.message : '加载失败')
+  } finally {
+    loading.value = false
+  }
 }
 
-const tableRef = ref<{
-  refresh: () => Promise<void>
-  reset: () => void
-  clearSelection: () => void
-} | null>(null)
+loadCategories()
 
-function refreshTable() {
-  tableRef.value?.refresh()
-}
+const filteredCategories = computed(() => {
+  if (!search.value) return categories.value
+  const kw = search.value.toLowerCase()
+  return categories.value.filter(
+    (c) =>
+      c.name.toLowerCase().includes(kw) ||
+      c.slug.toLowerCase().includes(kw),
+  )
+})
 
+// ---- 新建 / 编辑抽屉 ----
 const drawerVisible = ref(false)
 const isEdit = ref(false)
 const editingId = ref<number | null>(null)
@@ -69,7 +73,7 @@ const form = reactive<CategoryForm>({
   slug: '',
 })
 
-const formRules = computed<FormRules>(() => ({
+const formRules: FormRules = {
   name: [
     { required: true, message: '请输入分类名称', trigger: 'blur' },
     { max: 50, message: '名称不能超过 50 字', trigger: 'blur' },
@@ -86,7 +90,7 @@ const formRules = computed<FormRules>(() => ({
       },
     },
   ],
-}))
+}
 
 function openCreate() {
   isEdit.value = false
@@ -98,10 +102,7 @@ function openCreate() {
 function openEdit(row: CategoryItem) {
   isEdit.value = true
   editingId.value = row.id
-  Object.assign(form, {
-    name: row.name,
-    slug: row.slug,
-  })
+  Object.assign(form, { name: row.name, slug: row.slug })
   drawerVisible.value = true
 }
 
@@ -139,7 +140,7 @@ async function handleSubmit() {
       message.success('分类已创建')
     }
     drawerVisible.value = false
-    refreshTable()
+    loadCategories()
   } catch (e: unknown) {
     message.error(extractCategoryError(e, '保存失败'))
   } finally {
@@ -151,88 +152,88 @@ async function handleDelete(row: CategoryItem) {
   try {
     await apiDeleteCategory(row.id)
     message.success('已删除')
-    refreshTable()
+    loadCategories()
   } catch (e: unknown) {
     message.error(extractCategoryError(e, '删除失败'))
   }
 }
-
-const columns: DataTableColumns<CategoryItem> = [
-  { title: 'ID', key: 'id', width: 70 },
-  { title: '名称', key: 'name', width: 160 },
-  { title: 'Slug', key: 'slug', width: 200 },
-  { title: '文章数', key: 'postCount', width: 100 },
-  {
-    title: '创建时间',
-    key: 'createdAt',
-    width: 180,
-    render(row: CategoryItem) {
-      return formatDateTime(row.createdAt)
-    },
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 160,
-    fixed: 'right',
-    render(row: CategoryItem) {
-      const buttons: VNode[] = []
-      const canUpdate = permissionStore.hasPermission('category:update')
-      const canDelete = permissionStore.hasPermission('category:delete')
-      if (canUpdate) {
-        buttons.push(
-          h(
-            NButton,
-            { size: 'small', onClick: () => openEdit(row) },
-            { default: () => '编辑' },
-          ),
-        )
-      }
-      if (canDelete) {
-        buttons.push(
-          h(
-            NPopconfirm,
-            { onPositiveClick: () => handleDelete(row) },
-            {
-              trigger: () =>
-                h(
-                  NButton,
-                  { size: 'small', type: 'error' },
-                  { default: () => '删除' },
-                ),
-              default: () =>
-                row.postCount > 0
-                  ? `该分类关联了 ${row.postCount} 篇文章,删除将解除关联。确定?`
-                  : '确认删除该分类?',
-            },
-          ),
-        )
-      }
-      if (buttons.length === 0) return h('span', { class: 'text-base-content/30' }, '—')
-      return h(NSpace, { size: 4 }, { default: () => buttons })
-    },
-  },
-]
 </script>
 
 <template>
   <div>
     <PageHeader title="分类管理" subtitle="管理文章分类">
-      <NButton
-        v-permission="'category:create'"
-        type="primary"
-        @click="openCreate"
-      >
+      <NButton v-permission="'category:create'" type="primary" @click="openCreate">
+        <template #icon>
+          <AddOutline class="w-4 h-4" />
+        </template>
         新建分类
       </NButton>
     </PageHeader>
 
-    <DataTable
-      ref="tableRef"
-      :columns="columns"
-      :fetch="fetchCategories"
-      :row-key="(row: CategoryItem) => row.id"
-    />
+    <!-- 搜索 -->
+    <div class="flex items-center gap-3 mb-5">
+      <div class="relative flex-1 min-w-[200px] max-w-[360px]">
+        <NInput v-model:value="search" placeholder="搜索分类名称 / slug" clearable>
+          <template #prefix>
+            <SearchOutline class="w-4 h-4 text-base-content/30" />
+          </template>
+        </NInput>
+      </div>
+      <span class="text-sm text-base-content/30">共 {{ filteredCategories.length }} 个分类</span>
+    </div>
+
+    <!-- 卡片网格 -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+      <div
+        v-for="row in filteredCategories"
+        :key="row.id"
+        class="group bg-base-100 rounded-xl border border-base-content/5 p-4 hover:border-primary/30 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20"
+      >
+        <div class="flex items-start justify-between">
+          <div class="min-w-0 flex-1">
+            <div class="font-medium text-sm text-base-content truncate">{{ row.name }}</div>
+            <div class="text-xs text-base-content/30 mt-0.5 truncate">{{ row.slug }}</div>
+          </div>
+          <span class="shrink-0 ml-2 px-2 py-0.5 rounded-md bg-base-content/5 text-base-content/40 text-[11px] font-medium">
+            {{ row.postCount }} 篇
+          </span>
+        </div>
+
+        <div class="flex items-center justify-between mt-3 pt-3 border-t border-base-content/5">
+          <span class="text-[11px] text-base-content/20">{{ formatDateTime(row.createdAt) }}</span>
+          <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <NButton
+              v-if="permissionStore.hasPermission('category:update')"
+              size="tiny"
+              quaternary
+              @click="openEdit(row)"
+            >
+              <CreateOutline class="w-3.5 h-3.5" />
+            </NButton>
+            <NPopconfirm
+              v-if="permissionStore.hasPermission('category:delete')"
+              @positive-click="handleDelete(row)"
+            >
+              <template #trigger>
+                <NButton size="tiny" quaternary type="error">
+                  <TrashOutline class="w-3.5 h-3.5" />
+                </NButton>
+              </template>
+              {{ row.postCount > 0 ? `该分类关联了 ${row.postCount} 篇文章,删除将解除关联。确定?` : '确认删除该分类?' }}
+            </NPopconfirm>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div v-if="filteredCategories.length === 0 && !loading" class="py-16">
+      <NEmpty description="暂无分类">
+        <template #extra>
+          <p class="text-sm text-base-content/40 mt-2">点击右上角"新建分类"添加</p>
+        </template>
+      </NEmpty>
+    </div>
 
     <FormDrawer
       v-model:show="drawerVisible"
