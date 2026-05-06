@@ -1,13 +1,40 @@
-node_modules
-.git
-docs
-.vscode
+# Dependencies
+node_modules/
+admin/node_modules/
+server/node_modules/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Markdown and docs
 *.md
-server/node_modules
-server/data.db
-server/db/blog.sqlite-*
+CLAUDE.md
+docs/
+
+# Environment files — never bake secrets into the image
 .env
+.env.*
 server/.env
+server/.env.*
+
+# Build outputs
+admin/dist/
+
+# SQLite database files (mount at runtime)
+server/db/*.sqlite*
+
+# Uploaded files (mount at runtime)
+server/public/uploads/
+
+# Logs
 *.log
-Dockerfile
-docker-compose.yml
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db

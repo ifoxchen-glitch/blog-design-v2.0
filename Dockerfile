@@ -25,7 +25,12 @@ COPY *.html ./
 
 COPY --from=admin-build /app/admin/dist ./admin/dist
 
-RUN mkdir -p server/db server/public/uploads
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001 -G nodejs && \
+    mkdir -p server/db server/public/uploads && \
+    chown -R nodejs:nodejs server/db server/public/uploads
+
+USER nodejs
 
 EXPOSE 8787 3000
 
