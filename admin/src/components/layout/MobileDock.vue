@@ -10,7 +10,7 @@ const permission = usePermissionStore()
 // Top-level menu items only (max 5 for mobile dock)
 const dockItems = computed(() => {
   return permission.menus
-    .filter((m) => !m.parentId)
+    .filter((m) => !m.parent_id)
     .slice(0, 5)
     .map((m) => ({
       path: m.path ?? `/cms/${m.name}`,
