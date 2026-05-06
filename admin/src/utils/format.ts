@@ -23,3 +23,20 @@ export function formatSize(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
+
+export function formatRelativeTime(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const now = Date.now()
+  const diff = now - d.getTime()
+  const sec = Math.floor(diff / 1000)
+  if (sec < 60) return `${sec}秒前`
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}分钟前`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}小时前`
+  const day = Math.floor(hr / 24)
+  if (day < 30) return `${day}天前`
+  return d.toLocaleDateString('zh-CN')
+}
