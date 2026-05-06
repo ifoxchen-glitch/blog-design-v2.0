@@ -1,14 +1,5 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import {
-  NButton,
-  NCard,
-  NSpace,
-  NGrid,
-  NGridItem,
-  NSpin,
-  NSelect,
-} from 'naive-ui'
 import { useAuthStore } from '../../stores/auth'
 import {
   apiGetDashboardStats,
@@ -101,212 +92,83 @@ watch(() => auth.user, loadAll)
 </script>
 
 <template>
-  <NSpin :show="loading">
-    <div class="dashboard">
-      <!-- 顶部标题栏 -->
-      <div class="dash-header">
-        <div class="dash-title">
-          <h1>欢迎回来，{{ auth.user?.username ?? '访客' }}</h1>
-          <p>Dashboard 数据概览，所有统计实时来自数据库。</p>
-        </div>
-        <NSpace class="dash-actions">
-          <NSelect
-            v-model:value="trendDays"
-            :options="[
-              { label: '近 7 天', value: 7 },
-              { label: '近 14 天', value: 14 },
-              { label: '近 30 天', value: 30 },
-            ]"
-            size="small"
-            style="width: 110px"
-          />
-          <NButton size="small" strong secondary @click="exportCsv">导出报表</NButton>
-        </NSpace>
+  <div class="h-full overflow-y-auto p-4">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h1 class="text-lg font-semibold text-base-content">欢迎回来，{{ auth.user?.username ?? '访客' }}</h1>
+        <p class="text-sm text-base-content/50">Dashboard 数据概览，所有统计实时来自数据库。</p>
       </div>
-
-      <!-- 统计卡片 -->
-      <NGrid :cols="4" :x-gap="16" :y-gap="16" responsive="screen">
-        <NGridItem span="2 m:1">
-          <NCard class="stat-card" :bordered="false">
-            <div class="stat-label">文章总数</div>
-            <div class="stat-value" style="color: #3b82f6;">{{ stats.postCount }}</div>
-          </NCard>
-        </NGridItem>
-        <NGridItem span="2 m:1">
-          <NCard class="stat-card" :bordered="false">
-            <div class="stat-label">标签总数</div>
-            <div class="stat-value" style="color: #8b5cf6;">{{ stats.tagCount }}</div>
-          </NCard>
-        </NGridItem>
-        <NGridItem span="2 m:1">
-          <NCard class="stat-card" :bordered="false">
-            <div class="stat-label">分类总数</div>
-            <div class="stat-value" style="color: #f59e0b;">{{ stats.categoryCount }}</div>
-          </NCard>
-        </NGridItem>
-        <NGridItem span="2 m:1">
-          <NCard class="stat-card" :bordered="false">
-            <div class="stat-label">今日访问</div>
-            <div class="stat-value" style="color: #10b981;">{{ stats.todayPv }}</div>
-            <div class="stat-sub">UV {{ stats.todayUv }}</div>
-          </NCard>
-        </NGridItem>
-      </NGrid>
-
-      <!-- 图表区域 -->
-      <NGrid :cols="3" :x-gap="16" :y-gap="16" responsive="screen" style="margin-top: 16px;">
-        <NGridItem span="3 m:2">
-          <NCard class="chart-card" :bordered="false" title="访问趋势">
-            <LineChart
-              :labels="trendLabels"
-              :series="trendSeries"
-              :height="300"
-            />
-          </NCard>
-        </NGridItem>
-        <NGridItem span="3 m:1">
-          <NCard class="chart-card" :bordered="false" title="文章阅读量 Top 10">
-            <BarChart
-              :items="topPosts"
-              :height="300"
-            />
-          </NCard>
-        </NGridItem>
-      </NGrid>
-
-      <NGrid :cols="2" :x-gap="16" :y-gap="16" responsive="screen" style="margin-top: 16px;">
-        <NGridItem span="2 m:1">
-          <NCard class="chart-card" :bordered="false" title="标签文章分布">
-            <PieChart
-              :data="tagPieData"
-              :height="260"
-            />
-          </NCard>
-        </NGridItem>
-        <NGridItem span="2 m:1">
-          <NCard class="chart-card" :bordered="false" title="分类文章分布">
-            <PieChart
-              :data="catPieData"
-              :height="260"
-            />
-          </NCard>
-        </NGridItem>
-      </NGrid>
-
-      <NGrid :cols="3" :x-gap="16" :y-gap="16" responsive="screen" style="margin-top: 16px;">
-        <NGridItem span="3 m:2">
-          <NCard class="chart-card" :bordered="false" title="访问来源 Top 10">
-            <BarChart
-              :items="referrers"
-              :height="240"
-              color="#10b981"
-            />
-          </NCard>
-        </NGridItem>
-        <NGridItem span="3 m:1">
-          <NCard class="chart-card" :bordered="false" title="今日时段分布">
-            <LineChart
-              :labels="hourlyLabels"
-              :series="hourlySeries"
-              :height="240"
-            />
-          </NCard>
-        </NGridItem>
-      </NGrid>
+      <div class="flex items-center gap-2">
+        <select
+          v-model="trendDays"
+          class="select select-sm select-bordered bg-base-100"
+        >
+          <option :value="7">近 7 天</option>
+          <option :value="14">近 14 天</option>
+          <option :value="30">近 30 天</option>
+        </select>
+        <button class="btn btn-sm btn-primary" @click="exportCsv">
+          导出报表
+        </button>
+      </div>
     </div>
-  </NSpin>
+
+    <!-- Stat Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      <div class="bg-base-200/30 rounded-xl p-4">
+        <div class="text-xs text-base-content/50 uppercase tracking-wider">文章总数</div>
+        <div class="mt-1 text-3xl font-extralight tabular-nums text-white">{{ stats.postCount }}</div>
+      </div>
+      <div class="bg-base-200/30 rounded-xl p-4">
+        <div class="text-xs text-base-content/50 uppercase tracking-wider">标签总数</div>
+        <div class="mt-1 text-3xl font-extralight tabular-nums text-white">{{ stats.tagCount }}</div>
+      </div>
+      <div class="bg-base-200/30 rounded-xl p-4">
+        <div class="text-xs text-base-content/50 uppercase tracking-wider">分类总数</div>
+        <div class="mt-1 text-3xl font-extralight tabular-nums text-white">{{ stats.categoryCount }}</div>
+      </div>
+      <div class="bg-base-200/30 rounded-xl p-4">
+        <div class="text-xs text-base-content/50 uppercase tracking-wider">今日访问</div>
+        <div class="mt-1 text-3xl font-extralight tabular-nums text-white">{{ stats.todayPv }}</div>
+        <div class="text-xs text-base-content/40 mt-1">UV {{ stats.todayUv }}</div>
+      </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+      <div class="lg:col-span-2 bg-base-200/30 rounded-xl p-4">
+        <div class="text-sm font-medium mb-3 text-base-content">访问趋势</div>
+        <LineChart :labels="trendLabels" :series="trendSeries" :height="280" />
+      </div>
+      <div class="bg-base-200/30 rounded-xl p-4">
+        <div class="text-sm font-medium mb-3 text-base-content">文章阅读量 Top 10</div>
+        <BarChart :items="topPosts" :height="280" />
+      </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+      <div class="bg-base-200/30 rounded-xl p-4">
+        <div class="text-sm font-medium mb-3 text-base-content">标签文章分布</div>
+        <PieChart :data="tagPieData" :height="240" />
+      </div>
+      <div class="bg-base-200/30 rounded-xl p-4">
+        <div class="text-sm font-medium mb-3 text-base-content">分类文章分布</div>
+        <PieChart :data="catPieData" :height="240" />
+      </div>
+    </div>
+
+    <!-- Charts Row 3 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+      <div class="lg:col-span-2 bg-base-200/30 rounded-xl p-4">
+        <div class="text-sm font-medium mb-3 text-base-content">访问来源 Top 10</div>
+        <BarChart :items="referrers" :height="220" color="#10b981" />
+      </div>
+      <div class="bg-base-200/30 rounded-xl p-4">
+        <div class="text-sm font-medium mb-3 text-base-content">今日时段分布</div>
+        <LineChart :labels="hourlyLabels" :series="hourlySeries" :height="220" />
+      </div>
+    </div>
+  </div>
 </template>
-
-<style scoped>
-.dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.dash-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.dash-title h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 700;
-  color: #f0f0f0;
-  letter-spacing: -0.3px;
-}
-
-.dash-title p {
-  margin: 4px 0 0;
-  color: #6b7280;
-  font-size: 13px;
-}
-
-.dash-actions {
-  align-items: center;
-}
-
-.stat-card {
-  border-radius: 10px;
-  background: #111827;
-  transition: transform 0.15s;
-  border: 1px solid rgba(255, 255, 255, 0.03);
-}
-
-.stat-card:hover {
-  transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.06);
-}
-
-.stat-card :deep(.n-card__content) {
-  padding: 20px;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: #6b7280;
-  font-weight: 500;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.stat-value {
-  font-size: 32px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -1px;
-}
-
-.stat-sub {
-  font-size: 12px;
-  color: #4b5563;
-  margin-top: 6px;
-  font-weight: 500;
-}
-
-.chart-card {
-  border-radius: 10px;
-  background: #111827;
-  border: 1px solid rgba(255, 255, 255, 0.03);
-}
-
-.chart-card :deep(.n-card-header) {
-  padding: 16px 20px 0;
-}
-
-.chart-card :deep(.n-card-header__main) {
-  font-size: 14px;
-  font-weight: 600;
-  color: #9ca3af;
-}
-
-.chart-card :deep(.n-card__content) {
-  padding: 12px 20px 20px;
-}
-</style>

@@ -1,0 +1,28 @@
+/* scrollbar styles handled by browser default */
+
+.text-main {
+  @apply text-primary;
+}
+
+[data-theme='dark'] .text-main {
+  color: oklch(72% 0.233 277.117);
+}
+
+.settings-section-label {
+  @apply px-1 pt-5 pb-1.5 text-xs font-semibold tracking-wider uppercase first:pt-2;
+  color: color-mix(in srgb, var(--color-base-content) 45%, transparent);
+}
+
+.settings-grid {
+  @apply bg-base-100 grid grid-cols-1 overflow-hidden rounded-xl;
+}
+
+.setting-item {
+  @apply border-base-border flex min-h-11 items-center gap-3 border-b px-4;
+  &:last-child {
+    border-bottom: none;
+  }
+  .setting-item-label {
+    @apply flex-1 text-sm font-medium;
+  }
+}
