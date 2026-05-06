@@ -68,7 +68,7 @@ onBeforeUnmount(() => {
       </template>
     </PageHeader>
 
-    <div v-if="error" style="color: #d03050; margin-bottom: 16px">{{ error }}</div>
+    <div v-if="error" class="text-error mb-4">{{ error }}</div>
 
     <NGrid :cols="3" :x-gap="16" :y-gap="16" responsive="screen">
       <NGridItem span="1">
@@ -81,7 +81,7 @@ onBeforeUnmount(() => {
               style="width: 120px"
             />
           </NSpace>
-          <div style="text-align: center; color: #888; font-size: 14px">
+          <div class="text-center text-base-content/50 text-sm">
             {{ (data?.cpu.usage ?? 0).toFixed(2) }}%
           </div>
         </NCard>
@@ -98,7 +98,7 @@ onBeforeUnmount(() => {
           />
           <NSpace justify="center" size="small" style="margin-top: 8px">
             <span>已用: {{ formatSize(data?.memory.used ?? 0) }}</span>
-            <span style="color: #ccc">|</span>
+            <span class="text-base-content/30">|</span>
             <span>总计: {{ formatSize(data?.memory.total ?? 0) }}</span>
           </NSpace>
         </NCard>
@@ -115,7 +115,7 @@ onBeforeUnmount(() => {
           />
           <NSpace justify="center" size="small" style="margin-top: 8px">
             <span>已用: {{ formatSize(data?.disk.used ?? 0) }}</span>
-            <span style="color: #ccc">|</span>
+            <span class="text-base-content/30">|</span>
             <span>总计: {{ formatSize(data?.disk.total ?? 0) }}</span>
           </NSpace>
         </NCard>

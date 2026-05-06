@@ -202,7 +202,7 @@ function extractError(e: unknown, fallback: string): string {
               size="small"
               embedded
               :bordered="false"
-              style="background: #f7f7f7"
+              class="bg-base-200"
             >
               <NDescriptions
                 :column="2"

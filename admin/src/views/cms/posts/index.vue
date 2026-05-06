@@ -187,7 +187,7 @@ const columns = computed<DataTableColumns<PostListItem>>(() => {
       key: 'coverImageUrl',
       width: 64,
       render(row) {
-        if (!row.coverImageUrl) return h('span', { style: 'color: #999' }, '—')
+        if (!row.coverImageUrl) return h('span', { class: 'text-base-content/30' }, '—')
         return h(NImage, {
           src: row.coverImageUrl,
           width: 40,
@@ -231,7 +231,7 @@ const columns = computed<DataTableColumns<PostListItem>>(() => {
       key: 'tags',
       width: 200,
       render(row) {
-        if (!row.tags?.length) return h('span', { style: 'color: #999' }, '—')
+        if (!row.tags?.length) return h('span', { class: 'text-base-content/30' }, '—')
         return h(
           NSpace,
           { size: 4 },
@@ -249,7 +249,7 @@ const columns = computed<DataTableColumns<PostListItem>>(() => {
       key: 'categories',
       width: 160,
       render(row) {
-        if (!row.categories?.length) return h('span', { style: 'color: #999' }, '—')
+        if (!row.categories?.length) return h('span', { class: 'text-base-content/30' }, '—')
         return h(
           NSpace,
           { size: 4 },
@@ -328,7 +328,7 @@ const columns = computed<DataTableColumns<PostListItem>>(() => {
             ),
           )
         }
-        if (buttons.length === 0) return h('span', { style: 'color: #999' }, '—')
+        if (buttons.length === 0) return h('span', { class: 'text-base-content/30' }, '—')
         return h(NSpace, { size: 4 }, { default: () => buttons })
       },
     },

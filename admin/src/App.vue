@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { NConfigProvider, NMessageProvider, NDialogProvider } from 'naive-ui'
+import { NConfigProvider, NMessageProvider, NDialogProvider, darkTheme } from 'naive-ui'
 </script>
 
 <template>
-  <NConfigProvider>
+  <NConfigProvider :theme="darkTheme">
     <NMessageProvider>
       <NDialogProvider>
         <RouterView />

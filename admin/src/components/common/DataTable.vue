@@ -3,7 +3,6 @@ import { ref, watch } from 'vue'
 import {
   NDataTable,
   NPagination,
-  NSpace,
   NInput,
   NButton,
   NIcon,
@@ -75,19 +74,10 @@ const queryAsRecord = table.query as Record<string, unknown>
 </script>
 
 <template>
-  <div class="data-table-wrap">
-    <div
-      class="data-table-toolbar"
-      style="
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 16px;
-        flex-wrap: wrap;
-      "
-    >
-      <div style="flex: 1; min-width: 240px; max-width: 480px">
+  <div class="w-full">
+    <!-- Toolbar -->
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div class="flex-1 min-w-[240px] max-w-[480px]">
         <slot name="search" :query="table.query" :refresh="table.refresh">
           <NInput
             v-model:value="(queryAsRecord.keyword as string)"
@@ -96,7 +86,7 @@ const queryAsRecord = table.query as Record<string, unknown>
           />
         </slot>
       </div>
-      <NSpace>
+      <div class="flex items-center gap-2">
         <NButton
           quaternary
           circle
@@ -111,36 +101,33 @@ const queryAsRecord = table.query as Record<string, unknown>
           :clear-selection="clearSelection"
           :refresh="table.refresh"
         />
-      </NSpace>
+      </div>
     </div>
 
-    <NDataTable
-      :columns="props.columns"
-      :data="table.data.value"
-      :loading="table.loading.value"
-      :row-key="props.rowKey"
-      :checked-row-keys="selectedRowKeys"
-      :pagination="false"
-      :bordered="false"
-      :scroll-x="1800"
-      remote
-      @update:checked-row-keys="handleSelectionChange"
-    >
-      <template #empty>
-        <slot name="empty">
-          <NEmpty description="暂无数据" />
-        </slot>
-      </template>
-    </NDataTable>
+    <!-- Table Card -->
+    <div class="bg-base-100 rounded-xl overflow-hidden border border-base-content/5">
+      <NDataTable
+        :columns="props.columns"
+        :data="table.data.value"
+        :loading="table.loading.value"
+        :row-key="props.rowKey"
+        :checked-row-keys="selectedRowKeys"
+        :pagination="false"
+        :bordered="false"
+        :scroll-x="1800"
+        remote
+        @update:checked-row-keys="handleSelectionChange"
+      >
+        <template #empty>
+          <slot name="empty">
+            <NEmpty description="暂无数据" />
+          </slot>
+        </template>
+      </NDataTable>
+    </div>
 
-    <div
-      class="data-table-pagination"
-      style="
-        margin-top: 16px;
-        display: flex;
-        justify-content: flex-end;
-      "
-    >
+    <!-- Pagination -->
+    <div class="mt-4 flex justify-end">
       <NPagination
         :page="table.page.value"
         :page-size="table.pageSize.value"
@@ -153,9 +140,3 @@ const queryAsRecord = table.query as Record<string, unknown>
     </div>
   </div>
 </template>
-
-<style scoped>
-.data-table-wrap {
-  width: 100%;
-}
-</style>

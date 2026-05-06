@@ -149,7 +149,7 @@ const columns: DataTableColumns<AuditLogItem> = [
     key: 'detail',
     width: 80,
     render(row: AuditLogItem) {
-      if (!row.detail) return h('span', { style: 'color: #999' }, '—')
+      if (!row.detail) return h('span', { class: 'text-base-content/30' }, '—')
       return h(
         NButton,
         { size: 'small', quaternary: true, onClick: () => openDetail(row) },

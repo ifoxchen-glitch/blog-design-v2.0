@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { usePermissionStore } from '../../stores/permission'
 import { buildOptions, findActiveKey } from './menuUtils'
+import MobileDock from './MobileDock.vue'
 import type { Component } from 'vue'
 
 const route = useRoute()
@@ -213,7 +214,7 @@ const breadcrumbs = computed(() => {
       </div>
 
       <!-- Page content -->
-      <div class="flex flex-1 flex-col overflow-y-auto">
+      <div class="flex flex-1 flex-col overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
         <RouterView v-slot="{ Component, route }">
           <Transition name="fade" mode="out-in">
             <Component :is="Component" :key="route.path" />
@@ -221,5 +222,8 @@ const breadcrumbs = computed(() => {
         </RouterView>
       </div>
     </div>
+
+    <!-- Mobile bottom navigation -->
+    <MobileDock />
   </div>
 </template>

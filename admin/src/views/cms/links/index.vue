@@ -344,7 +344,7 @@ const columns: DataTableColumns<LinkItem> = [
     key: 'icon',
     width: 64,
     render(row: LinkItem) {
-      if (!row.icon) return h('span', { style: 'color: #999' }, '—')
+      if (!row.icon) return h('span', { class: 'text-base-content/30' }, '—')
       return h(NImage, {
         src: row.icon,
         width: 32,
@@ -364,7 +364,7 @@ const columns: DataTableColumns<LinkItem> = [
     render(row: LinkItem) {
       return h(
         'a',
-        { href: row.url, target: '_blank', rel: 'noopener', style: 'color: #2080f0' },
+        { href: row.url, target: '_blank', rel: 'noopener', class: 'text-primary hover:underline' },
         row.url,
       )
     },
@@ -414,7 +414,7 @@ const columns: DataTableColumns<LinkItem> = [
           ),
         )
       }
-      if (buttons.length === 0) return h('span', { style: 'color: #999' }, '—')
+      if (buttons.length === 0) return h('span', { class: 'text-base-content/30' }, '—')
       return h(NSpace, { size: 4 }, { default: () => buttons })
     },
   },
@@ -524,32 +524,18 @@ const columns: DataTableColumns<LinkItem> = [
     >
       <NSpace vertical size="medium">
         <div
-          style="
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid #e8e8e8;
-            border-radius: 6px;
-            padding: 4px;
-          "
+          class="max-h-[400px] overflow-y-auto rounded-md p-1 border border-base-content/10"
         >
           <div
             v-for="(item, idx) in sortList"
             :key="item.id"
             draggable="true"
-            style="
-              display: flex;
-              align-items: center;
-              gap: 10px;
-              padding: 8px 12px;
-              border-radius: 4px;
-              cursor: move;
-              transition: background 0.15s;
-            "
+            class="flex items-center gap-2.5 px-3 py-2 rounded cursor-move hover:bg-base-content/5 transition-colors"
             @dragstart="onDragStart(idx)"
             @dragover="onDragOver($event, idx)"
             @drop="onDrop($event, idx)"
           >
-            <span style="color: #999; font-size: 14px; user-select: none">☰</span>
+            <span class="text-base-content/40 text-sm select-none">☰</span>
             <img
               v-if="item.icon"
               :src="item.icon"
@@ -558,8 +544,8 @@ const columns: DataTableColumns<LinkItem> = [
               style="object-fit: contain; flex-shrink: 0"
               loading="lazy"
             />
-            <span v-else style="width: 24px; flex-shrink: 0"></span>
-            <span style="font-size: 14px">{{ item.title }}</span>
+            <span v-else class="w-6 flex-shrink-0"></span>
+            <span class="text-sm">{{ item.title }}</span>
           </div>
         </div>
 
@@ -598,45 +584,26 @@ const columns: DataTableColumns<LinkItem> = [
 
         <div
           v-if="iconSearchLoading"
-          style="text-align: center; padding: 24px; color: #999"
+          class="text-center py-6 text-base-content/40"
         >
           搜索中...
         </div>
         <div
           v-else-if="iconGridItems.length === 0"
-          style="text-align: center; padding: 24px; color: #999"
+          class="text-center py-6 text-base-content/40"
         >
           未找到图标。请确认图标名（kebab-case），或用 favicon。
         </div>
         <div
           v-else
-          style="
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
-            gap: 8px;
-            max-height: 320px;
-            overflow-y: auto;
-            padding: 4px;
-          "
+          class="grid gap-2 max-h-[320px] overflow-y-auto p-1"
+          style="grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));"
         >
           <div
             v-for="item in iconGridItems"
             :key="item.name"
-            :style="{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '6px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              border: selectedIconUrl === item.url
-                ? '2px solid #2080f0'
-                : '2px solid transparent',
-              background: selectedIconUrl === item.url
-                ? '#f0f7ff'
-                : 'transparent',
-              transition: 'all 0.2s',
-            }"
+            class="flex items-center justify-center p-1.5 rounded-md cursor-pointer transition-all"
+            :class="selectedIconUrl === item.url ? 'border-2 border-primary bg-primary/10' : 'border-2 border-transparent'"
             :title="item.name"
             @click="selectIconItem(item.url)"
           >

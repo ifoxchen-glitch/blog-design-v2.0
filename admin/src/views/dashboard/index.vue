@@ -92,7 +92,7 @@ watch(() => auth.user, loadAll)
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto p-4">
+  <div class="h-full overflow-y-auto">
     <!-- Header -->
     <div class="flex items-center justify-between mb-4">
       <div>

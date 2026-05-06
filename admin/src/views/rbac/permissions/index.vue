@@ -147,7 +147,7 @@ const columns = computed<DataTableColumns<PermissionItem>>(() => [
           size: 'small',
         })
       }
-      return row.description || h('span', { style: 'color: #999' }, '—')
+      return row.description || h('span', { class: 'text-base-content/30' }, '—')
     },
   },
   {
@@ -157,7 +157,7 @@ const columns = computed<DataTableColumns<PermissionItem>>(() => [
     fixed: 'right',
     render(row: PermissionItem) {
       const canEdit = permissionStore.hasPermission('role:assign')
-      if (!canEdit) return h('span', { style: 'color: #999' }, '—')
+      if (!canEdit) return h('span', { class: 'text-base-content/30' }, '—')
       const buttons: VNode[] = []
       if (editingRow.value === row.id) {
         buttons.push(

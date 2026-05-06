@@ -290,7 +290,7 @@ const columns: DataTableColumns<MenuItem> = [
     key: 'path',
     width: 200,
     render(row: MenuItem) {
-      return row.path || h('span', { style: 'color: #999' }, '—')
+      return row.path || h('span', { class: 'text-base-content/30' }, '—')
     },
   },
   {
@@ -298,7 +298,7 @@ const columns: DataTableColumns<MenuItem> = [
     key: 'icon',
     width: 140,
     render(row: MenuItem) {
-      return row.icon || h('span', { style: 'color: #999' }, '—')
+      return row.icon || h('span', { class: 'text-base-content/30' }, '—')
     },
   },
   {
@@ -306,7 +306,7 @@ const columns: DataTableColumns<MenuItem> = [
     key: 'permissionCode',
     width: 160,
     render(row: MenuItem) {
-      return row.permissionCode || h('span', { style: 'color: #999' }, '—')
+      return row.permissionCode || h('span', { class: 'text-base-content/30' }, '—')
     },
   },
   { title: '排序', key: 'sortOrder', width: 80 },
@@ -332,7 +332,7 @@ const columns: DataTableColumns<MenuItem> = [
     fixed: 'right',
     render(row: MenuItem) {
       const canManage = permissionStore.hasPermission('menu:manage')
-      if (!canManage) return h('span', { style: 'color: #999' }, '—')
+      if (!canManage) return h('span', { class: 'text-base-content/30' }, '—')
       const buttons: VNode[] = []
       buttons.push(
         h(

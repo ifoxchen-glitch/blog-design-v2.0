@@ -266,7 +266,7 @@ const columns: DataTableColumns<RoleItem> = [
           ),
         )
       }
-      if (buttons.length === 0) return h('span', { style: 'color: #999' }, '—')
+      if (buttons.length === 0) return h('span', { class: 'text-base-content/30' }, '—')
       return h(NSpace, { size: 4 }, { default: () => buttons })
     },
   },
