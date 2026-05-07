@@ -370,6 +370,14 @@ function formatLogContent(row: AuditLogItem): string {
               {{ detailRow.userAgent }}
             </div>
           </div>
+
+          <!-- Message (plain-text detail from handler auditLog) -->
+          <div v-if="detailRow.detail?.message">
+            <div class="text-xs text-base-content/40 mb-1">描述</div>
+            <div class="bg-base-200/50 rounded-lg px-3 py-2 text-sm text-base-content/80 break-all">
+              {{ detailRow.detail.message }}
+            </div>
+          </div>
         </div>
       </NDrawerContent>
     </NDrawer>

@@ -92,18 +92,24 @@ router.get(
     ).all(...params, pageSize, offset);
 
     // Normalize snake_case → camelCase for frontend convenience
-    const items = logs.map((row) => ({
-      id: row.id,
-      userId: row.user_id,
-      username: row.username,
-      action: row.action,
-      resourceType: row.resource_type,
-      resourceId: row.resource_id,
-      detail: row.detail ? JSON.parse(row.detail) : null,
-      ip: row.ip,
-      userAgent: row.user_agent,
-      createdAt: row.created_at,
-    }));
+    const items = logs.map((row) => {
+      let detail = null;
+      if (row.detail) {
+        try { detail = JSON.parse(row.detail); } catch { detail = { message: row.detail }; }
+      }
+      return {
+        id: row.id,
+        userId: row.user_id,
+        username: row.username,
+        action: row.action,
+        resourceType: row.resource_type,
+        resourceId: row.resource_id,
+        detail,
+        ip: row.ip,
+        userAgent: row.user_agent,
+        createdAt: row.created_at,
+      };
+    });
 
     res.json({
       code: 200,

@@ -9,10 +9,11 @@ export interface AuditLogItem {
   resourceType: string
   resourceId: string | null
   detail: {
-    status: number
-    body: Record<string, unknown> | null
-    query: Record<string, unknown>
-    durationMs: number
+    status?: number
+    body?: Record<string, unknown> | null
+    query?: Record<string, unknown>
+    durationMs?: number
+    message?: string
   } | null
   ip: string | null
   userAgent: string | null
