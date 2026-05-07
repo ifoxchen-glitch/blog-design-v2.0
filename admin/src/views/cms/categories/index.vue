@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, reactive, ref } from 'vue'
+import { computed, h, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   NButton,
@@ -39,6 +39,11 @@ const permissionStore = usePermissionStore()
 // ---- 视图模式 ----
 type ViewMode = 'card' | 'table'
 const viewMode = ref<ViewMode>('card')
+
+// ---- 卡片分页 ----
+const cardPage = ref(1)
+const cardPageSize = ref(18)
+const CARD_PAGE_SIZE_OPTIONS = [12, 18, 24, 30]
 
 // ---- 排序 ----
 type SortField = 'name' | 'postCount_desc' | 'postCount_asc'
@@ -108,6 +113,16 @@ const sortedCategories = computed(() => {
       break
   }
   return list
+})
+
+// ---- 卡片视图分页切片 ----
+const pagedCategories = computed(() => {
+  const start = (cardPage.value - 1) * cardPageSize.value
+  return sortedCategories.value.slice(start, start + cardPageSize.value)
+})
+
+watch([search, sortBy, cardPageSize], () => {
+  cardPage.value = 1
 })
 
 // ---- DataTable 列定义 ----
@@ -360,26 +375,26 @@ async function handleDelete(row: CategoryItem) {
 
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
         <div
-          v-for="(row, idx) in sortedCategories"
+          v-for="(row, idx) in pagedCategories"
           :key="row.id"
           :class="[
             'group rounded-xl border p-4 transition-all duration-300 cursor-pointer',
             selectedSlug === row.slug
               ? 'ring-2 ring-primary/40 scale-[1.02]'
               : 'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20',
-            getColor(idx).border,
-            getColor(idx).bg,
+            getColor((cardPage - 1) * cardPageSize + idx).border,
+            getColor((cardPage - 1) * cardPageSize + idx).bg,
           ]"
           @click="selectCategory(row.slug, row.name)"
         >
           <div class="flex items-start justify-between">
             <div class="min-w-0 flex-1">
-              <div class="font-medium text-sm" :class="getColor(idx).text">{{ row.name }}</div>
+              <div class="font-medium text-sm" :class="getColor((cardPage - 1) * cardPageSize + idx).text">{{ row.name }}</div>
               <div class="text-xs text-base-content/30 mt-0.5 truncate">{{ row.slug }}</div>
             </div>
             <span
               class="shrink-0 ml-2 px-2 py-0.5 rounded-md text-[11px] font-medium"
-              :class="getColor(idx).badge"
+              :class="getColor((cardPage - 1) * cardPageSize + idx).badge"
             >
               {{ row.postCount }} 篇
             </span>
@@ -410,6 +425,17 @@ async function handleDelete(row: CategoryItem) {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- 卡片分页 -->
+      <div v-if="sortedCategories.length > 0" class="mt-5 flex justify-center">
+        <NPagination
+          v-model:page="cardPage"
+          v-model:page-size="cardPageSize"
+          :item-count="sortedCategories.length"
+          :page-sizes="CARD_PAGE_SIZE_OPTIONS"
+          show-size-picker
+        />
       </div>
     </template>
 
