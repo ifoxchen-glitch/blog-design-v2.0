@@ -12,12 +12,13 @@ import {
   NFormItem,
   NRadioGroup,
   NRadioButton,
+  NEmpty,
   useMessage,
   type DataTableColumns,
   type FormInst,
   type FormRules,
 } from 'naive-ui'
-import { CreateOutline, TrashOutline, KeyOutline } from '@vicons/ionicons5'
+import { CreateOutline, TrashOutline, KeyOutline, GridOutline, ListOutline } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import DataTable from '../../../components/common/DataTable.vue'
 import FormDrawer from '../../../components/common/FormDrawer.vue'
@@ -38,6 +39,26 @@ const message = useMessage()
 const permissionStore = usePermissionStore()
 const { roleOptions, reload: reloadRoles } = useRoleOptions(true)
 
+// ---- 视图模式 ----
+type ViewMode = 'card' | 'table'
+const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+const viewMode = ref<ViewMode>(isMobile ? 'card' : 'table')
+
+// ---- 卡片颜色 ----
+const CARD_COLORS = [
+  { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
+  { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
+  { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
+  { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' },
+  { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20' },
+  { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/20' },
+]
+
+function getColor(index: number) {
+  return CARD_COLORS[index % CARD_COLORS.length]
+}
+
+// ---- 列表搜索 ----
 interface UserQuery {
   keyword: string
   status: 'active' | 'disabled' | ''
@@ -69,6 +90,36 @@ function refreshTable() {
   tableRef.value?.refresh()
 }
 
+// ---- 卡片数据 ----
+const cardKeyword = ref('')
+const cardData = ref<UserItem[]>([])
+const cardLoading = ref(false)
+
+async function loadCardData() {
+  cardLoading.value = true
+  try {
+    const res = await apiGetUsers({ page: 1, pageSize: 999 })
+    cardData.value = res.items
+  } catch (e: unknown) {
+    message.error(e instanceof Error ? e.message : '加载失败')
+  } finally {
+    cardLoading.value = false
+  }
+}
+loadCardData()
+
+const filteredCardData = computed(() => {
+  if (!cardKeyword.value) return cardData.value
+  const kw = cardKeyword.value.toLowerCase()
+  return cardData.value.filter(
+    (u) =>
+      u.username.toLowerCase().includes(kw) ||
+      u.email.toLowerCase().includes(kw) ||
+      (u.displayName ?? '').toLowerCase().includes(kw),
+  )
+})
+
+// ---- 抽屉表单 ----
 const drawerVisible = ref(false)
 const isEdit = ref(false)
 const editingId = ref<number | null>(null)
@@ -170,6 +221,7 @@ async function handleSubmit() {
     }
     drawerVisible.value = false
     refreshTable()
+    loadCardData()
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : '保存失败'
     message.error(msg)
@@ -213,6 +265,7 @@ async function handleDelete(row: UserItem) {
     await apiDeleteUser(row.id)
     message.success('已删除')
     refreshTable()
+    loadCardData()
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : '删除失败'
     message.error(msg)
@@ -354,50 +407,172 @@ const columns: DataTableColumns<UserItem> = [
       </NButton>
     </PageHeader>
 
-    <DataTable
-      ref="tableRef"
-      :columns="columns"
-      :fetch="fetchUsers"
-      :initial-query="initialQuery"
-      :row-key="(row: UserItem) => row.id"
-      selectable
-    >
-      <template #search="{ query }">
-        <NSpace :size="8" style="width: 100%">
-          <NInput
-            v-model:value="(query as UserQuery).keyword"
-            placeholder="搜索用户名 / 邮箱"
-            clearable
-            style="width: 240px"
-          />
-          <NSelect
-            v-model:value="(query as UserQuery).status"
-            :options="statusOptions"
-            placeholder="状态"
-            clearable
-            style="width: 120px"
-          />
-        </NSpace>
-      </template>
-
-      <template #toolbar="{ selectedKeys, clearSelection, refresh }">
-        <NPopconfirm
-          v-if="selectedKeys.length > 0"
-          @positive-click="() => batchDelete(selectedKeys, clearSelection, refresh)"
+    <!-- 视图切换 -->
+    <div class="flex items-center justify-end mb-4">
+      <div class="flex items-center gap-1 bg-base-200 rounded-lg p-0.5 border border-base-content/10">
+        <NButton
+          size="tiny"
+          :type="viewMode === 'card' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'card'"
+          title="卡片视图"
         >
-          <template #trigger>
-            <NButton
-              v-permission="'user:delete'"
-              size="small"
-              type="error"
+          <GridOutline class="w-4 h-4" />
+        </NButton>
+        <NButton
+          size="tiny"
+          :type="viewMode === 'table' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'table'"
+          title="列表视图"
+        >
+          <ListOutline class="w-4 h-4" />
+        </NButton>
+      </div>
+    </div>
+
+    <!-- 卡片视图 -->
+    <template v-if="viewMode === 'card'">
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <NInput
+          v-model:value="cardKeyword"
+          placeholder="搜索用户名 / 邮箱"
+          clearable
+          style="width: 260px"
+        />
+        <span class="text-sm text-base-content/30">共 {{ filteredCardData.length }} 个用户</span>
+      </div>
+
+      <div v-if="filteredCardData.length === 0" class="py-16">
+        <NEmpty description="暂无用户" />
+      </div>
+
+      <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div
+          v-for="(row, idx) in filteredCardData"
+          :key="row.id"
+          :class="[
+            'rounded-xl border p-4 transition-all duration-300',
+            'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20',
+            getColor(idx).border,
+            getColor(idx).bg,
+          ]"
+        >
+          <!-- 头部：用户名 + 状态 -->
+          <div class="flex items-start justify-between mb-2">
+            <div class="min-w-0 flex-1">
+              <div class="font-medium text-sm" :class="getColor(idx).text">{{ row.username }}</div>
+              <div class="text-xs text-base-content/30 mt-0.5 truncate">{{ row.email }}</div>
+            </div>
+            <NTag
+              :type="row.status === 'active' ? 'success' : 'default'"
+              size="tiny"
+              :bordered="false"
             >
-              批量删除 ({{ selectedKeys.length }})
-            </NButton>
-          </template>
-          确认批量删除选中的 {{ selectedKeys.length }} 条记录?
-        </NPopconfirm>
-      </template>
-    </DataTable>
+              {{ row.status === 'active' ? '正常' : '禁用' }}
+            </NTag>
+          </div>
+
+          <!-- 显示名 -->
+          <div v-if="row.displayName" class="text-xs text-base-content/40 mb-2">
+            显示名：{{ row.displayName }}
+          </div>
+
+          <!-- 角色标签 -->
+          <div v-if="row.roles && row.roles.length > 0" class="flex flex-wrap gap-1 mb-2">
+            <NTag
+              v-for="r in row.roles"
+              :key="r.id"
+              size="tiny"
+              type="info"
+              :bordered="false"
+            >
+              {{ r.name }}
+            </NTag>
+          </div>
+
+          <!-- 时间 -->
+          <div class="text-[11px] text-base-content/20">
+            <div>最后登录：{{ formatDateTime(row.lastLoginAt) }}</div>
+            <div>创建时间：{{ formatDateTime(row.createdAt) }}</div>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="flex items-center gap-1 mt-3 pt-3 border-t border-base-content/5">
+            <template v-if="permissionStore.hasPermission('user:update')">
+              <NButton size="tiny" quaternary @click="openEdit(row)">
+                <CreateOutline class="w-3.5 h-3.5" />
+                编辑
+              </NButton>
+              <NButton size="tiny" quaternary @click="openReset(row)">
+                <KeyOutline class="w-3.5 h-3.5" />
+                重置
+              </NButton>
+            </template>
+            <NPopconfirm
+              v-if="permissionStore.hasPermission('user:delete') && !row.isSuperAdmin"
+              @positive-click="handleDelete(row)"
+            >
+              <template #trigger>
+                <NButton size="tiny" quaternary type="error">
+                  <TrashOutline class="w-3.5 h-3.5" />
+                  删除
+                </NButton>
+              </template>
+              确认删除该用户?
+            </NPopconfirm>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- 列表视图 -->
+    <template v-else>
+      <DataTable
+        ref="tableRef"
+        :columns="columns"
+        :fetch="fetchUsers"
+        :initial-query="initialQuery"
+        :row-key="(row: UserItem) => row.id"
+        selectable
+      >
+        <template #search="{ query }">
+          <NSpace :size="8" style="width: 100%">
+            <NInput
+              v-model:value="(query as UserQuery).keyword"
+              placeholder="搜索用户名 / 邮箱"
+              clearable
+              style="width: 240px"
+            />
+            <NSelect
+              v-model:value="(query as UserQuery).status"
+              :options="statusOptions"
+              placeholder="状态"
+              clearable
+              style="width: 120px"
+            />
+          </NSpace>
+        </template>
+
+        <template #toolbar="{ selectedKeys, clearSelection, refresh }">
+          <NPopconfirm
+            v-if="selectedKeys.length > 0"
+            @positive-click="() => batchDelete(selectedKeys, clearSelection, refresh)"
+          >
+            <template #trigger>
+              <NButton
+                v-permission="'user:delete'"
+                size="small"
+                type="error"
+              >
+                批量删除 ({{ selectedKeys.length }})
+              </NButton>
+            </template>
+            确认批量删除选中的 {{ selectedKeys.length }} 条记录?
+          </NPopconfirm>
+        </template>
+      </DataTable>
+    </template>
 
     <FormDrawer
       v-model:show="drawerVisible"

@@ -1,23 +1,15 @@
 <script setup lang="ts">
-// 权限管理页 — T2.24
-// 设计文档:docs/09-phase2-rbac-frontend-plan.md §4
-//
-// 偏离设计文档之处:
-// (B) 用 :fetch 而非 :api(对齐实际 DataTable 实现)
-// (C) resource 筛选放进 query reactive,DataTable 内部 useTable 的 watch 自动 reset+refresh
-//     不再需要外部 filterResource ref + 手动调 fetch
-// (K) 后端不分页(返回所有 items),前端包一层把 { items, total } 转 { list, total }
-// (L) 后端 listPermissions / updatePermission 都是 role:assign 权限码,故路由 meta 用 role:assign
-
 import { computed, h, reactive, ref, type VNode } from 'vue'
 import {
   NButton,
   NInput,
   NSelect,
   NSpace,
+  NEmpty,
   useMessage,
   type DataTableColumns,
 } from 'naive-ui'
+import { GridOutline, ListOutline } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import DataTable from '../../../components/common/DataTable.vue'
 import {
@@ -30,13 +22,31 @@ import { usePermissionStore } from '../../../stores/permission'
 const message = useMessage()
 const permissionStore = usePermissionStore()
 
+// ---- 视图模式 ----
+type ViewMode = 'card' | 'table'
+const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+const viewMode = ref<ViewMode>(isMobile ? 'card' : 'table')
+
+// ---- 卡片颜色 ----
+const CARD_COLORS = [
+  { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
+  { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
+  { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
+  { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20' },
+  { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20' },
+  { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/20' },
+]
+
+function getColor(index: number) {
+  return CARD_COLORS[index % CARD_COLORS.length]
+}
+
 // ---- DataTable query (resource 筛选) ----
 interface PermissionQuery {
   resource: string
 }
 const initialQuery: PermissionQuery = { resource: '' }
 
-// 后端不分页,前端包一层把 { items, total } 转 { list, total }
 const fetchPermissions = async (
   params: PermissionQuery & { page: number; pageSize: number },
 ) => {
@@ -56,10 +66,38 @@ function refreshTable() {
   tableRef.value?.refresh()
 }
 
-// ---- 资源选项(从全量权限去重)----
-const resourceOptions = ref<Array<{ label: string; value: string }>>([])
+// ---- 卡片数据 ----
+const cardData = ref<PermissionItem[]>([])
+const cardLoading = ref(false)
+
+async function loadCardData() {
+  cardLoading.value = true
+  try {
+    const res = await apiGetPermissions({})
+    cardData.value = res.items
+  } catch (e: unknown) {
+    message.error(e instanceof Error ? e.message : '加载失败')
+  } finally {
+    cardLoading.value = false
+  }
+}
+loadCardData()
+
+const cardResourceFilter = ref('')
+
+const filteredCardData = computed(() => {
+  if (!cardResourceFilter.value) return cardData.value
+  return cardData.value.filter((p) => p.resource === cardResourceFilter.value)
+})
+
+// ---- 资源选项 ----
+interface ResourceOption {
+  label: string
+  value: string
+}
+const resourceOptions = ref<ResourceOption[]>([])
 async function loadResourceOptions() {
-  const res = await apiGetPermissions()
+  const res = await apiGetPermissions({})
   const set = new Set<string>()
   res.items.forEach((p) => set.add(p.resource))
   resourceOptions.value = Array.from(set).map((r) => ({ label: r, value: r }))
@@ -100,6 +138,7 @@ async function saveEdit(row: PermissionItem) {
     message.success('已保存')
     editingRow.value = null
     refreshTable()
+    loadCardData()
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : '保存失败'
     message.error(msg)
@@ -202,23 +241,105 @@ const columns = computed<DataTableColumns<PermissionItem>>(() => [
   <div>
     <PageHeader title="权限管理" subtitle="查看并编辑权限的名称与描述(系统级,seed 维护)" />
 
-    <DataTable
-      ref="tableRef"
-      :columns="columns"
-      :fetch="fetchPermissions"
-      :initial-query="initialQuery"
-      :row-key="(row: PermissionItem) => row.id"
-    >
-      <template #search="{ query }">
-        <NSelect
-          :value="(query as PermissionQuery).resource"
-          :options="resourceOptions"
-          placeholder="资源筛选"
-          clearable
-          style="width: 180px"
-          @update:value="(v: string | null) => ((query as PermissionQuery).resource = v ?? '')"
-        />
-      </template>
-    </DataTable>
+    <!-- 视图切换 -->
+    <div class="flex items-center justify-end mb-4">
+      <div class="flex items-center gap-1 bg-base-200 rounded-lg p-0.5 border border-base-content/10">
+        <NButton
+          size="tiny"
+          :type="viewMode === 'card' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'card'"
+          title="卡片视图"
+        >
+          <GridOutline class="w-4 h-4" />
+        </NButton>
+        <NButton
+          size="tiny"
+          :type="viewMode === 'table' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'table'"
+          title="列表视图"
+        >
+          <ListOutline class="w-4 h-4" />
+        </NButton>
+      </div>
+    </div>
+
+    <!-- 卡片视图 -->
+    <template v-if="viewMode === 'card'">
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <div class="relative flex-1 min-w-[180px] max-w-[260px]">
+          <NSelect
+            v-model:value="cardResourceFilter"
+            :options="resourceOptions"
+            placeholder="按资源筛选"
+            clearable
+          />
+        </div>
+        <span class="text-sm text-base-content/30">共 {{ filteredCardData.length }} 条</span>
+      </div>
+
+      <div v-if="filteredCardData.length === 0" class="py-16">
+        <NEmpty description="暂无权限" />
+      </div>
+
+      <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div
+          v-for="(row, idx) in filteredCardData"
+          :key="row.id"
+          :class="[
+            'rounded-xl border p-4 transition-all duration-300',
+            'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20',
+            getColor(idx).border,
+            getColor(idx).bg,
+          ]"
+        >
+          <div class="font-medium text-sm font-mono" :class="getColor(idx).text">{{ row.code }}</div>
+
+          <div class="flex items-center gap-2 mt-2">
+            <span class="text-[11px] px-1.5 py-0.5 rounded bg-base-content/5 text-base-content/40">{{ row.resource }}</span>
+            <span class="text-[11px] px-1.5 py-0.5 rounded bg-base-content/5 text-base-content/40">{{ row.action }}</span>
+          </div>
+
+          <div class="mt-2 text-sm text-base-content">{{ row.name }}</div>
+          <div class="text-xs text-base-content/40 mt-0.5 line-clamp-2">
+            {{ row.description || '—' }}
+          </div>
+
+          <div v-if="permissionStore.hasPermission('role:assign')" class="flex items-center gap-1 mt-3 pt-3 border-t border-base-content/5">
+            <NButton
+              size="tiny"
+              quaternary
+              :disabled="editingRow !== null"
+              @click="startEdit(row)"
+            >
+              编辑
+            </NButton>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- 列表视图 -->
+    <template v-else>
+      <DataTable
+        ref="tableRef"
+        :columns="columns"
+        :fetch="fetchPermissions"
+        :initial-query="initialQuery"
+        :row-key="(row: PermissionItem) => row.id"
+      >
+        <template #search="{ query }">
+          <NSelect
+            :value="(query as PermissionQuery).resource"
+            :options="resourceOptions"
+            placeholder="资源筛选"
+            clearable
+            style="width: 180px"
+            @update:value="(v: string | null) => ((query as PermissionQuery).resource = v ?? '')"
+          />
+        </template>
+      </DataTable>
+    </template>
   </div>
 </template>

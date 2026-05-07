@@ -16,6 +16,7 @@ import {
   NRadioButton,
   NDataTable,
   NSpin,
+  NEmpty,
   useMessage,
   useDialog,
   type CascaderOption,
@@ -23,7 +24,7 @@ import {
   type FormInst,
   type FormRules,
 } from 'naive-ui'
-import { CreateOutline, TrashOutline, AddOutline } from '@vicons/ionicons5'
+import { CreateOutline, TrashOutline, AddOutline, GridOutline, ListOutline } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import FormDrawer from '../../../components/common/FormDrawer.vue'
 import {
@@ -40,6 +41,25 @@ const message = useMessage()
 const dialog = useDialog()
 const permissionStore = usePermissionStore()
 const { permissionOptions, reload: reloadPermissions } = usePermissionOptions(true)
+
+// ---- 视图模式 ----
+type ViewMode = 'card' | 'table'
+const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+const viewMode = ref<ViewMode>(isMobile ? 'card' : 'table')
+
+// ---- 卡片颜色 ----
+const CARD_COLORS = [
+  { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20', dot: 'bg-blue-400' },
+  { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', dot: 'bg-emerald-400' },
+  { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20', dot: 'bg-purple-400' },
+  { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20', dot: 'bg-amber-400' },
+  { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20', dot: 'bg-rose-400' },
+  { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/20', dot: 'bg-cyan-400' },
+]
+
+function getColor(index: number) {
+  return CARD_COLORS[index % CARD_COLORS.length]
+}
 
 const ROOT_PARENT = 0
 
@@ -60,6 +80,37 @@ async function loadMenus() {
 }
 
 onMounted(loadMenus)
+
+// ---- 扁平化卡片数据 ----
+const cardItems = computed(() => {
+  function flatten(nodes: MenuItem[], depth: number): (MenuItem & { depth: number })[] {
+    const result: (MenuItem & { depth: number })[] = []
+    for (const n of nodes) {
+      result.push({ ...n, depth })
+      if (n.children?.length) {
+        result.push(...flatten(n.children, depth + 1))
+      }
+    }
+    return result
+  }
+  return flatten(menuTree.value, 0)
+})
+
+function parentName(node: MenuItem): string {
+  if (!node.parentId) return '根菜单'
+  function find(nodes: MenuItem[]): MenuItem | null {
+    for (const n of nodes) {
+      if (n.id === node.parentId) return n
+      if (n.children?.length) {
+        const found = find(n.children)
+        if (found) return found
+      }
+    }
+    return null
+  }
+  const p = find(menuTree.value)
+  return p?.name ?? '—'
+}
 
 function collectDescendantIds(node: MenuItem): number[] {
   const ids: number[] = [node.id]
@@ -348,19 +399,135 @@ const columns: DataTableColumns<MenuItem> = [
       </NButton>
     </PageHeader>
 
-    <NSpin :show="tableLoading">
-      <div class="bg-base-100 rounded-xl overflow-hidden border border-base-content/5">
-        <NDataTable
-          :columns="columns"
-          :data="menuTree"
-          :row-key="(row: MenuItem) => row.id"
-          :default-expand-all="true"
-          striped
-          size="small"
-          :scroll-x="1200"
-        />
+    <!-- 视图切换 -->
+    <div class="flex items-center justify-end mb-4">
+      <div class="flex items-center gap-1 bg-base-200 rounded-lg p-0.5 border border-base-content/10">
+        <NButton
+          size="tiny"
+          :type="viewMode === 'card' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'card'"
+          title="卡片视图"
+        >
+          <GridOutline class="w-4 h-4" />
+        </NButton>
+        <NButton
+          size="tiny"
+          :type="viewMode === 'table' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'table'"
+          title="列表视图"
+        >
+          <ListOutline class="w-4 h-4" />
+        </NButton>
       </div>
-    </NSpin>
+    </div>
+
+    <!-- 卡片视图 -->
+    <template v-if="viewMode === 'card'">
+      <NSpin :show="tableLoading">
+        <div v-if="cardItems.length === 0 && !tableLoading" class="py-16">
+          <NEmpty description="暂无菜单" />
+        </div>
+
+        <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div
+            v-for="(item, idx) in cardItems"
+            :key="item.id"
+            :class="[
+              'rounded-xl border p-4 transition-all duration-300',
+              'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20',
+              getColor(idx).border,
+              getColor(idx).bg,
+            ]"
+          >
+            <!-- 层级指示 -->
+            <div class="flex items-center gap-1 mb-1">
+              <span
+                v-for="d in item.depth"
+                :key="d"
+                class="inline-block w-2 h-2 rounded-full"
+                :class="getColor(idx + d * 3).dot || 'bg-base-content/10'"
+                style="opacity: 0.3"
+              />
+              <NTag size="tiny" :bordered="false" class="text-[10px]">
+                {{ item.depth === 0 ? '根' : `L${item.depth}` }}
+              </NTag>
+            </div>
+
+            <!-- 名称 + 状态 -->
+            <div class="flex items-start justify-between mb-1">
+              <div class="font-medium text-sm" :class="getColor(idx).text">{{ item.name }}</div>
+              <NTag
+                :type="item.status === 'active' ? 'success' : 'default'"
+                size="tiny"
+                :bordered="false"
+              >
+                {{ item.status === 'active' ? '正常' : '禁用' }}
+              </NTag>
+            </div>
+
+            <!-- 父菜单 -->
+            <div class="text-xs text-base-content/30 mb-1">父级：{{ parentName(item) }}</div>
+
+            <!-- 路径 -->
+            <div class="text-xs text-base-content/40 truncate mb-1">
+              路径：{{ item.path || '—' }}
+            </div>
+
+            <!-- 图标 + 权限码 -->
+            <div class="text-xs text-base-content/30">
+              <div>图标：{{ item.icon || '—' }}</div>
+              <div>权限码：{{ item.permissionCode || '—' }}</div>
+              <div>排序：{{ item.sortOrder }}</div>
+            </div>
+
+            <!-- 子菜单数 -->
+            <div v-if="item.children?.length" class="mt-1 text-xs text-base-content/30">
+              子菜单：{{ item.children.length }} 项
+            </div>
+
+            <!-- 操作 -->
+            <div v-if="permissionStore.hasPermission('menu:manage')" class="flex items-center gap-1 mt-3 pt-3 border-t border-base-content/5">
+              <NButton size="tiny" quaternary @click="openEdit(item)">
+                <CreateOutline class="w-3.5 h-3.5" />
+                编辑
+              </NButton>
+              <NButton size="tiny" quaternary @click="openCreateChild(item)">
+                <AddOutline class="w-3.5 h-3.5" />
+                子菜单
+              </NButton>
+              <NPopconfirm @positive-click="handleDelete(item)">
+                <template #trigger>
+                  <NButton size="tiny" quaternary type="error">
+                    <TrashOutline class="w-3.5 h-3.5" />
+                    删除
+                  </NButton>
+                </template>
+                {{ item.children?.length ? `该菜单有 ${item.children.length} 个子菜单,确认删除吗?` : '确认删除该菜单?' }}
+              </NPopconfirm>
+            </div>
+          </div>
+        </div>
+      </NSpin>
+    </template>
+
+    <!-- 列表视图 -->
+    <template v-else>
+      <NSpin :show="tableLoading">
+        <div class="bg-base-100 rounded-xl overflow-hidden border border-base-content/5">
+          <NDataTable
+            :columns="columns"
+            :data="menuTree"
+            :row-key="(row: MenuItem) => row.id"
+            :default-expand-all="true"
+            striped
+            size="small"
+            :scroll-x="1200"
+          />
+        </div>
+      </NSpin>
+    </template>
 
     <FormDrawer
       v-model:show="drawerVisible"

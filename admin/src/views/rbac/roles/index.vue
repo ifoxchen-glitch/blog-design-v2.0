@@ -13,12 +13,13 @@ import {
   NRadioButton,
   NTree,
   NSpin,
+  NEmpty,
   useMessage,
   type DataTableColumns,
   type FormInst,
   type FormRules,
 } from 'naive-ui'
-import { CreateOutline, TrashOutline } from '@vicons/ionicons5'
+import { CreateOutline, TrashOutline, GridOutline, ListOutline } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import DataTable from '../../../components/common/DataTable.vue'
 import FormDrawer from '../../../components/common/FormDrawer.vue'
@@ -39,6 +40,26 @@ const permissionStore = usePermissionStore()
 const { permissionTree, loading: permissionsLoading, reload: reloadPermissions } =
   usePermissionOptions(true)
 
+// ---- 视图模式 ----
+type ViewMode = 'card' | 'table'
+const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+const viewMode = ref<ViewMode>(isMobile ? 'card' : 'table')
+
+// ---- 卡片颜色 ----
+const CARD_COLORS = [
+  { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20', dot: 'bg-blue-400', badge: 'bg-blue-500/15 text-blue-400' },
+  { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', dot: 'bg-emerald-400', badge: 'bg-emerald-500/15 text-emerald-400' },
+  { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20', dot: 'bg-purple-400', badge: 'bg-purple-500/15 text-purple-400' },
+  { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20', dot: 'bg-amber-400', badge: 'bg-amber-500/15 text-amber-400' },
+  { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20', dot: 'bg-rose-400', badge: 'bg-rose-500/15 text-rose-400' },
+  { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/20', dot: 'bg-cyan-400', badge: 'bg-cyan-500/15 text-cyan-400' },
+]
+
+function getColor(index: number) {
+  return CARD_COLORS[index % CARD_COLORS.length]
+}
+
+// ---- 数据 ----
 const fetchRoles = async () => {
   const res = await apiGetRoles()
   return { list: res.items, total: res.total }
@@ -54,6 +75,24 @@ function refreshTable() {
   tableRef.value?.refresh()
 }
 
+// ---- 卡片数据 ----
+const cardData = ref<RoleItem[]>([])
+const cardLoading = ref(false)
+
+async function loadCardData() {
+  cardLoading.value = true
+  try {
+    const res = await apiGetRoles()
+    cardData.value = res.items
+  } catch (e: unknown) {
+    message.error(e instanceof Error ? e.message : '加载失败')
+  } finally {
+    cardLoading.value = false
+  }
+}
+loadCardData()
+
+// ---- 抽屉表单 ----
 const drawerVisible = ref(false)
 const isEdit = ref(false)
 const editingId = ref<number | null>(null)
@@ -159,6 +198,7 @@ async function handleSubmit() {
     }
     drawerVisible.value = false
     refreshTable()
+    loadCardData()
   } catch (e: unknown) {
     const msg = extractApiError(e, '保存失败')
     message.error(msg)
@@ -172,6 +212,7 @@ async function handleDelete(row: RoleItem) {
     await apiDeleteRole(row.id)
     message.success('已删除')
     refreshTable()
+    loadCardData()
   } catch (e: unknown) {
     if (axios.isAxiosError(e)) {
       const status = e.response?.status
@@ -260,12 +301,101 @@ const columns: DataTableColumns<RoleItem> = [
       </NButton>
     </PageHeader>
 
-    <DataTable
-      ref="tableRef"
-      :columns="columns"
-      :fetch="fetchRoles"
-      :row-key="(row: RoleItem) => row.id"
-    />
+    <!-- 视图切换 -->
+    <div class="flex items-center justify-end mb-4">
+      <div class="flex items-center gap-1 bg-base-200 rounded-lg p-0.5 border border-base-content/10">
+        <NButton
+          size="tiny"
+          :type="viewMode === 'card' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'card'"
+          title="卡片视图"
+        >
+          <GridOutline class="w-4 h-4" />
+        </NButton>
+        <NButton
+          size="tiny"
+          :type="viewMode === 'table' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'table'"
+          title="列表视图"
+        >
+          <ListOutline class="w-4 h-4" />
+        </NButton>
+      </div>
+    </div>
+
+    <!-- 卡片视图 -->
+    <template v-if="viewMode === 'card'">
+      <NSpin :show="cardLoading">
+        <div v-if="cardData.length === 0 && !cardLoading" class="py-16">
+          <NEmpty description="暂无角色" />
+        </div>
+
+        <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div
+            v-for="(row, idx) in cardData"
+            :key="row.id"
+            :class="[
+              'rounded-xl border p-4 transition-all duration-300',
+              'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20',
+              getColor(idx).border,
+              getColor(idx).bg,
+            ]"
+          >
+            <div class="flex items-start justify-between mb-2">
+              <div class="min-w-0 flex-1">
+                <div class="font-medium text-sm" :class="getColor(idx).text">{{ row.name }}</div>
+                <div class="text-xs text-base-content/30 mt-0.5 font-mono">{{ row.code }}</div>
+              </div>
+              <NTag
+                :type="row.status === 'active' ? 'success' : 'default'"
+                size="tiny"
+                :bordered="false"
+              >
+                {{ row.status === 'active' ? '正常' : '禁用' }}
+              </NTag>
+            </div>
+
+            <p v-if="row.description" class="text-xs text-base-content/40 line-clamp-2 mb-3">
+              {{ row.description }}
+            </p>
+
+            <div class="flex items-center gap-3 text-xs text-base-content/30">
+              <span>用户 {{ row.userCount ?? 0 }}</span>
+              <span class="text-base-content/10">|</span>
+              <span>权限 {{ row.permissionCount ?? 0 }}</span>
+            </div>
+
+            <div v-if="permissionStore.hasPermission('role:assign')" class="flex items-center gap-1 mt-3 pt-3 border-t border-base-content/5">
+              <NButton size="tiny" quaternary @click="openEdit(row)">
+                <CreateOutline class="w-3.5 h-3.5" />
+                编辑
+              </NButton>
+              <NPopconfirm @positive-click="handleDelete(row)">
+                <template #trigger>
+                  <NButton size="tiny" quaternary type="error">
+                    <TrashOutline class="w-3.5 h-3.5" />
+                    删除
+                  </NButton>
+                </template>
+                确认删除该角色?
+              </NPopconfirm>
+            </div>
+          </div>
+        </div>
+      </NSpin>
+    </template>
+
+    <!-- 列表视图 -->
+    <template v-else>
+      <DataTable
+        ref="tableRef"
+        :columns="columns"
+        :fetch="fetchRoles"
+        :row-key="(row: RoleItem) => row.id"
+      />
+    </template>
 
     <FormDrawer
       v-model:show="drawerVisible"
