@@ -77,13 +77,19 @@ router.get("/posts", (req, res) => {
   const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
   const db = openDb();
 
-  // 聚合 page_views 中 /post/ 开头的路径，提取 slug
+  // 聚合 page_views 中的文章访问（路径为 /post.html?slug=xxx）
   const rows = db.prepare(`
     SELECT
-      SUBSTR(path, 7) as slug,
+      CASE
+        WHEN path LIKE '/post.html%' AND INSTR(path, 'slug=') > 0
+          THEN SUBSTR(path, INSTR(path, 'slug=') + 5)
+        WHEN path LIKE '/post/%'
+          THEN SUBSTR(path, 7)
+        ELSE path
+      END as slug,
       COUNT(*) as viewCount
     FROM page_views
-    WHERE path LIKE '/post/%'
+    WHERE path LIKE '/post%'
     GROUP BY slug
     ORDER BY viewCount DESC
     LIMIT ?

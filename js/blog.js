@@ -301,7 +301,13 @@
 
   // PV 采集：发送一次页面访问记录
   (function sendPv() {
-    const path = location.pathname + location.search;
+    let path = location.pathname;
+    // 把 /post.html?slug=xxx 标准化为 /post/xxx，便于 analytics 聚合
+    if (path.endsWith("/post.html")) {
+      const params = new URLSearchParams(location.search);
+      const slug = params.get("slug");
+      if (slug) path = `/post/${encodeURIComponent(slug)}`;
+    }
     const ref = document.referrer || "";
     const img = new Image();
     img.src = `/api/pv?path=${encodeURIComponent(path)}&ref=${encodeURIComponent(ref)}`;
