@@ -26,6 +26,7 @@ import {
   apiGetSyncStatus,
   apiListSyncLogs,
   apiTestFilesystem,
+  apiClearSyncedData,
   apiGetRemoteFiles,
   apiGetSyncedFiles,
   type SyncConfig,
@@ -41,6 +42,7 @@ const hasSyncPerm = computed(() => permissionStore.hasPermission('kb:sync'))
 
 const loading = ref(false)
 const syncing = ref(false)
+const clearing = ref(false)
 const saving = ref(false)
 const testingFs = ref(false)
 
@@ -228,6 +230,21 @@ async function handleSyncNow() {
   }
 }
 
+async function handleClearData() {
+  clearing.value = true
+  try {
+    const result = await apiClearSyncedData()
+    message.success(`已清空: ${result.documentsDeleted} 个文档, ${result.logsDeleted} 条日志`)
+    loadStatus()
+    loadLogs()
+    loadFileTrees()
+  } catch {
+    message.error('清空失败')
+  } finally {
+    clearing.value = false
+  }
+}
+
 async function handleTestFilesystem() {
   testingFs.value = true
   try {
@@ -383,6 +400,16 @@ onMounted(() => {
             >
               <template #icon><CloudUploadOutline class="w-4 h-4" /></template>
               立即导入
+            </NButton>
+            <NButton
+              size="small"
+              quaternary
+              type="error"
+              :loading="clearing"
+              :disabled="!hasSyncPerm"
+              @click="handleClearData"
+            >
+              清空数据
             </NButton>
           </div>
         </div>

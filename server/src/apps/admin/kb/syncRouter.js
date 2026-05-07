@@ -14,5 +14,6 @@ router.get("/sync/status", jwtAuth, requirePermission("kb:sync"), handlers.getSy
 router.post("/sync/test-filesystem", jwtAuth, requirePermission("kb:sync"), handlers.testFilesystem);
 router.get("/sync/remote-files", jwtAuth, requirePermission("kb:sync"), handlers.getRemoteFiles);
 router.get("/sync/synced-files", jwtAuth, requirePermission("kb:sync"), handlers.getSyncedFiles);
+router.delete("/sync/clear", jwtAuth, requirePermission("kb:sync"), handlers.clearSyncedData);
 
 module.exports = router;

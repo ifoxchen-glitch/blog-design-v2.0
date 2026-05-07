@@ -457,6 +457,11 @@ export async function apiTestFilesystem(client: AxiosInstance = request): Promis
   return res.data.data
 }
 
+export async function apiClearSyncedData(client: AxiosInstance = request): Promise<{ documentsDeleted: number; logsDeleted: number }> {
+  const res = await client.delete<ApiResponse<{ documentsDeleted: number; logsDeleted: number }>>('/api/v2/admin/kb/sync/clear')
+  return res.data.data
+}
+
 export async function apiListSyncLogs(
   params: { page: number; pageSize: number; direction?: string; status?: string; since?: string },
   client: AxiosInstance = request,

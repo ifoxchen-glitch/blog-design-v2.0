@@ -315,4 +315,15 @@ function getSyncedFiles(_req, res) {
   });
 }
 
-module.exports = { getSyncConfig, updateSyncConfig, triggerImport, triggerExport, listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles, getSyncedFiles };
+function clearSyncedData(req, res) {
+  const db = openDb();
+  const docResult = db.prepare("DELETE FROM kb_documents WHERE source = 'obsidian'").run();
+  const logResult = db.prepare("DELETE FROM kb_sync_logs").run();
+  db.prepare("UPDATE kb_sync_config SET last_sync_at = NULL, updated_at = ? WHERE id = 1").run(nowIso());
+
+  auditLog(db, req, "clear_synced", "obsidian", `清空同步数据: ${docResult.changes} 个文档, ${logResult.changes} 条日志`);
+
+  res.json({ code: 200, message: "已清空", data: { documentsDeleted: docResult.changes, logsDeleted: logResult.changes } });
+}
+
+module.exports = { getSyncConfig, updateSyncConfig, triggerImport, triggerExport, listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles, getSyncedFiles, clearSyncedData };
