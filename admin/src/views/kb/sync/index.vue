@@ -9,17 +9,21 @@ import {
   NTag,
   NSpin,
   NEmpty,
+  NCollapse,
+  NCollapseItem,
   useMessage,
 } from 'naive-ui'
 import {
   RefreshOutline,
   CloudUploadOutline,
+  CloudOutline,
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import {
   apiGetSyncConfig,
   apiUpdateSyncConfig,
   apiTriggerSyncImport,
+  apiTriggerCouchDBSyncImport,
   apiGetSyncStatus,
   apiListSyncLogs,
   type SyncConfig,
@@ -34,6 +38,7 @@ const hasSyncPerm = computed(() => permissionStore.hasPermission('kb:sync'))
 
 const loading = ref(false)
 const syncing = ref(false)
+const couchdbSyncing = ref(false)
 const saving = ref(false)
 
 const config = ref<SyncConfig>({
@@ -42,6 +47,11 @@ const config = ref<SyncConfig>({
   sync_interval_minutes: 30,
   conflict_strategy: 'last_write_wins',
   last_sync_at: null,
+  couchdb_enabled: false,
+  couchdb_url: '',
+  couchdb_db_name: '',
+  couchdb_username: '',
+  couchdb_password: '',
 })
 
 const status = ref<SyncStatus>({
@@ -76,7 +86,7 @@ async function loadConfig() {
   try {
     config.value = await apiGetSyncConfig()
     if (!config.value) {
-      config.value = { vault_path: '', auto_sync_enabled: false, sync_interval_minutes: 30, conflict_strategy: 'last_write_wins', last_sync_at: null }
+      config.value = { vault_path: '', auto_sync_enabled: false, sync_interval_minutes: 30, conflict_strategy: 'last_write_wins', last_sync_at: null, couchdb_enabled: false, couchdb_url: '', couchdb_db_name: '', couchdb_username: '', couchdb_password: '' }
     }
   } catch {
     /* ignore */
@@ -118,6 +128,11 @@ async function handleSaveConfig() {
       auto_sync_enabled: config.value.auto_sync_enabled,
       sync_interval_minutes: config.value.sync_interval_minutes,
       conflict_strategy: config.value.conflict_strategy,
+      couchdb_enabled: config.value.couchdb_enabled,
+      couchdb_url: config.value.couchdb_url,
+      couchdb_db_name: config.value.couchdb_db_name,
+      couchdb_username: config.value.couchdb_username,
+      couchdb_password: config.value.couchdb_password,
     })
     message.success('配置已保存')
   } catch {
@@ -138,6 +153,20 @@ async function handleSyncNow() {
     message.error('启动同步失败')
   } finally {
     syncing.value = false
+  }
+}
+
+async function handleCouchDBSyncNow() {
+  couchdbSyncing.value = true
+  try {
+    const res = await apiTriggerCouchDBSyncImport()
+    if ((res as unknown as { status: string }).status) {
+      message.info('CouchDB 同步已启动，请稍后刷新查看结果')
+    }
+  } catch {
+    message.error('启动 CouchDB 同步失败')
+  } finally {
+    couchdbSyncing.value = false
   }
 }
 
@@ -177,23 +206,84 @@ onMounted(() => {
       <!-- 同步配置 -->
       <div class="bg-base-100 rounded-xl border border-base-content/5 p-5 mb-6">
         <h3 class="font-medium mb-4">同步配置</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-w-2xl">
-          <div>
-            <label class="text-xs text-base-content/50 block mb-1.5">仓库路径 (Vault Path)</label>
-            <NInput
-              v-model:value="config.vault_path"
-              placeholder="/path/to/obsidian/vault"
-              size="small"
-              :disabled="!hasSyncPerm"
-            />
-            <span class="text-[10px] text-base-content/30 mt-0.5 block">容器内路径或挂载卷路径</span>
-          </div>
+
+        <NCollapse :default-expanded-names="['filesystem']">
+          <!-- 文件系统同步 -->
+          <NCollapseItem name="filesystem" title="文件系统 (Obsidian Vault)">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-w-2xl">
+              <div>
+                <label class="text-xs text-base-content/50 block mb-1.5">仓库路径 (Vault Path)</label>
+                <NInput
+                  v-model:value="config.vault_path"
+                  placeholder="/path/to/obsidian/vault"
+                  size="small"
+                  :disabled="!hasSyncPerm"
+                />
+                <span class="text-[10px] text-base-content/30 mt-0.5 block">容器内路径或挂载卷路径</span>
+              </div>
+            </div>
+          </NCollapseItem>
+
+          <!-- CouchDB (LiveSync) 同步 -->
+          <NCollapseItem name="couchdb" title="CouchDB (Obsidian LiveSync)">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-w-2xl">
+              <div class="md:col-span-2 flex items-center gap-3">
+                <label class="text-xs text-base-content/50">启用 CouchDB 同步</label>
+                <NSwitch
+                  :value="config.couchdb_enabled"
+                  :disabled="!hasSyncPerm"
+                  @update:value="(val: boolean) => config.couchdb_enabled = val"
+                />
+              </div>
+              <div>
+                <label class="text-xs text-base-content/50 block mb-1.5">CouchDB URL</label>
+                <NInput
+                  v-model:value="config.couchdb_url"
+                  placeholder="http://localhost:5984"
+                  size="small"
+                  :disabled="!hasSyncPerm"
+                />
+              </div>
+              <div>
+                <label class="text-xs text-base-content/50 block mb-1.5">数据库名称</label>
+                <NInput
+                  v-model:value="config.couchdb_db_name"
+                  placeholder="obsidian-vault"
+                  size="small"
+                  :disabled="!hasSyncPerm"
+                />
+              </div>
+              <div>
+                <label class="text-xs text-base-content/50 block mb-1.5">用户名 (可选)</label>
+                <NInput
+                  v-model:value="config.couchdb_username"
+                  placeholder="admin"
+                  size="small"
+                  :disabled="!hasSyncPerm"
+                />
+              </div>
+              <div>
+                <label class="text-xs text-base-content/50 block mb-1.5">密码 (可选)</label>
+                <NInput
+                  v-model:value="config.couchdb_password"
+                  type="password"
+                  placeholder="CouchDB 密码"
+                  size="small"
+                  :disabled="!hasSyncPerm"
+                />
+              </div>
+            </div>
+          </NCollapseItem>
+        </NCollapse>
+
+        <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-4">
           <div>
             <label class="text-xs text-base-content/50 block mb-1.5">冲突策略</label>
             <NSelect
               v-model:value="config.conflict_strategy"
               :options="STRATEGY_OPTIONS"
               size="small"
+              style="width: 220px"
               :disabled="!hasSyncPerm"
             />
           </div>
@@ -237,16 +327,27 @@ onMounted(() => {
       <div class="bg-base-100 rounded-xl border border-base-content/5 p-5 mb-6">
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-medium">同步状态</h3>
-          <NButton
-            type="primary"
-            size="small"
-            :loading="syncing"
-            :disabled="!hasSyncPerm"
-            @click="handleSyncNow"
-          >
-            <template #icon><CloudUploadOutline class="w-4 h-4" /></template>
-            立即导入
-          </NButton>
+          <div class="flex items-center gap-2">
+            <NButton
+              size="small"
+              :loading="couchdbSyncing"
+              :disabled="!hasSyncPerm || !config.couchdb_enabled"
+              @click="handleCouchDBSyncNow"
+            >
+              <template #icon><CloudOutline class="w-4 h-4" /></template>
+              CouchDB 导入
+            </NButton>
+            <NButton
+              type="primary"
+              size="small"
+              :loading="syncing"
+              :disabled="!hasSyncPerm"
+              @click="handleSyncNow"
+            >
+              <template #icon><CloudUploadOutline class="w-4 h-4" /></template>
+              立即导入
+            </NButton>
+          </div>
         </div>
         <div class="flex flex-wrap items-center gap-3 text-sm">
           <div class="text-base-content/60">

@@ -86,10 +86,11 @@ function slugFromPath(relativePath) {
  * Import a single file into kb_documents.
  * Returns { action, id, path, detail? }
  */
-function importDocument(db, fileInfo, conflictStrategy, now) {
+function importDocument(db, fileInfo, conflictStrategy, now, source) {
+  const src = source || "obsidian";
   const existing = db
     .prepare("SELECT * FROM kb_documents WHERE original_path = ? AND source = ?")
-    .get(fileInfo.relativePath, "obsidian");
+    .get(fileInfo.relativePath, src);
 
   if (!existing) {
     const slug = normalizeSlug(slugFromPath(fileInfo.relativePath)) || slugFromPath(fileInfo.relativePath);
@@ -99,9 +100,9 @@ function importDocument(db, fileInfo, conflictStrategy, now) {
     const info = db
       .prepare(
         `INSERT INTO kb_documents (title, slug, content_markdown, source, original_path, checksum, tags, status, word_count, created_at, updated_at)
-       VALUES (?, ?, ?, 'obsidian', ?, ?, ?, 'active', ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
       )
-      .run(title, slug, fileInfo.content, fileInfo.relativePath, fileInfo.checksum, tags, wordCount, now, now);
+      .run(title, slug, fileInfo.content, src, fileInfo.relativePath, fileInfo.checksum, tags, wordCount, now, now);
     return { action: "imported", id: info.lastInsertRowid, path: fileInfo.relativePath };
   }
 
@@ -141,56 +142,86 @@ function importDocument(db, fileInfo, conflictStrategy, now) {
 }
 
 /**
- * Full import: scan vault, import each file, log results.
+ * Import a batch of files into kb_documents. Shared by both file-system and CouchDB sources.
+ * @param {Array<{relativePath: string, content: string, checksum: string, size: number}>} files
+ * @param {string} conflictStrategy
+ * @param {string} source - "obsidian" or "couchdb"
+ * @returns {Promise<{imported: number, updated: number, skipped: number, conflicted: number, errors: number}>}
  */
-async function fullImport(vaultPath, conflictStrategy) {
-  if (!acquireLock()) throw new Error("同步正在进行中，请稍后重试");
+async function importFromFiles(files, conflictStrategy, source) {
   const db = openDb();
   const now = new Date().toISOString();
   const summary = { imported: 0, updated: 0, skipped: 0, conflicted: 0, errors: 0 };
+  const logStmt = db.prepare(
+    `INSERT INTO kb_sync_logs (direction, file_path, document_id, status, checksum, detail, created_at)
+   VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  );
 
-  try {
-    const files = scanVault(vaultPath);
-    const logStmt = db.prepare(
-      `INSERT INTO kb_sync_logs (direction, file_path, document_id, status, checksum, detail, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    );
-
-    for (const f of files) {
-      try {
-        const result = importDocument(db, f, conflictStrategy, now);
-        const statusMap = {
-          imported: "success",
-          updated: "success",
-          skipped: "skipped",
-          conflict: "conflict",
-        };
-        if (summary[result.action] !== undefined) summary[result.action]++;
-        logStmt.run(
-          "import",
-          f.relativePath,
-          result.id || null,
-          statusMap[result.action] || "error",
-          f.checksum,
-          result.detail || null,
-          now,
-        );
-      } catch (err) {
-        summary.errors++;
-        logStmt.run("import", f.relativePath, null, "error", f.checksum, err.message, now);
-      }
+  for (const f of files) {
+    try {
+      // Temporarily patch the importDocument to use the given source
+      const result = importDocument(db, f, conflictStrategy, now, source);
+      const statusMap = {
+        imported: "success",
+        updated: "success",
+        skipped: "skipped",
+        conflict: "conflict",
+      };
+      if (summary[result.action] !== undefined) summary[result.action]++;
+      logStmt.run(
+        "import",
+        f.relativePath,
+        result.id || null,
+        statusMap[result.action] || "error",
+        f.checksum,
+        result.detail || null,
+        now,
+      );
+    } catch (err) {
+      summary.errors++;
+      logStmt.run("import", f.relativePath, null, "error", f.checksum, err.message, now);
     }
-
-    db.prepare("UPDATE kb_sync_config SET last_sync_at = ?, updated_at = ? WHERE id = 1").run(now, now);
-  } catch (err) {
-    summary.errors++;
-    throw err;
-  } finally {
-    releaseLock();
-    // Flush WAL to disk
-    try { db.pragma("wal_checkpoint(PASSIVE)"); } catch { /* ignore */ }
   }
+
+  db.prepare("UPDATE kb_sync_config SET last_sync_at = ?, updated_at = ? WHERE id = 1").run(now, now);
+
+  // Flush WAL to disk
+  try { db.pragma("wal_checkpoint(PASSIVE)"); } catch { /* ignore */ }
+
   return summary;
 }
 
-module.exports = { scanVault, importDocument, fullImport, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE };
+/**
+ * Full import from filesystem: scan vault, import each file, log results.
+ */
+async function fullImport(vaultPath, conflictStrategy) {
+  if (!acquireLock()) throw new Error("同步正在进行中，请稍后重试");
+  try {
+    const files = scanVault(vaultPath);
+    return await importFromFiles(files, conflictStrategy, "obsidian");
+  } catch (err) {
+    const summary = { imported: 0, updated: 0, skipped: 0, conflicted: 0, errors: 1 };
+    return summary;
+  } finally {
+    releaseLock();
+  }
+}
+
+/**
+ * Full import from CouchDB (LiveSync): fetch docs, import each, log results.
+ */
+async function fullImportFromCouchDB(couchConfig, conflictStrategy) {
+  if (!acquireLock()) throw new Error("同步正在进行中，请稍后重试");
+  try {
+    const { fetchFromCouchDB } = require("./couchdbAdapter");
+    const files = await fetchFromCouchDB(couchConfig);
+    return await importFromFiles(files, conflictStrategy, "couchdb");
+  } catch (err) {
+    // Re-throw to let the handler respond with error details
+    throw err;
+  } finally {
+    releaseLock();
+  }
+}
+
+module.exports = { scanVault, importDocument, fullImport, fullImportFromCouchDB, importFromFiles, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE };
