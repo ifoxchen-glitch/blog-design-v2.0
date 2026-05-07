@@ -14,5 +14,7 @@ router.get("/sync/logs", jwtAuth, requirePermission("kb:sync"), handlers.listSyn
 router.get("/sync/status", jwtAuth, requirePermission("kb:sync"), handlers.getSyncStatus);
 router.post("/sync/test-filesystem", jwtAuth, requirePermission("kb:sync"), handlers.testFilesystem);
 router.post("/sync/test-couchdb", jwtAuth, requirePermission("kb:sync"), handlers.testCouchDB);
+router.get("/sync/remote-files", jwtAuth, requirePermission("kb:sync"), handlers.getRemoteFiles);
+router.get("/sync/synced-files", jwtAuth, requirePermission("kb:sync"), handlers.getSyncedFiles);
 
 module.exports = router;

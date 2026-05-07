@@ -492,3 +492,39 @@ export async function apiGetSyncStatus(client: AxiosInstance = request): Promise
   const res = await client.get<ApiResponse<SyncStatus>>('/api/v2/admin/kb/sync/status')
   return res.data.data
 }
+
+// ============================================================
+// File Tree
+// ============================================================
+
+export interface FileTreeNode {
+  name: string
+  path: string
+  type: 'file' | 'folder'
+  children?: FileTreeNode[]
+  size?: number
+  checksum?: string | null
+  documentId?: number | null
+  status?: 'synced' | 'skipped' | 'conflict' | 'error' | null
+  syncedAt?: string | null
+  title?: string
+  detail?: string | null
+}
+
+export interface FileTreeData {
+  source: string
+  tree: FileTreeNode[]
+  fileCount: number
+  error?: string
+  stats?: { total: number; active: number; archived: number }
+}
+
+export async function apiGetRemoteFiles(client: AxiosInstance = request): Promise<FileTreeData> {
+  const res = await client.get<ApiResponse<FileTreeData>>('/api/v2/admin/kb/sync/remote-files')
+  return res.data.data
+}
+
+export async function apiGetSyncedFiles(client: AxiosInstance = request): Promise<FileTreeData> {
+  const res = await client.get<ApiResponse<FileTreeData>>('/api/v2/admin/kb/sync/synced-files')
+  return res.data.data
+}

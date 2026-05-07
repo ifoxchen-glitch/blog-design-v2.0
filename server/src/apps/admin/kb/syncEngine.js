@@ -238,4 +238,93 @@ async function fullImportFromCouchDB(couchConfig, conflictStrategy) {
   }
 }
 
-module.exports = { scanVault, importDocument, fullImport, fullImportFromCouchDB, importFromFiles, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE };
+/**
+ * Lightweight scan: only return file paths (no content), for building file trees.
+ */
+function scanVaultPaths(vaultPath) {
+  const results = [];
+  if (!fs.existsSync(vaultPath)) return results;
+
+  const resolved = path.resolve(vaultPath);
+  const normalized = path.normalize(resolved);
+
+  function walk(dir) {
+    if (dir.length > 4000) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name.startsWith(".")) continue;
+      const full = path.join(dir, e.name);
+      const real = path.normalize(full);
+      if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
+      if (e.isDirectory()) {
+        walk(full);
+      } else if (e.isFile() && e.name.endsWith(".md")) {
+        let size = 0;
+        try { size = fs.statSync(full).size; } catch { /* skip */ }
+        if (size > MAX_FILE_SIZE) continue;
+        results.push({
+          relativePath: path.relative(vaultPath, full).replace(/\\/g, "/"),
+          size,
+          checksum: null, // not computed for tree view
+        });
+      }
+    }
+  }
+  walk(vaultPath);
+  return results;
+}
+
+/**
+ * Build a nested tree from flat file paths.
+ * e.g. ["a/b/note.md"] → [{ name:"a", type:"folder", children: [{ name:"b", type:"folder", children: [{ name:"note.md", type:"file" }] }] }]
+ */
+function buildFileTree(files) {
+  const root = [];
+
+  for (const f of files) {
+    const parts = f.relativePath.split("/");
+    let level = root;
+
+    for (let i = 0; i < parts.length; i++) {
+      const isFile = i === parts.length - 1;
+      const name = parts[i];
+      const nodePath = parts.slice(0, i + 1).join("/");
+
+      if (isFile) {
+        level.push({
+          name,
+          path: f.relativePath,
+          type: "file",
+          size: f.size || 0,
+          checksum: f.checksum || null,
+          documentId: f.documentId || null,
+          status: f.status || null,
+          syncedAt: f.syncedAt || null,
+        });
+      } else {
+        let folder = level.find((n) => n.type === "folder" && n.name === name);
+        if (!folder) {
+          folder = { name, path: nodePath, type: "folder", children: [] };
+          level.push(folder);
+        }
+        level = folder.children;
+      }
+    }
+  }
+
+  // Sort: folders first, then alphabetically
+  function sortTree(nodes) {
+    nodes.sort((a, b) => {
+      if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    for (const n of nodes) {
+      if (n.children) sortTree(n.children);
+    }
+  }
+  sortTree(root);
+  return root;
+}
+
+module.exports = { scanVault, scanVaultPaths, buildFileTree, importDocument, fullImport, fullImportFromCouchDB, importFromFiles, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE };

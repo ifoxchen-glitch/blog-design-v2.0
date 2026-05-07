@@ -21,6 +21,7 @@ import {
   TerminalOutline,
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
+import SyncFileTree from '../../../components/kb/SyncFileTree.vue'
 import {
   apiGetSyncConfig,
   apiUpdateSyncConfig,
@@ -30,9 +31,12 @@ import {
   apiListSyncLogs,
   apiTestFilesystem,
   apiTestCouchDB,
+  apiGetRemoteFiles,
+  apiGetSyncedFiles,
   type SyncConfig,
   type SyncStatus,
   type SyncLogEntry,
+  type FileTreeData,
 } from '../../../api/kb'
 import { usePermissionStore } from '../../../stores/permission'
 
@@ -46,6 +50,11 @@ const couchdbSyncing = ref(false)
 const saving = ref(false)
 const testingFs = ref(false)
 const testingCouch = ref(false)
+
+// File trees
+const remoteTree = ref<FileTreeData>({ source: '', tree: [], fileCount: 0 })
+const syncedTree = ref<FileTreeData>({ source: '', tree: [], fileCount: 0 })
+const treeLoading = ref(false)
 
 const config = ref<SyncConfig>({
   vault_path: '',
@@ -290,10 +299,27 @@ async function handleTestCouchDB() {
   }
 }
 
+async function loadFileTrees() {
+  treeLoading.value = true
+  try {
+    const [remote, synced] = await Promise.all([
+      apiGetRemoteFiles(),
+      apiGetSyncedFiles(),
+    ])
+    remoteTree.value = remote
+    syncedTree.value = synced
+  } catch {
+    /* ignore */
+  } finally {
+    treeLoading.value = false
+  }
+}
+
 function handleRefreshAll() {
   loadConfig()
   loadStatus()
   loadLogs()
+  loadFileTrees()
 }
 
 function handleLogPageChange(page: number) {
@@ -310,6 +336,7 @@ onMounted(() => {
   loadConfig()
   loadStatus()
   loadLogs()
+  loadFileTrees()
 })
 </script>
 
@@ -500,6 +527,55 @@ onMounted(() => {
           <span class="text-base-content/40">跳过 {{ status.last_result.skipped }}</span>
           <span class="text-amber-600">冲突 {{ status.last_result.conflicted }}</span>
           <span class="text-red-500">错误 {{ status.last_result.errors }}</span>
+        </div>
+      </div>
+
+      <!-- 文件树形结构对比 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <!-- 远程文件树 -->
+        <div class="bg-base-100 rounded-xl border border-base-content/5 overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-2.5 bg-base-200/50 border-b border-base-content/5">
+            <h3 class="font-medium text-sm">
+              远程文件
+              <span class="text-xs text-base-content/40 font-normal ml-2">{{ remoteTree.source === 'couchdb' ? 'CouchDB' : '文件系统' }}</span>
+            </h3>
+            <span class="text-[10px] text-base-content/30">{{ remoteTree.fileCount }} 个文件</span>
+          </div>
+          <div class="max-h-80 overflow-y-auto p-2">
+            <NSpin :show="treeLoading" size="small">
+              <SyncFileTree
+                :tree="remoteTree.tree"
+                :loading="treeLoading"
+                empty-text="暂无远程文件，请先配置数据源"
+                :show-status="false"
+              />
+            </NSpin>
+          </div>
+        </div>
+
+        <!-- 已同步文件树 -->
+        <div class="bg-base-100 rounded-xl border border-base-content/5 overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-2.5 bg-base-200/50 border-b border-base-content/5">
+            <h3 class="font-medium text-sm">
+              已同步文件
+              <span class="text-xs text-base-content/40 font-normal ml-2">{{ syncedTree.source === 'couchdb' ? 'CouchDB' : 'Obsidian' }}</span>
+            </h3>
+            <div class="flex items-center gap-2 text-[10px] text-base-content/30">
+              <span v-if="syncedTree.stats" class="text-green-500">{{ syncedTree.stats.active }} 活跃</span>
+              <span v-if="syncedTree.stats && syncedTree.stats.archived > 0">{{ syncedTree.stats.archived }} 归档</span>
+              <span>{{ syncedTree.fileCount }} 个文件</span>
+            </div>
+          </div>
+          <div class="max-h-80 overflow-y-auto p-2">
+            <NSpin :show="treeLoading" size="small">
+              <SyncFileTree
+                :tree="syncedTree.tree"
+                :loading="treeLoading"
+                empty-text="暂无已同步文件，点击立即导入开始同步"
+                :show-status="true"
+              />
+            </NSpin>
+          </div>
         </div>
       </div>
 

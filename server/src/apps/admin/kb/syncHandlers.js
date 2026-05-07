@@ -337,4 +337,97 @@ async function testCouchDB(req, res) {
   }
 }
 
-module.exports = { getSyncConfig, updateSyncConfig, triggerImport, triggerCouchDBImport, triggerExport, listSyncLogs, getSyncStatus, testFilesystem, testCouchDB };
+async function getRemoteFiles(_req, res) {
+  const db = openDb();
+  const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
+
+  try {
+    let files = [];
+    let source = "filesystem";
+
+    if (config && config.couchdb_enabled && config.couchdb_url && config.couchdb_db_name) {
+      // CouchDB source
+      source = "couchdb";
+      const { fetchAllDocs, extractPath } = require("./couchdbAdapter");
+      let auth = null;
+      if (config.couchdb_username && config.couchdb_password) {
+        auth = "Basic " + Buffer.from(`${config.couchdb_username}:${config.couchdb_password}`).toString("base64");
+      }
+      const docs = await fetchAllDocs(config.couchdb_url, config.couchdb_db_name, auth);
+      for (const doc of docs) {
+        if (doc.type && doc.type !== "note") continue;
+        const fp = extractPath(doc);
+        if (!fp.endsWith(".md") && !fp.endsWith(".mdx")) continue;
+        files.push({ relativePath: fp, size: doc.size || 0 });
+      }
+    } else if (config && config.vault_path) {
+      // Filesystem source
+      const vaultPath = require("path").resolve(config.vault_path);
+      files = syncEngine.scanVaultPaths(vaultPath);
+    }
+
+    const tree = syncEngine.buildFileTree(files);
+    res.json({ code: 200, data: { source, tree, fileCount: files.length } });
+  } catch (err) {
+    res.json({ code: 200, data: { source: "unknown", tree: [], fileCount: 0, error: err.message } });
+  }
+}
+
+function getSyncedFiles(_req, res) {
+  const db = openDb();
+  const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
+
+  let matchSource = "obsidian";
+  if (config && config.couchdb_enabled && config.couchdb_url && config.couchdb_db_name) {
+    matchSource = "couchdb";
+  }
+
+  const docs = db
+    .prepare("SELECT id, title, original_path, checksum, status, word_count, updated_at FROM kb_documents WHERE source = ? ORDER BY original_path")
+    .all(matchSource);
+
+  // Cross-reference with latest sync log for per-file status
+  const logMap = {};
+  const logs = db.prepare(
+    "SELECT file_path, status, detail, MAX(id) FROM kb_sync_logs WHERE direction = 'import' GROUP BY file_path",
+  ).all();
+  for (const l of logs) {
+    logMap[l.file_path] = { status: l.status, detail: l.detail };
+  }
+
+  const files = docs.map((d) => ({
+    relativePath: d.original_path || `untitled-${d.id}.md`,
+    size: 0,
+    documentId: d.id,
+    title: d.title,
+    status: logMap[d.original_path]?.status === "success"
+      ? "synced"
+      : logMap[d.original_path]?.status === "skipped"
+        ? "skipped"
+        : logMap[d.original_path]?.status === "conflict"
+          ? "conflict"
+          : logMap[d.original_path]?.status === "error"
+            ? "error"
+            : "synced",
+    syncedAt: d.updated_at,
+    checksum: d.checksum,
+    detail: logMap[d.original_path]?.detail || null,
+  }));
+
+  const tree = syncEngine.buildFileTree(files);
+  res.json({
+    code: 200,
+    data: {
+      source: matchSource,
+      tree,
+      fileCount: docs.length,
+      stats: {
+        total: docs.length,
+        active: docs.filter((d) => d.status === "active").length,
+        archived: docs.filter((d) => d.status === "archived").length,
+      },
+    },
+  });
+}
+
+module.exports = { getSyncConfig, updateSyncConfig, triggerImport, triggerCouchDBImport, triggerExport, listSyncLogs, getSyncStatus, testFilesystem, testCouchDB, getRemoteFiles, getSyncedFiles };
