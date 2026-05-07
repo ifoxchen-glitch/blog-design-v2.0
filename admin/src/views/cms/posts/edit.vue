@@ -272,7 +272,6 @@ const headerSubtitle = computed(() =>
     </PageHeader>
 
     <NSpin :show="loading">
-      <div class="max-w-4xl">
         <div class="bg-base-100 rounded-xl border border-base-content/5 p-5 md:p-6">
           <NForm
             ref="formRef"
@@ -330,7 +329,6 @@ const headerSubtitle = computed(() =>
             </NFormItem>
           </NForm>
         </div>
-      </div>
     </NSpin>
   </div>
 </template>
