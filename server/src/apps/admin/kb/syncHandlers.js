@@ -88,10 +88,11 @@ async function triggerImport(req, res) {
   }
 
   // Respond immediately, run sync async
-  res.status(202).json({ code: 202, message: "同步已启动" });
+  const usingCouchDB = !!(config.couchdb_enabled && config.couchdb_url && config.couchdb_db_name);
+  res.status(202).json({ code: 202, message: `同步已启动 (${usingCouchDB ? "CouchDB" : "文件系统"})` });
 
   try {
-    if (config.couchdb_enabled && config.couchdb_url && config.couchdb_db_name) {
+    if (usingCouchDB) {
       await syncEngine.fullImportFromCouchDB(
         {
           url: config.couchdb_url,
@@ -106,6 +107,14 @@ async function triggerImport(req, res) {
     }
   } catch (err) {
     console.error("[kb-sync] import failed:", err.message);
+    // Write the error to sync logs so it's visible in the UI
+    try {
+      const db2 = openDb();
+      const now2 = nowIso();
+      db2.prepare(
+        "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+      ).run("import", usingCouchDB ? `couchdb://` : config.vault_path, "error", `导入失败: ${err.message}`, now2);
+    } catch { /* ignore */ }
   }
 }
 
@@ -134,6 +143,13 @@ async function triggerCouchDBImport(req, res) {
     );
   } catch (err) {
     console.error("[kb-sync] CouchDB import failed:", err.message);
+    try {
+      const db2 = openDb();
+      const now2 = nowIso();
+      db2.prepare(
+        "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+      ).run("import", `couchdb://${config.couchdb_db_name}`, "error", `CouchDB 导入失败: ${err.message}`, now2);
+    } catch { /* ignore */ }
   }
 }
 

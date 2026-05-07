@@ -196,10 +196,19 @@ async function importFromFiles(files, conflictStrategy, source) {
  */
 async function fullImport(vaultPath, conflictStrategy) {
   if (!acquireLock()) throw new Error("同步正在进行中，请稍后重试");
+  const db = openDb();
+  const now = new Date().toISOString();
   try {
     const files = scanVault(vaultPath);
     return await importFromFiles(files, conflictStrategy, "obsidian");
   } catch (err) {
+    console.error("[kb-sync] fullImport error:", err.message);
+    // Write the error to sync logs so the UI can display it
+    try {
+      db.prepare(
+        "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+      ).run("import", vaultPath, "error", `导入异常: ${err.message}`, now);
+    } catch { /* ignore */ }
     const summary = { imported: 0, updated: 0, skipped: 0, conflicted: 0, errors: 1 };
     return summary;
   } finally {
