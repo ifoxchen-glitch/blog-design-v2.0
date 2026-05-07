@@ -36,7 +36,6 @@ import {
   apiGetBackupSchedule,
   apiSetBackupSchedule,
   type BackupItem,
-  type BackupSchedule,
 } from '../../../../api/ops'
 import { formatDateTime } from '../../../../utils/format'
 import { formatSize } from '../../../../utils/size'
