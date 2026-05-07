@@ -93,7 +93,12 @@ function importDocument(db, fileInfo, conflictStrategy, now, source) {
     .get(fileInfo.relativePath, src);
 
   if (!existing) {
-    const slug = normalizeSlug(slugFromPath(fileInfo.relativePath)) || slugFromPath(fileInfo.relativePath);
+    let slug = normalizeSlug(slugFromPath(fileInfo.relativePath)) || slugFromPath(fileInfo.relativePath);
+    // Fallback for non-ASCII filenames (e.g. Chinese) that produce empty slugs:
+    // use a short hash suffix to guarantee uniqueness
+    if (!slug) {
+      slug = "doc-" + crypto.createHash("sha256").update(fileInfo.relativePath, "utf8").digest("hex").slice(0, 10);
+    }
     const tags = JSON.stringify([]);
     const title = fileInfo.relativePath.replace(/\.md$/, "").split("/").pop();
     const wordCount = fileInfo.content.split(/\s+/).filter(Boolean).length;
