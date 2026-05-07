@@ -117,6 +117,12 @@ const iconMap: Record<string, () => any> = {
   ArrowBack: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
     h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M15.75 19.5 8.25 12l7.5-7.5' }),
   ]),
+  GridOutline: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
+    h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M3.75 3.75h3.75v3.75H3.75V3.75zm6.75 0h3.75v3.75h-3.75V3.75zm6.75 0h3.75v3.75h-3.75V3.75zM3.75 10.5h3.75v3.75H3.75V10.5zm6.75 0h3.75v3.75h-3.75V10.5zm6.75 0h3.75v3.75h-3.75V10.5zM3.75 17.25h3.75V21H3.75v-3.75zm6.75 0h3.75V21h-3.75v-3.75zm6.75 0h3.75V21h-3.75v-3.75z' })
+  ]),
+  SparklesOutline: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
+    h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M16.5 4.5l1.5 3 3 1.5-3 1.5-1.5 3-1.5-3-3-1.5 3-1.5 1.5-3zM6.75 9.75l1.5 3 3 1.5-3 1.5-1.5 3-1.5-3-3-1.5 3-1.5 1.5-3zM12 15l1.5 3 3 1.5-3 1.5-1.5 3-1.5-3-3-1.5 3-1.5 1.5-3z' })
+  ]),
   MenuOutline: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
     h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5' }),
   ]),

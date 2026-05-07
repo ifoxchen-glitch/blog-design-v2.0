@@ -51,6 +51,11 @@ const PERMISSIONS = [
   { code: "cms:export",     resource: "cms",       action: "export",    name: "导出全库",       description: "导出文章/标签/分类/友链全库 JSON（仅超管）" },
   { code: "cms:import",     resource: "cms",       action: "import",    name: "导入全库",       description: "用 JSON 文件覆盖式还原全库数据，破坏性，仅超管可用" },
   { code: "menu:manage",    resource: "menu",      action: "manage",    name: "管理后台菜单",   description: "维护后台侧边栏菜单" },
+  { code: "workspace:view",   resource: "workspace", action: "view",    name: "查看工作台",     description: "访问工作台页面" },
+  { code: "workspace:kanban", resource: "workspace", action: "kanban",  name: "查看看板",       description: "访问看板工作室" },
+  { code: "workspace:api",    resource: "workspace", action: "api",     name: "管理 API 配置",  description: "管理 API 配置" },
+  { code: "workspace:ai",     resource: "workspace", action: "ai",      name: "管理 AI 设置",   description: "管理 AI 设置" },
+  { code: "workspace:config", resource: "workspace", action: "config",  name: "管理全局参数",   description: "管理全局参数配置" },
 ];
 
 // ============================================================
@@ -83,9 +88,19 @@ const ROLES = [
 // permission_code 表示访问该菜单需要的权限（super_admin 自动放行）
 // ============================================================
 const MENUS = [
-  { name: "仪表盘",   path: "/cms/dashboard", icon: "DashboardOutline",     permission: null,             sort: 1 },
+  { name: "仪表盘",   path: "/cms/dashboard", icon: "DashboardOutline",     permission: null,              sort: 1 },
   {
-    name: "博客管理", path: null,             icon: "DocumentTextOutline",  permission: "post:list",      sort: 2,
+    name: "我的工作台", path: null,            icon: "GridOutline",          permission: null,              sort: 2,
+    children: [
+      { name: "工作台",     path: "/cms/workspace",    icon: "PulseOutline",    permission: null },
+      { name: "看板工作室", path: "/cms/kanban",       icon: "BarChartOutline", permission: null },
+      { name: "API配置",    path: "/cms/api-config",   icon: "LinkOutline",     permission: null },
+      { name: "Ai设置",     path: "/cms/ai-settings",  icon: "SparklesOutline", permission: null },
+      { name: "全局参数配置", path: "/cms/global-config", icon: "SettingsOutline", permission: null },
+    ],
+  },
+  {
+    name: "博客管理", path: null,             icon: "DocumentTextOutline",  permission: "post:list",      sort: 3,
     children: [
       { name: "文章",   path: "/cms/posts",      icon: "DocumentOutline",   permission: "post:list" },
       { name: "标签",   path: "/cms/tags",       icon: "PricetagOutline",   permission: "post:list" },
@@ -95,7 +110,7 @@ const MENUS = [
     ],
   },
   {
-    name: "权限管理", path: null, icon: "ShieldCheckmarkOutline", permission: "user:list", sort: 3,
+    name: "权限管理", path: null, icon: "ShieldCheckmarkOutline", permission: "user:list", sort: 4,
     children: [
       { name: "用户", path: "/cms/rbac/users",       icon: "PersonOutline",        permission: "user:list" },
       { name: "角色", path: "/cms/rbac/roles",       icon: "PeopleOutline",        permission: "role:assign" },
@@ -103,16 +118,16 @@ const MENUS = [
       { name: "菜单", path: "/cms/rbac/menus",       icon: "MenuOutline",          permission: "menu:manage" },
     ],
   },
-  { name: "数据分析", path: "/cms/analytics", icon: "BarChartOutline",      permission: "analytics:view", sort: 4 },
+  { name: "数据分析", path: "/cms/analytics", icon: "BarChartOutline",      permission: "analytics:view", sort: 5 },
   {
-    name: "运维",     path: null,             icon: "SettingsOutline",      permission: "ops:logs",       sort: 5,
+    name: "运维",     path: null,             icon: "SettingsOutline",      permission: "ops:logs",       sort: 6,
     children: [
       { name: "审计日志", path: "/cms/ops/logs",    icon: "ReceiptOutline",  permission: "ops:logs" },
       { name: "备份",     path: "/cms/ops/backup",  icon: "ArchiveOutline",  permission: "ops:backup" },
       { name: "系统监控", path: "/cms/ops/monitor", icon: "PulseOutline",    permission: "ops:monitor" },
     ],
   },
-  { name: "数据导入导出", path: "/cms/backup",   icon: "ArchiveOutline",     permission: "cms:export",     sort: 6 },
+  { name: "数据导入导出", path: "/cms/backup",   icon: "ArchiveOutline",     permission: "cms:export",     sort: 7 },
 ];
 
 // ============================================================
@@ -222,34 +237,40 @@ function seedSuperAdmin(db, { adminEmail, adminPassword, adminPasswordHash, now 
 }
 
 // ----- menus -----
-// 策略：menus 表为空时才整树写入；非空说明用户已经在后台改过菜单，不动
+// 增量写入：检查每个顶级菜单是否存在，不存在则插入。已有数据时不会重写。
+// 支持后续版本添加新菜单到已有数据库。
 function seedMenus(db, now) {
-  const count = db.prepare(`SELECT COUNT(*) AS c FROM menus`).get().c;
-  if (count > 0) return;
-
   const insert = db.prepare(`
     INSERT INTO menus (parent_id, name, path, icon, permission_code, sort_order, status, created_at)
     VALUES (@parent_id, @name, @path, @icon, @permission_code, @sort_order, 'active', @created_at)
   `);
+  const getParent = db.prepare(`SELECT id FROM menus WHERE parent_id IS NULL AND name = ?`);
+  const getChild  = db.prepare(`SELECT id FROM menus WHERE parent_id = ? AND name = ?`);
 
-  let order = 0;
   for (const top of MENUS) {
-    order += 1;
-    const parentInfo = insert.run({
-      parent_id: null,
-      name: top.name,
-      path: top.path,
-      icon: top.icon,
-      permission_code: top.permission || null,
-      sort_order: top.sort != null ? top.sort : order,
-      created_at: now,
-    });
-    const parentId = parentInfo.lastInsertRowid;
+    const existing = getParent.get(top.name);
+    let parentId;
+    if (existing) {
+      parentId = existing.id;
+    } else {
+      const info = insert.run({
+        parent_id: null,
+        name: top.name,
+        path: top.path,
+        icon: top.icon,
+        permission_code: top.permission || null,
+        sort_order: top.sort != null ? top.sort : 1,
+        created_at: now,
+      });
+      parentId = info.lastInsertRowid;
+    }
 
     if (Array.isArray(top.children)) {
       let childOrder = 0;
       for (const c of top.children) {
         childOrder += 1;
+        const child = getChild.get(parentId, c.name);
+        if (child) continue; // 已存在，跳过
         insert.run({
           parent_id: parentId,
           name: c.name,

@@ -45,6 +45,32 @@ const router = createRouter({
           component: () => import('../views/dashboard/index.vue'),
           meta: { permission: 'analytics:view' },
         },
+        // 我的工作台
+        {
+          path: '/cms/workspace',
+          name: 'cms-workspace',
+          component: () => import('../views/workspace/index.vue'),
+        },
+        {
+          path: '/cms/kanban',
+          name: 'cms-kanban',
+          component: () => import('../views/workspace/kanban.vue'),
+        },
+        {
+          path: '/cms/api-config',
+          name: 'cms-api-config',
+          component: () => import('../views/workspace/apiConfig.vue'),
+        },
+        {
+          path: '/cms/ai-settings',
+          name: 'cms-ai-settings',
+          component: () => import('../views/workspace/aiSettings.vue'),
+        },
+        {
+          path: '/cms/global-config',
+          name: 'cms-global-config',
+          component: () => import('../views/workspace/globalConfig.vue'),
+        },
         {
           path: '/cms/tags',
           name: 'cms-tags',
