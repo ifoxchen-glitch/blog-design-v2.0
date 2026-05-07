@@ -179,14 +179,10 @@ function handleRemove(data: { file: UploadFileInfo }) {
     >
       <NUploadDragger v-if="props.drag && showUploadButton">
         <div class="upload-dragger-inner">
-          <div class="upload-dragger-icon">
-            <NIcon size="32" :depth="3"><CloudUploadOutline /></NIcon>
-          </div>
-          <div class="upload-dragger-texts">
-            <NText class="upload-dragger-text">点击或拖拽图片到此区域上传</NText>
-            <div class="upload-dragger-tip">
-              支持 {{ props.accept }}，单文件不超过 {{ props.maxSize }}MB
-            </div>
+          <NIcon size="32" :depth="3"><CloudUploadOutline /></NIcon>
+          <NText class="upload-dragger-text">点击或拖拽图片到此区域上传</NText>
+          <div class="upload-dragger-tip">
+            支持 {{ props.accept }}，单文件不超过 {{ props.maxSize }}MB
           </div>
         </div>
       </NUploadDragger>
@@ -199,31 +195,26 @@ function handleRemove(data: { file: UploadFileInfo }) {
   width: 100%;
 }
 
+.image-uploader :deep(.n-upload) {
+  width: 100%;
+}
+
 .image-uploader :deep(.n-upload-trigger) {
-  display: inline-flex;
+  display: flex;
+}
+
+.image-uploader :deep(.n-upload-dragger) {
+  width: 100%;
 }
 
 .upload-dragger-inner {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 16px;
-  padding: 20px 24px;
-  min-width: 200px;
-  max-width: 100%;
-}
-
-.upload-dragger-icon {
-  flex-shrink: 0;
-  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-}
-
-.upload-dragger-texts {
-  flex: 1;
-  min-width: 0;
-  text-align: left;
+  gap: 6px;
+  padding: 32px 16px;
+  min-width: 200px;
 }
 
 .upload-dragger-text {
