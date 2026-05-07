@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
 import {
   NButton,
   NInput,
@@ -17,6 +17,8 @@ import {
   RefreshOutline,
   CloudUploadOutline,
   CloudOutline,
+  StopOutline,
+  TerminalOutline,
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import {
@@ -67,6 +69,64 @@ const logsPage = ref(1)
 const logsPageSize = ref(20)
 const logsFilter = ref<{ direction?: string; status?: string }>({})
 
+// ---- live log polling ----
+const liveLogs = ref<SyncLogEntry[]>([])
+const livePolling = ref(false)
+const liveSource = ref<'filesystem' | 'couchdb' | null>(null)
+const liveContainer = ref<HTMLElement | null>(null)
+let _pollTimer: ReturnType<typeof setInterval> | null = null
+
+function autoScrollLive() {
+  nextTick(() => {
+    const el = liveContainer.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
+}
+
+function startLivePolling(source: 'filesystem' | 'couchdb') {
+  stopLivePolling()
+  liveLogs.value = []
+  livePolling.value = true
+  liveSource.value = source
+  const since = new Date().toISOString()
+
+  _pollTimer = setInterval(async () => {
+    try {
+      const s = await apiGetSyncStatus()
+      status.value = s
+      const res = await apiListSyncLogs({ page: 1, pageSize: 200, since })
+      // Filter only import logs for live view, newest first
+      const fresh = res.items
+        .filter((l) => l.direction === 'import')
+        .reverse() // chronological order for terminal feel
+      if (fresh.length > liveLogs.value.length) {
+        liveLogs.value = fresh
+        autoScrollLive()
+      }
+      if (!s.running) {
+        stopLivePolling()
+        // Final refresh of the static log table
+        loadLogs()
+        loadStatus()
+        autoScrollLive()
+      }
+    } catch {
+      /* poll error — ignore */
+    }
+  }, 1500)
+}
+
+function stopLivePolling() {
+  if (_pollTimer) {
+    clearInterval(_pollTimer)
+    _pollTimer = null
+  }
+  livePolling.value = false
+  liveSource.value = null
+}
+
+onBeforeUnmount(() => stopLivePolling())
+
 const STRATEGY_OPTIONS = [
   { label: '最后写入覆盖 (last_write_wins)', value: 'last_write_wins' },
   { label: '保留两者 (keep_both)', value: 'keep_both' },
@@ -80,6 +140,26 @@ const STATUS_OPTIONS = [
   { label: '冲突', value: 'conflict' },
   { label: '错误', value: 'error' },
 ]
+
+function statusLabel(s: string) {
+  switch (s) {
+    case 'success': return '成功'
+    case 'skipped': return '跳过'
+    case 'conflict': return '冲突'
+    case 'error': return '错误'
+    default: return s
+  }
+}
+
+function liveLogClass(s: string) {
+  switch (s) {
+    case 'success': return 'text-green-400'
+    case 'skipped': return 'text-gray-400'
+    case 'conflict': return 'text-amber-400'
+    case 'error': return 'text-red-400'
+    default: return 'text-gray-300'
+  }
+}
 
 async function loadConfig() {
   loading.value = true
@@ -147,7 +227,8 @@ async function handleSyncNow() {
   try {
     const res = await apiTriggerSyncImport()
     if ((res as unknown as { status: string }).status) {
-      message.info('同步已启动，请稍后刷新查看结果')
+      message.info('同步已启动')
+      startLivePolling('filesystem')
     }
   } catch {
     message.error('启动同步失败')
@@ -161,7 +242,8 @@ async function handleCouchDBSyncNow() {
   try {
     const res = await apiTriggerCouchDBSyncImport()
     if ((res as unknown as { status: string }).status) {
-      message.info('CouchDB 同步已启动，请稍后刷新查看结果')
+      message.info('CouchDB 同步已启动')
+      startLivePolling('couchdb')
     }
   } catch {
     message.error('启动 CouchDB 同步失败')
@@ -450,6 +532,47 @@ onMounted(() => {
             </div>
           </div>
         </NSpin>
+      </div>
+
+      <!-- 实时同步日志 (Live terminal) -->
+      <div v-if="livePolling || liveLogs.length > 0" class="bg-[#0d1117] rounded-xl border border-gray-700 overflow-hidden mb-6">
+        <div class="flex items-center justify-between px-4 py-2 bg-gray-800/50 border-b border-gray-700">
+          <div class="flex items-center gap-2 text-xs">
+            <TerminalOutline class="w-3.5 h-3.5 text-green-400" />
+            <span class="text-gray-300 font-medium">
+              实时日志
+              <span v-if="liveSource === 'couchdb'" class="text-blue-400"> · CouchDB</span>
+              <span v-else class="text-purple-400"> · 文件系统</span>
+            </span>
+            <span v-if="livePolling" class="flex items-center gap-1 text-green-400">
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              同步中...
+            </span>
+            <span v-else class="text-gray-400">已完成</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-gray-500">{{ liveLogs.length }} 条</span>
+            <NButton v-if="livePolling" size="tiny" quaternary @click="stopLivePolling">
+              <template #icon><StopOutline class="w-3 h-3" /></template>
+              停止
+            </NButton>
+          </div>
+        </div>
+        <div ref="liveContainer" class="max-h-80 overflow-y-auto p-3 font-mono text-[11px] leading-relaxed">
+          <div
+            v-for="(log, i) in liveLogs"
+            :key="log.id || i"
+            class="flex gap-2 py-0.5"
+          >
+            <span class="text-gray-500 shrink-0 whitespace-nowrap">{{ new Date(log.created_at).toLocaleTimeString() }}</span>
+            <span class="text-gray-600 shrink-0">[{{ statusLabel(log.status) }}]</span>
+            <span :class="liveLogClass(log.status)">{{ log.file_path || '-' }}</span>
+            <span v-if="log.detail" class="text-gray-500 truncate">{{ log.detail }}</span>
+          </div>
+          <div v-if="liveLogs.length === 0 && livePolling" class="text-gray-500 italic">
+            等待同步开始...
+          </div>
+        </div>
       </div>
     </NSpin>
   </div>

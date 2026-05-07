@@ -146,6 +146,7 @@ function listSyncLogs(req, res) {
   const page = Math.max(1, toInt(req.query.page, 1));
   const pageSize = Math.min(100, Math.max(1, toInt(req.query.pageSize, 20)));
   const offset = (page - 1) * pageSize;
+  const since = req.query.since; // ISO timestamp filter: created_at > since
 
   let where = "WHERE 1=1";
   const params = [];
@@ -156,6 +157,10 @@ function listSyncLogs(req, res) {
   if (req.query.status) {
     where += " AND status = ?";
     params.push(req.query.status);
+  }
+  if (since) {
+    where += " AND created_at > ?";
+    params.push(since);
   }
 
   const total = db.prepare(`SELECT COUNT(*) AS c FROM kb_sync_logs ${where}`).get(...params).c;

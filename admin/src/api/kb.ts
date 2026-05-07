@@ -458,7 +458,7 @@ export async function apiTriggerSyncExport(client: AxiosInstance = request): Pro
 }
 
 export async function apiListSyncLogs(
-  params: { page: number; pageSize: number; direction?: string; status?: string },
+  params: { page: number; pageSize: number; direction?: string; status?: string; since?: string },
   client: AxiosInstance = request,
 ): Promise<{ items: SyncLogEntry[]; total: number; page: number; pageSize: number }> {
   const res = await client.get<ApiResponse<{ items: SyncLogEntry[]; total: number; page: number; pageSize: number }>>(
