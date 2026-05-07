@@ -26,17 +26,19 @@ function pickDocumentListItem(row) {
   };
 }
 
-function auditLog(db, user, action, resourceId, detail) {
+function auditLog(db, req, action, resourceId, detail) {
   try {
     db.prepare(
-      "INSERT INTO audit_logs (user_id, username, action, resource_type, resource_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO audit_logs (user_id, username, action, resource_type, resource_id, detail, ip, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ).run(
-      user?.userId ?? null,
-      user?.username ?? "system",
+      req.user?.userId ?? null,
+      req.user?.username ?? "system",
       action,
       "kb_document",
       String(resourceId ?? ""),
       detail ?? null,
+      req.ip || null,
+      req.headers?.["user-agent"] || null,
       nowIso(),
     );
   } catch {
@@ -155,7 +157,7 @@ function createDocument(req, res) {
       .run({ title, slug, excerpt, content_markdown, tags: tagsJson, checksum, word_count, created_at: createdAt, updated_at: updatedAt });
 
     const row = db.prepare("SELECT * FROM kb_documents WHERE id = ?").get(info.lastInsertRowid);
-    auditLog(db, req.user, "create", info.lastInsertRowid, `创建文档: ${title}`);
+    auditLog(db, req, "create", info.lastInsertRowid, `创建文档: ${title}`);
     return res.status(201).json({ code: 201, message: "success", data: pickDocumentPublic(row) });
   } catch (e) {
     const msg = String(e.message || "");
@@ -220,7 +222,7 @@ function updateDocument(req, res) {
     }
 
     const row = db.prepare("SELECT * FROM kb_documents WHERE id = ?").get(id);
-    auditLog(db, req.user, "update", id, `更新文档: ${title}`);
+    auditLog(db, req, "update", id, `更新文档: ${title}`);
     return res.status(200).json({ code: 200, message: "success", data: pickDocumentPublic(row) });
   } catch (e) {
     const msg = String(e.message || "");
@@ -240,7 +242,7 @@ function deleteDocument(req, res) {
   const info = db.prepare("DELETE FROM kb_documents WHERE id = ?").run(id);
   if (info.changes === 0) return res.status(404).json({ code: 404, message: "Document not found" });
 
-  auditLog(db, req.user, "delete", id, `删除文档: ${existing.title}`);
+  auditLog(db, req, "delete", id, `删除文档: ${existing.title}`);
   return res.status(200).json({ code: 200, message: "success", data: { deleted: true } });
 }
 

@@ -3,6 +3,26 @@ const { openDb } = require("../../../db");
 const { nowIso, toInt } = require("../../../utils");
 const syncEngine = require("./syncEngine");
 
+function auditLog(db, req, action, resourceId, detail, resourceType) {
+  try {
+    db.prepare(
+      "INSERT INTO audit_logs (user_id, username, action, resource_type, resource_id, detail, ip, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(
+      req?.user?.userId ?? null,
+      req?.user?.username ?? "system",
+      action,
+      resourceType || "kb_sync",
+      String(resourceId ?? ""),
+      detail ?? null,
+      req?.ip || null,
+      req?.headers?.["user-agent"] || null,
+      nowIso(),
+    );
+  } catch {
+    // audit log failure should not break the main operation
+  }
+}
+
 function getSyncConfig(_req, res) {
   const db = openDb();
   const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
@@ -73,6 +93,8 @@ function updateSyncConfig(req, res) {
     // cron module may not have been loaded yet — ignore
   }
 
+  auditLog(db, req, "update_config", "1", "更新同步配置");
+
   res.json({ code: 200, message: "已更新", data: updates });
 }
 
@@ -89,6 +111,7 @@ async function triggerImport(req, res) {
 
   // Respond immediately, run sync async
   const usingCouchDB = !!(config.couchdb_enabled && config.couchdb_url && config.couchdb_db_name);
+  auditLog(db, req, "trigger_import", config.vault_path || "couchdb", `触发${usingCouchDB ? "CouchDB" : "文件系统"}同步`);
   res.status(202).json({ code: 202, message: `同步已启动 (${usingCouchDB ? "CouchDB" : "文件系统"})` });
 
   try {
@@ -129,6 +152,7 @@ async function triggerCouchDBImport(req, res) {
     return res.status(409).json({ code: 409, message: "同步正在进行中" });
   }
 
+  auditLog(db, req, "trigger_couchdb_import", config.couchdb_db_name, `触发 CouchDB 同步: ${config.couchdb_db_name}`);
   res.status(202).json({ code: 202, message: "CouchDB 同步已启动" });
 
   try {
@@ -274,6 +298,8 @@ async function testFilesystem(req, res) {
       "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
     ).run("import", vaultPath, "success", detail, now);
 
+    auditLog(db, req, "test_filesystem", vaultPath, detail);
+
     res.json({
       code: 200,
       data: { ok: true, message: detail, path: resolved, mdCount, totalSize },
@@ -323,6 +349,8 @@ async function testCouchDB(req, res) {
     db.prepare(
       "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
     ).run("import", `couchdb://${dbName}`, "success", detail, now);
+
+    auditLog(db, req, "test_couchdb", dbName, detail);
 
     res.json({
       code: 200,
@@ -389,7 +417,7 @@ function getSyncedFiles(_req, res) {
   // Cross-reference with latest sync log for per-file status
   const logMap = {};
   const logs = db.prepare(
-    "SELECT file_path, status, detail, MAX(id) FROM kb_sync_logs WHERE direction = 'import' GROUP BY file_path",
+    "SELECT file_path, status, detail FROM kb_sync_logs WHERE id IN (SELECT MAX(id) FROM kb_sync_logs WHERE direction = 'import' GROUP BY file_path)",
   ).all();
   for (const l of logs) {
     logMap[l.file_path] = { status: l.status, detail: l.detail };

@@ -250,7 +250,7 @@ function migrate(db) {
       excerpt TEXT,
       content_markdown TEXT NOT NULL DEFAULT '',
       content_html TEXT,
-      source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('obsidian','manual','api')),
+      source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('obsidian','couchdb','manual','api')),
       original_path TEXT,
       checksum TEXT,
       tags TEXT NOT NULL DEFAULT '[]',

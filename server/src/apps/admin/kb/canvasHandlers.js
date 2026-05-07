@@ -3,6 +3,26 @@ const { nowIso, toInt } = require("../../../utils");
 
 // ---- helpers ----
 
+function auditLog(db, req, action, resourceId, detail, resourceType) {
+  try {
+    db.prepare(
+      "INSERT INTO audit_logs (user_id, username, action, resource_type, resource_id, detail, ip, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(
+      req?.user?.userId ?? null,
+      req?.user?.username ?? "system",
+      action,
+      resourceType || "kb_canvas",
+      String(resourceId ?? ""),
+      detail ?? null,
+      req?.ip || null,
+      req?.headers?.["user-agent"] || null,
+      nowIso(),
+    );
+  } catch {
+    // audit log failure should not break the main operation
+  }
+}
+
 function pickCanvas(row) {
   return {
     id: row.id,
@@ -78,6 +98,7 @@ function createCanvas(req, res) {
   `).run({ title, description, created_at: now, updated_at: now });
 
   const row = db.prepare("SELECT * FROM kb_canvases WHERE id = ?").get(info.lastInsertRowid);
+  auditLog(db, req, "create_canvas", info.lastInsertRowid, `创建画布: ${title}`);
   return res.status(201).json({ code: 201, message: "success", data: pickCanvas(row) });
 }
 
@@ -124,6 +145,7 @@ function updateCanvas(req, res) {
   `).run({ title, description, zoom, pan_x, pan_y, grid_visible, updated_at: now, id });
 
   const row = db.prepare("SELECT * FROM kb_canvases WHERE id = ?").get(id);
+  auditLog(db, req, "update_canvas", id, `更新画布: ${title}`);
   return res.status(200).json({ code: 200, message: "success", data: pickCanvas(row) });
 }
 
@@ -135,6 +157,7 @@ function deleteCanvas(req, res) {
   const info = db.prepare("DELETE FROM kb_canvases WHERE id = ?").run(id);
   if (info.changes === 0) return res.status(404).json({ code: 404, message: "Canvas not found" });
 
+  auditLog(db, req, "delete_canvas", id, `删除画布: id=${id}`);
   return res.status(200).json({ code: 200, message: "success", data: { deleted: true } });
 }
 
@@ -170,6 +193,7 @@ function addNode(req, res) {
   `).run({ canvas_id: canvasId, type, label, content, x, y, width, height, color, metadata, sort_order, created_at: now, updated_at: now });
 
   const row = db.prepare("SELECT * FROM kb_canvas_nodes WHERE id = ?").get(info.lastInsertRowid);
+  auditLog(db, req, "add_node", info.lastInsertRowid, `添加画布节点: ${label}`, "kb_canvas_node");
   return res.status(201).json({ code: 201, message: "success", data: pickNode(row) });
 }
 
@@ -202,6 +226,7 @@ function updateNode(req, res) {
   `).run({ type, label, content, x, y, width, height, color, metadata, updated_at: now, id: nodeId, canvas_id: canvasId });
 
   const row = db.prepare("SELECT * FROM kb_canvas_nodes WHERE id = ?").get(nodeId);
+  auditLog(db, req, "update_node", nodeId, `更新画布节点: ${label}`, "kb_canvas_node");
   return res.status(200).json({ code: 200, message: "success", data: pickNode(row) });
 }
 
@@ -214,6 +239,7 @@ function deleteNode(req, res) {
   const info = db.prepare("DELETE FROM kb_canvas_nodes WHERE id = ? AND canvas_id = ?").run(nodeId, canvasId);
   if (info.changes === 0) return res.status(404).json({ code: 404, message: "Node not found" });
 
+  auditLog(db, req, "delete_node", nodeId, `删除画布节点: id=${nodeId}`, "kb_canvas_node");
   return res.status(200).json({ code: 200, message: "success", data: { deleted: true } });
 }
 
@@ -247,6 +273,7 @@ function addEdge(req, res) {
   `).run({ canvas_id: canvasId, source_node_id, target_node_id, label, style, created_at: now, updated_at: now });
 
   const row = db.prepare("SELECT * FROM kb_canvas_edges WHERE id = ?").get(info.lastInsertRowid);
+  auditLog(db, req, "add_edge", info.lastInsertRowid, `添加连线: ${source_node_id} → ${target_node_id}`, "kb_canvas_edge");
   return res.status(201).json({ code: 201, message: "success", data: pickEdge(row) });
 }
 
@@ -268,6 +295,7 @@ function updateEdge(req, res) {
     .run({ label, style, updated_at: now, id: edgeId });
 
   const row = db.prepare("SELECT * FROM kb_canvas_edges WHERE id = ?").get(edgeId);
+  auditLog(db, req, "update_edge", edgeId, `更新连线: id=${edgeId}`, "kb_canvas_edge");
   return res.status(200).json({ code: 200, message: "success", data: pickEdge(row) });
 }
 
@@ -280,6 +308,7 @@ function deleteEdge(req, res) {
   const info = db.prepare("DELETE FROM kb_canvas_edges WHERE id = ? AND canvas_id = ?").run(edgeId, canvasId);
   if (info.changes === 0) return res.status(404).json({ code: 404, message: "Edge not found" });
 
+  auditLog(db, req, "delete_edge", edgeId, `删除连线: id=${edgeId}`, "kb_canvas_edge");
   return res.status(200).json({ code: 200, message: "success", data: { deleted: true } });
 }
 

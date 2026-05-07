@@ -19,17 +19,19 @@ function pickPostPublic(row) {
   };
 }
 
-function auditLog(db, user, action, resourceId, detail) {
+function auditLog(db, req, action, resourceId, detail) {
   try {
     db.prepare(
-      "INSERT INTO audit_logs (user_id, username, action, resource_type, resource_id, detail, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO audit_logs (user_id, username, action, resource_type, resource_id, detail, ip, user_agent, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     ).run(
-      user?.userId ?? null,
-      user?.username ?? "system",
+      req.user?.userId ?? null,
+      req.user?.username ?? "system",
       action,
       "kb_document",
       String(resourceId ?? ""),
       detail ?? null,
+      req.ip || null,
+      req.headers?.["user-agent"] || null,
       nowIso(),
     );
   } catch {
@@ -176,7 +178,7 @@ function publishDocument(req, res) {
     postData.tags = listTagsForPost(db, postId);
     postData.categories = listCategoriesForPost(db, postId);
 
-    auditLog(db, req.user, existingMapping ? "update" : "publish", id, `发布文档到博客: ${title}`);
+    auditLog(db, req, existingMapping ? "update" : "publish", id, `发布文档到博客: ${title}`);
     return res.status(existingMapping ? 200 : 201).json({
       code: existingMapping ? 200 : 201,
       message: "success",
@@ -240,7 +242,7 @@ function deleteDocumentPost(req, res) {
   const info = db.prepare("DELETE FROM kb_document_posts WHERE id = ?").run(id);
   if (info.changes === 0) return res.status(404).json({ code: 404, message: "Mapping not found" });
 
-  auditLog(db, req.user, "unpublish", existing.document_id, `解除文档与文章的映射 (post_id=${existing.post_id})`);
+  auditLog(db, req, "unpublish", existing.document_id, `解除文档与文章的映射 (post_id=${existing.post_id})`);
   return res.status(200).json({ code: 200, message: "success", data: { deleted: true } });
 }
 
