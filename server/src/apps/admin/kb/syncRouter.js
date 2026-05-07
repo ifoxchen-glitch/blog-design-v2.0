@@ -8,12 +8,10 @@ const router = express.Router();
 router.get("/sync/config", jwtAuth, requirePermission("kb:sync"), handlers.getSyncConfig);
 router.put("/sync/config", jwtAuth, requirePermission("kb:sync"), handlers.updateSyncConfig);
 router.post("/sync/trigger-import", jwtAuth, requirePermission("kb:sync"), handlers.triggerImport);
-router.post("/sync/trigger-couchdb-import", jwtAuth, requirePermission("kb:sync"), handlers.triggerCouchDBImport);
 router.post("/sync/trigger-export", jwtAuth, requirePermission("kb:sync"), handlers.triggerExport);
 router.get("/sync/logs", jwtAuth, requirePermission("kb:sync"), handlers.listSyncLogs);
 router.get("/sync/status", jwtAuth, requirePermission("kb:sync"), handlers.getSyncStatus);
 router.post("/sync/test-filesystem", jwtAuth, requirePermission("kb:sync"), handlers.testFilesystem);
-router.post("/sync/test-couchdb", jwtAuth, requirePermission("kb:sync"), handlers.testCouchDB);
 router.get("/sync/remote-files", jwtAuth, requirePermission("kb:sync"), handlers.getRemoteFiles);
 router.get("/sync/synced-files", jwtAuth, requirePermission("kb:sync"), handlers.getSyncedFiles);
 

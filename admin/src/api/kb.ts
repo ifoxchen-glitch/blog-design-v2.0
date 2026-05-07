@@ -393,11 +393,6 @@ export interface SyncConfig {
   sync_interval_minutes: number
   conflict_strategy: 'last_write_wins' | 'keep_both' | 'skip'
   last_sync_at: string | null
-  couchdb_enabled: boolean
-  couchdb_url: string
-  couchdb_db_name: string
-  couchdb_username: string
-  couchdb_password: string
 }
 
 export interface SyncStatus {
@@ -427,11 +422,6 @@ export interface UpdateSyncConfigPayload {
   auto_sync_enabled?: boolean
   sync_interval_minutes?: number
   conflict_strategy?: 'last_write_wins' | 'keep_both' | 'skip'
-  couchdb_enabled?: boolean
-  couchdb_url?: string
-  couchdb_db_name?: string
-  couchdb_username?: string
-  couchdb_password?: string
 }
 
 export async function apiUpdateSyncConfig(
@@ -444,11 +434,6 @@ export async function apiUpdateSyncConfig(
 
 export async function apiTriggerSyncImport(client: AxiosInstance = request): Promise<{ status: string }> {
   const res = await client.post<ApiResponse<{ status: string }>>('/api/v2/admin/kb/sync/trigger-import')
-  return res.data.data
-}
-
-export async function apiTriggerCouchDBSyncImport(client: AxiosInstance = request): Promise<{ status: string }> {
-  const res = await client.post<ApiResponse<{ status: string }>>('/api/v2/admin/kb/sync/trigger-couchdb-import')
   return res.data.data
 }
 
@@ -469,11 +454,6 @@ export interface TestConnectionResult {
 
 export async function apiTestFilesystem(client: AxiosInstance = request): Promise<TestConnectionResult> {
   const res = await client.post<ApiResponse<TestConnectionResult>>('/api/v2/admin/kb/sync/test-filesystem')
-  return res.data.data
-}
-
-export async function apiTestCouchDB(client: AxiosInstance = request): Promise<TestConnectionResult> {
-  const res = await client.post<ApiResponse<TestConnectionResult>>('/api/v2/admin/kb/sync/test-couchdb')
   return res.data.data
 }
 

@@ -35,11 +35,6 @@ function getSyncConfig(_req, res) {
           sync_interval_minutes: config.sync_interval_minutes,
           conflict_strategy: config.conflict_strategy,
           last_sync_at: config.last_sync_at,
-          couchdb_enabled: !!config.couchdb_enabled,
-          couchdb_url: config.couchdb_url || "",
-          couchdb_db_name: config.couchdb_db_name || "",
-          couchdb_username: config.couchdb_username || "",
-          couchdb_password: config.couchdb_password || "",
         }
       : null,
   });
@@ -50,7 +45,6 @@ function updateSyncConfig(req, res) {
   const now = nowIso();
   const {
     vault_path, auto_sync_enabled, sync_interval_minutes, conflict_strategy,
-    couchdb_enabled, couchdb_url, couchdb_db_name, couchdb_username, couchdb_password,
   } = req.body || {};
 
   const existing = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
@@ -63,26 +57,16 @@ function updateSyncConfig(req, res) {
     auto_sync_enabled: auto_sync_enabled !== undefined ? (auto_sync_enabled ? 1 : 0) : existing.auto_sync_enabled,
     sync_interval_minutes: sync_interval_minutes ?? existing.sync_interval_minutes,
     conflict_strategy: conflict_strategy ?? existing.conflict_strategy,
-    couchdb_enabled: couchdb_enabled !== undefined ? (couchdb_enabled ? 1 : 0) : (existing.couchdb_enabled ?? 0),
-    couchdb_url: couchdb_url ?? existing.couchdb_url ?? "",
-    couchdb_db_name: couchdb_db_name ?? existing.couchdb_db_name ?? "",
-    couchdb_username: couchdb_username ?? existing.couchdb_username ?? "",
-    couchdb_password: couchdb_password ?? existing.couchdb_password ?? "",
     updated_at: now,
   };
 
   db.prepare(
-    `UPDATE kb_sync_config SET vault_path=?, auto_sync_enabled=?, sync_interval_minutes=?, conflict_strategy=?, couchdb_enabled=?, couchdb_url=?, couchdb_db_name=?, couchdb_username=?, couchdb_password=?, updated_at=? WHERE id=1`,
+    `UPDATE kb_sync_config SET vault_path=?, auto_sync_enabled=?, sync_interval_minutes=?, conflict_strategy=?, updated_at=? WHERE id=1`,
   ).run(
     updates.vault_path,
     updates.auto_sync_enabled,
     updates.sync_interval_minutes,
     updates.conflict_strategy,
-    updates.couchdb_enabled,
-    updates.couchdb_url,
-    updates.couchdb_db_name,
-    updates.couchdb_username,
-    updates.couchdb_password,
     updates.updated_at,
   );
 
@@ -101,8 +85,8 @@ function updateSyncConfig(req, res) {
 async function triggerImport(req, res) {
   const db = openDb();
   const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
-  if (!config || (!config.vault_path && !config.couchdb_enabled)) {
-    return res.status(400).json({ code: 400, message: "请先配置仓库路径 (vault_path) 或启用 CouchDB 同步" });
+  if (!config || !config.vault_path) {
+    return res.status(400).json({ code: 400, message: "请先配置仓库路径 (vault_path)" });
   }
 
   if (syncEngine.isRunning()) {
@@ -110,69 +94,19 @@ async function triggerImport(req, res) {
   }
 
   // Respond immediately, run sync async
-  const usingCouchDB = !!(config.couchdb_enabled && config.couchdb_url && config.couchdb_db_name);
-  auditLog(db, req, "trigger_import", config.vault_path || "couchdb", `触发${usingCouchDB ? "CouchDB" : "文件系统"}同步`);
-  res.status(202).json({ code: 202, message: `同步已启动 (${usingCouchDB ? "CouchDB" : "文件系统"})` });
+  auditLog(db, req, "trigger_import", config.vault_path, "触发文件系统同步");
+  res.status(202).json({ code: 202, message: "同步已启动 (文件系统)" });
 
   try {
-    if (usingCouchDB) {
-      await syncEngine.fullImportFromCouchDB(
-        {
-          url: config.couchdb_url,
-          dbName: config.couchdb_db_name,
-          username: config.couchdb_username || undefined,
-          password: config.couchdb_password || undefined,
-        },
-        config.conflict_strategy || "last_write_wins",
-      );
-    } else {
-      await syncEngine.fullImport(config.vault_path, config.conflict_strategy || "last_write_wins");
-    }
+    await syncEngine.fullImport(config.vault_path, config.conflict_strategy || "last_write_wins");
   } catch (err) {
     console.error("[kb-sync] import failed:", err.message);
-    // Write the error to sync logs so it's visible in the UI
     try {
       const db2 = openDb();
       const now2 = nowIso();
       db2.prepare(
         "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
-      ).run("import", usingCouchDB ? `couchdb://` : config.vault_path, "error", `导入失败: ${err.message}`, now2);
-    } catch { /* ignore */ }
-  }
-}
-
-async function triggerCouchDBImport(req, res) {
-  const db = openDb();
-  const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
-  if (!config || !config.couchdb_url || !config.couchdb_db_name) {
-    return res.status(400).json({ code: 400, message: "请先配置 CouchDB 连接信息" });
-  }
-
-  if (syncEngine.isRunning()) {
-    return res.status(409).json({ code: 409, message: "同步正在进行中" });
-  }
-
-  auditLog(db, req, "trigger_couchdb_import", config.couchdb_db_name, `触发 CouchDB 同步: ${config.couchdb_db_name}`);
-  res.status(202).json({ code: 202, message: "CouchDB 同步已启动" });
-
-  try {
-    await syncEngine.fullImportFromCouchDB(
-      {
-        url: config.couchdb_url,
-        dbName: config.couchdb_db_name,
-        username: config.couchdb_username || undefined,
-        password: config.couchdb_password || undefined,
-      },
-      config.conflict_strategy || "last_write_wins",
-    );
-  } catch (err) {
-    console.error("[kb-sync] CouchDB import failed:", err.message);
-    try {
-      const db2 = openDb();
-      const now2 = nowIso();
-      db2.prepare(
-        "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
-      ).run("import", `couchdb://${config.couchdb_db_name}`, "error", `CouchDB 导入失败: ${err.message}`, now2);
+      ).run("import", config.vault_path, "error", `导入失败: ${err.message}`, now2);
     } catch { /* ignore */ }
   }
 }
@@ -187,7 +121,7 @@ function listSyncLogs(req, res) {
   const page = Math.max(1, toInt(req.query.page, 1));
   const pageSize = Math.min(100, Math.max(1, toInt(req.query.pageSize, 20)));
   const offset = (page - 1) * pageSize;
-  const since = req.query.since; // ISO timestamp filter: created_at > since
+  const since = req.query.since;
 
   let where = "WHERE 1=1";
   const params = [];
@@ -216,7 +150,6 @@ function getSyncStatus(_req, res) {
   const db = openDb();
   const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
 
-  // Count results from the most recent sync batch
   let lastResult = null;
   if (config && config.last_sync_at) {
     const logs = db
@@ -272,7 +205,7 @@ async function testFilesystem(req, res) {
       return res.json({ code: 200, data: { ok: false, message: "路径不是目录", path: resolved } });
     }
 
-    // Scan for .md files (same logic as scanVault but lightweight)
+    // Scan for .md files
     let mdCount = 0;
     let totalSize = 0;
     function walk(dir, depth) {
@@ -312,107 +245,31 @@ async function testFilesystem(req, res) {
   }
 }
 
-async function testCouchDB(req, res) {
-  const db = openDb();
-  const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
-  const now = nowIso();
-
-  const url = config?.couchdb_url || req.body?.couchdb_url;
-  const dbName = config?.couchdb_db_name || req.body?.couchdb_db_name;
-  const username = config?.couchdb_username || req.body?.couchdb_username;
-  const password = config?.couchdb_password || req.body?.couchdb_password;
-
-  if (!url || !dbName) {
-    return res.status(400).json({ code: 400, message: "请先配置 CouchDB URL 和数据库名称" });
-  }
-
-  try {
-    const headers = { Accept: "application/json" };
-    if (username && password) {
-      headers.Authorization = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
-    }
-
-    const dbUrl = `${url.replace(/\/+$/, "")}/${encodeURIComponent(dbName)}`;
-    const resp = await fetch(dbUrl, { headers });
-
-    if (!resp.ok) {
-      const detail = `CouchDB 连接失败: HTTP ${resp.status} ${resp.statusText}`;
-      db.prepare(
-        "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
-      ).run("import", `couchdb://${dbName}`, "error", detail, now);
-      return res.json({ code: 200, data: { ok: false, message: detail } });
-    }
-
-    const info = await resp.json();
-    const docCount = info.doc_count ?? info.doc_count ?? 0;
-    const detail = `CouchDB 连接成功: 数据库 "${info.db_name || dbName}" 包含 ${docCount} 个文档`;
-    db.prepare(
-      "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
-    ).run("import", `couchdb://${dbName}`, "success", detail, now);
-
-    auditLog(db, req, "test_couchdb", dbName, detail);
-
-    res.json({
-      code: 200,
-      data: { ok: true, message: detail, dbName: info.db_name || dbName, docCount },
-    });
-  } catch (err) {
-    const detail = `CouchDB 连接失败: ${err.message}`;
-    db.prepare(
-      "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
-    ).run("import", `couchdb://${dbName}`, "error", detail, now);
-    res.json({ code: 200, data: { ok: false, message: err.message } });
-  }
-}
-
-async function getRemoteFiles(_req, res) {
+function getRemoteFiles(_req, res) {
   const db = openDb();
   const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
 
   try {
     let files = [];
-    let source = "filesystem";
 
-    if (config && config.couchdb_enabled && config.couchdb_url && config.couchdb_db_name) {
-      // CouchDB source
-      source = "couchdb";
-      const { fetchAllDocs, extractPath } = require("./couchdbAdapter");
-      let auth = null;
-      if (config.couchdb_username && config.couchdb_password) {
-        auth = "Basic " + Buffer.from(`${config.couchdb_username}:${config.couchdb_password}`).toString("base64");
-      }
-      const docs = await fetchAllDocs(config.couchdb_url, config.couchdb_db_name, auth);
-      for (const doc of docs) {
-        if (doc.type && doc.type !== "note") continue;
-        const fp = extractPath(doc);
-        if (!fp.endsWith(".md") && !fp.endsWith(".mdx")) continue;
-        files.push({ relativePath: fp, size: doc.size || 0 });
-      }
-    } else if (config && config.vault_path) {
-      // Filesystem source
+    if (config && config.vault_path) {
       const vaultPath = require("path").resolve(config.vault_path);
       files = syncEngine.scanVaultPaths(vaultPath);
     }
 
     const tree = syncEngine.buildFileTree(files);
-    res.json({ code: 200, data: { source, tree, fileCount: files.length } });
+    res.json({ code: 200, data: { source: "filesystem", tree, fileCount: files.length } });
   } catch (err) {
-    res.json({ code: 200, data: { source: "unknown", tree: [], fileCount: 0, error: err.message } });
+    res.json({ code: 200, data: { source: "filesystem", tree: [], fileCount: 0, error: err.message } });
   }
 }
 
 function getSyncedFiles(_req, res) {
   const db = openDb();
-  const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
-
-  let matchSource = "obsidian";
-  if (config && config.couchdb_enabled && config.couchdb_url && config.couchdb_db_name) {
-    matchSource = "couchdb";
-  }
 
   const docs = db
-    .prepare("SELECT id, title, original_path, checksum, status, word_count, updated_at FROM kb_documents WHERE source = ? ORDER BY original_path")
-    .all(matchSource);
+    .prepare("SELECT id, title, original_path, checksum, status, word_count, updated_at FROM kb_documents WHERE source = 'obsidian' ORDER BY original_path")
+    .all();
 
   // Cross-reference with latest sync log for per-file status
   const logMap = {};
@@ -446,7 +303,7 @@ function getSyncedFiles(_req, res) {
   res.json({
     code: 200,
     data: {
-      source: matchSource,
+      source: "obsidian",
       tree,
       fileCount: docs.length,
       stats: {
@@ -458,4 +315,4 @@ function getSyncedFiles(_req, res) {
   });
 }
 
-module.exports = { getSyncConfig, updateSyncConfig, triggerImport, triggerCouchDBImport, triggerExport, listSyncLogs, getSyncStatus, testFilesystem, testCouchDB, getRemoteFiles, getSyncedFiles };
+module.exports = { getSyncConfig, updateSyncConfig, triggerImport, triggerExport, listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles, getSyncedFiles };

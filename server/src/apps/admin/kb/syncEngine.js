@@ -147,10 +147,10 @@ function importDocument(db, fileInfo, conflictStrategy, now, source) {
 }
 
 /**
- * Import a batch of files into kb_documents. Shared by both file-system and CouchDB sources.
+ * Import a batch of files into kb_documents.
  * @param {Array<{relativePath: string, content: string, checksum: string, size: number}>} files
  * @param {string} conflictStrategy
- * @param {string} source - "obsidian" or "couchdb"
+ * @param {string} source - "obsidian"
  * @returns {Promise<{imported: number, updated: number, skipped: number, conflicted: number, errors: number}>}
  */
 async function importFromFiles(files, conflictStrategy, source) {
@@ -216,23 +216,6 @@ async function fullImport(vaultPath, conflictStrategy) {
     } catch { /* ignore */ }
     const summary = { imported: 0, updated: 0, skipped: 0, conflicted: 0, errors: 1 };
     return summary;
-  } finally {
-    releaseLock();
-  }
-}
-
-/**
- * Full import from CouchDB (LiveSync): fetch docs, import each, log results.
- */
-async function fullImportFromCouchDB(couchConfig, conflictStrategy) {
-  if (!acquireLock()) throw new Error("同步正在进行中，请稍后重试");
-  try {
-    const { fetchFromCouchDB } = require("./couchdbAdapter");
-    const files = await fetchFromCouchDB(couchConfig);
-    return await importFromFiles(files, conflictStrategy, "couchdb");
-  } catch (err) {
-    // Re-throw to let the handler respond with error details
-    throw err;
   } finally {
     releaseLock();
   }
@@ -327,4 +310,4 @@ function buildFileTree(files) {
   return root;
 }
 
-module.exports = { scanVault, scanVaultPaths, buildFileTree, importDocument, fullImport, fullImportFromCouchDB, importFromFiles, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE };
+module.exports = { scanVault, scanVaultPaths, buildFileTree, importDocument, fullImport, importFromFiles, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE };

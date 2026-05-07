@@ -250,7 +250,7 @@ function migrate(db) {
       excerpt TEXT,
       content_markdown TEXT NOT NULL DEFAULT '',
       content_html TEXT,
-      source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('obsidian','couchdb','manual','api')),
+      source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('obsidian','manual','api')),
       original_path TEXT,
       checksum TEXT,
       tags TEXT NOT NULL DEFAULT '[]',
@@ -346,16 +346,6 @@ function migrate(db) {
   // Seed the singleton row for kb_sync_config
   db.prepare(`INSERT OR IGNORE INTO kb_sync_config (id, vault_path, created_at, updated_at) VALUES (1, '', datetime('now'), datetime('now'))`).run();
 
-  // CouchDB columns for LiveSync (added post-create since table may already exist)
-  for (const col of [
-    "couchdb_enabled INTEGER NOT NULL DEFAULT 0",
-    "couchdb_url TEXT NOT NULL DEFAULT ''",
-    "couchdb_db_name TEXT NOT NULL DEFAULT ''",
-    "couchdb_username TEXT NOT NULL DEFAULT ''",
-    "couchdb_password TEXT NOT NULL DEFAULT ''",
-  ]) {
-    try { db.exec(`ALTER TABLE kb_sync_config ADD COLUMN ${col}`); } catch { /* column exists */ }
-  }
 }
 
 function ensureSeed(db) {

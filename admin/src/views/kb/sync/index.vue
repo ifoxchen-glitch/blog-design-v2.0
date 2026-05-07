@@ -9,14 +9,11 @@ import {
   NTag,
   NSpin,
   NEmpty,
-  NCollapse,
-  NCollapseItem,
   useMessage,
 } from 'naive-ui'
 import {
   RefreshOutline,
   CloudUploadOutline,
-  CloudOutline,
   StopOutline,
   TerminalOutline,
 } from '@vicons/ionicons5'
@@ -26,11 +23,9 @@ import {
   apiGetSyncConfig,
   apiUpdateSyncConfig,
   apiTriggerSyncImport,
-  apiTriggerCouchDBSyncImport,
   apiGetSyncStatus,
   apiListSyncLogs,
   apiTestFilesystem,
-  apiTestCouchDB,
   apiGetRemoteFiles,
   apiGetSyncedFiles,
   type SyncConfig,
@@ -46,10 +41,8 @@ const hasSyncPerm = computed(() => permissionStore.hasPermission('kb:sync'))
 
 const loading = ref(false)
 const syncing = ref(false)
-const couchdbSyncing = ref(false)
 const saving = ref(false)
 const testingFs = ref(false)
-const testingCouch = ref(false)
 
 // File trees
 const remoteTree = ref<FileTreeData>({ source: '', tree: [], fileCount: 0 })
@@ -62,11 +55,6 @@ const config = ref<SyncConfig>({
   sync_interval_minutes: 30,
   conflict_strategy: 'last_write_wins',
   last_sync_at: null,
-  couchdb_enabled: false,
-  couchdb_url: '',
-  couchdb_db_name: '',
-  couchdb_username: '',
-  couchdb_password: '',
 })
 
 const status = ref<SyncStatus>({
@@ -85,7 +73,6 @@ const logsFilter = ref<{ direction?: string; status?: string }>({})
 // ---- live log polling ----
 const liveLogs = ref<SyncLogEntry[]>([])
 const livePolling = ref(false)
-const liveSource = ref<'filesystem' | 'couchdb' | null>(null)
 const liveContainer = ref<HTMLElement | null>(null)
 let _pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -96,11 +83,10 @@ function autoScrollLive() {
   })
 }
 
-function startLivePolling(source: 'filesystem' | 'couchdb') {
+function startLivePolling() {
   stopLivePolling()
   liveLogs.value = []
   livePolling.value = true
-  liveSource.value = source
   const since = new Date().toISOString()
 
   _pollTimer = setInterval(async () => {
@@ -108,17 +94,15 @@ function startLivePolling(source: 'filesystem' | 'couchdb') {
       const s = await apiGetSyncStatus()
       status.value = s
       const res = await apiListSyncLogs({ page: 1, pageSize: 200, since })
-      // Filter only import logs for live view, newest first
       const fresh = res.items
         .filter((l) => l.direction === 'import')
-        .reverse() // chronological order for terminal feel
+        .reverse()
       if (fresh.length > liveLogs.value.length) {
         liveLogs.value = fresh
         autoScrollLive()
       }
       if (!s.running) {
         stopLivePolling()
-        // Final refresh of the static log table
         loadLogs()
         loadStatus()
         autoScrollLive()
@@ -135,7 +119,6 @@ function stopLivePolling() {
     _pollTimer = null
   }
   livePolling.value = false
-  liveSource.value = null
 }
 
 onBeforeUnmount(() => stopLivePolling())
@@ -179,7 +162,7 @@ async function loadConfig() {
   try {
     config.value = await apiGetSyncConfig()
     if (!config.value) {
-      config.value = { vault_path: '', auto_sync_enabled: false, sync_interval_minutes: 30, conflict_strategy: 'last_write_wins', last_sync_at: null, couchdb_enabled: false, couchdb_url: '', couchdb_db_name: '', couchdb_username: '', couchdb_password: '' }
+      config.value = { vault_path: '', auto_sync_enabled: false, sync_interval_minutes: 30, conflict_strategy: 'last_write_wins', last_sync_at: null }
     }
   } catch {
     /* ignore */
@@ -221,11 +204,6 @@ async function handleSaveConfig() {
       auto_sync_enabled: config.value.auto_sync_enabled,
       sync_interval_minutes: config.value.sync_interval_minutes,
       conflict_strategy: config.value.conflict_strategy,
-      couchdb_enabled: config.value.couchdb_enabled,
-      couchdb_url: config.value.couchdb_url,
-      couchdb_db_name: config.value.couchdb_db_name,
-      couchdb_username: config.value.couchdb_username,
-      couchdb_password: config.value.couchdb_password,
     })
     message.success('配置已保存')
   } catch {
@@ -241,27 +219,12 @@ async function handleSyncNow() {
     const res = await apiTriggerSyncImport()
     if ((res as unknown as { status: string }).status) {
       message.info('同步已启动')
-      startLivePolling('filesystem')
+      startLivePolling()
     }
   } catch {
     message.error('启动同步失败')
   } finally {
     syncing.value = false
-  }
-}
-
-async function handleCouchDBSyncNow() {
-  couchdbSyncing.value = true
-  try {
-    const res = await apiTriggerCouchDBSyncImport()
-    if ((res as unknown as { status: string }).status) {
-      message.info('CouchDB 同步已启动')
-      startLivePolling('couchdb')
-    }
-  } catch {
-    message.error('启动 CouchDB 同步失败')
-  } finally {
-    couchdbSyncing.value = false
   }
 }
 
@@ -279,23 +242,6 @@ async function handleTestFilesystem() {
     message.error('连接测试失败')
   } finally {
     testingFs.value = false
-  }
-}
-
-async function handleTestCouchDB() {
-  testingCouch.value = true
-  try {
-    const result = await apiTestCouchDB()
-    if (result.ok) {
-      message.success(result.message)
-    } else {
-      message.error(result.message)
-    }
-    loadLogs()
-  } catch {
-    message.error('CouchDB 连接测试失败')
-  } finally {
-    testingCouch.value = false
   }
 }
 
@@ -354,74 +300,18 @@ onMounted(() => {
       <div class="bg-base-100 rounded-xl border border-base-content/5 p-5 mb-6">
         <h3 class="font-medium mb-4">同步配置</h3>
 
-        <NCollapse :default-expanded-names="['filesystem']">
-          <!-- 文件系统同步 -->
-          <NCollapseItem name="filesystem" title="文件系统 (Obsidian Vault)">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-w-2xl">
-              <div>
-                <label class="text-xs text-base-content/50 block mb-1.5">仓库路径 (Vault Path)</label>
-                <NInput
-                  v-model:value="config.vault_path"
-                  placeholder="/path/to/obsidian/vault"
-                  size="small"
-                  :disabled="!hasSyncPerm"
-                />
-                <span class="text-[10px] text-base-content/30 mt-0.5 block">容器内路径或挂载卷路径</span>
-              </div>
-            </div>
-          </NCollapseItem>
-
-          <!-- CouchDB (LiveSync) 同步 -->
-          <NCollapseItem name="couchdb" title="CouchDB (Obsidian LiveSync)">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-w-2xl">
-              <div class="md:col-span-2 flex items-center gap-3">
-                <label class="text-xs text-base-content/50">启用 CouchDB 同步</label>
-                <NSwitch
-                  :value="config.couchdb_enabled"
-                  :disabled="!hasSyncPerm"
-                  @update:value="(val: boolean) => config.couchdb_enabled = val"
-                />
-              </div>
-              <div>
-                <label class="text-xs text-base-content/50 block mb-1.5">CouchDB URL</label>
-                <NInput
-                  v-model:value="config.couchdb_url"
-                  placeholder="http://localhost:5984"
-                  size="small"
-                  :disabled="!hasSyncPerm"
-                />
-              </div>
-              <div>
-                <label class="text-xs text-base-content/50 block mb-1.5">数据库名称</label>
-                <NInput
-                  v-model:value="config.couchdb_db_name"
-                  placeholder="obsidian-vault"
-                  size="small"
-                  :disabled="!hasSyncPerm"
-                />
-              </div>
-              <div>
-                <label class="text-xs text-base-content/50 block mb-1.5">用户名 (可选)</label>
-                <NInput
-                  v-model:value="config.couchdb_username"
-                  placeholder="admin"
-                  size="small"
-                  :disabled="!hasSyncPerm"
-                />
-              </div>
-              <div>
-                <label class="text-xs text-base-content/50 block mb-1.5">密码 (可选)</label>
-                <NInput
-                  v-model:value="config.couchdb_password"
-                  type="password"
-                  placeholder="CouchDB 密码"
-                  size="small"
-                  :disabled="!hasSyncPerm"
-                />
-              </div>
-            </div>
-          </NCollapseItem>
-        </NCollapse>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-w-2xl">
+          <div>
+            <label class="text-xs text-base-content/50 block mb-1.5">仓库路径 (Vault Path)</label>
+            <NInput
+              v-model:value="config.vault_path"
+              placeholder="/path/to/obsidian/vault"
+              size="small"
+              :disabled="!hasSyncPerm"
+            />
+            <span class="text-[10px] text-base-content/30 mt-0.5 block">容器内路径或挂载卷路径</span>
+          </div>
+        </div>
 
         <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-4">
           <div>
@@ -478,24 +368,6 @@ onMounted(() => {
             <NButton
               size="small"
               quaternary
-              :loading="testingCouch"
-              :disabled="!hasSyncPerm || !config.couchdb_enabled"
-              @click="handleTestCouchDB"
-            >
-              测试 CouchDB
-            </NButton>
-            <NButton
-              size="small"
-              :loading="couchdbSyncing"
-              :disabled="!hasSyncPerm || !config.couchdb_enabled"
-              @click="handleCouchDBSyncNow"
-            >
-              <template #icon><CloudOutline class="w-4 h-4" /></template>
-              CouchDB 导入
-            </NButton>
-            <NButton
-              size="small"
-              quaternary
               :loading="testingFs"
               :disabled="!hasSyncPerm"
               @click="handleTestFilesystem"
@@ -537,7 +409,7 @@ onMounted(() => {
           <div class="flex items-center justify-between px-4 py-2.5 bg-base-200/50 border-b border-base-content/5">
             <h3 class="font-medium text-sm">
               远程文件
-              <span class="text-xs text-base-content/40 font-normal ml-2">{{ remoteTree.source === 'couchdb' ? 'CouchDB' : '文件系统' }}</span>
+              <span class="text-xs text-base-content/40 font-normal ml-2">文件系统</span>
             </h3>
             <span class="text-[10px] text-base-content/30">{{ remoteTree.fileCount }} 个文件</span>
           </div>
@@ -558,7 +430,7 @@ onMounted(() => {
           <div class="flex items-center justify-between px-4 py-2.5 bg-base-200/50 border-b border-base-content/5">
             <h3 class="font-medium text-sm">
               已同步文件
-              <span class="text-xs text-base-content/40 font-normal ml-2">{{ syncedTree.source === 'couchdb' ? 'CouchDB' : 'Obsidian' }}</span>
+              <span class="text-xs text-base-content/40 font-normal ml-2">Obsidian</span>
             </h3>
             <div class="flex items-center gap-2 text-[10px] text-base-content/30">
               <span v-if="syncedTree.stats" class="text-green-500">{{ syncedTree.stats.active }} 活跃</span>
@@ -673,8 +545,7 @@ onMounted(() => {
             <TerminalOutline class="w-3.5 h-3.5 text-green-400" />
             <span class="text-gray-300 font-medium">
               实时日志
-              <span v-if="liveSource === 'couchdb'" class="text-blue-400"> · CouchDB</span>
-              <span v-else class="text-purple-400"> · 文件系统</span>
+              <span class="text-purple-400"> · 文件系统</span>
             </span>
             <span v-if="livePolling" class="flex items-center gap-1 text-green-400">
               <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
