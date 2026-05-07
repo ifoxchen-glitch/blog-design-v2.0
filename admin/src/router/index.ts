@@ -64,6 +64,10 @@ const router = createRouter({
           meta: { permission: 'link:list' },
         },
         {
+          path: '/cms',
+          redirect: '/cms/posts',
+        },
+        {
           path: '/cms/posts',
           name: 'cms-posts',
           component: () => import('../views/cms/posts/index.vue'),
@@ -110,6 +114,10 @@ const router = createRouter({
           name: 'cms-ops-monitor',
           component: () => import('../views/cms/ops/monitor/index.vue'),
           meta: { permission: 'ops:monitor' },
+        },
+        {
+          path: '/cms/rbac',
+          redirect: '/cms/rbac/users',
         },
         {
           path: '/cms/rbac/users',
