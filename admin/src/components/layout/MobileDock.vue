@@ -128,7 +128,7 @@ const iconMap: Record<string, () => any> = {
     class="fixed inset-x-0 bottom-0 z-50 border-t md:hidden"
     style="border-color: color-mix(in srgb, var(--color-base-content) 5%, transparent); background: color-mix(in srgb, var(--color-base-200) 95%, transparent); backdrop-filter: blur(12px);"
   >
-    <div class="flex items-center justify-around px-1 pb-2">
+    <div class="flex items-center overflow-x-auto px-1 pb-2 scrollbar-none" style="-webkit-overflow-scrolling: touch; scrollbar-width: none;">
       <!-- header badge when showing children -->
       <div
         v-if="activeParent"
@@ -141,7 +141,7 @@ const iconMap: Record<string, () => any> = {
       <button
         v-for="(item, i) in dockItems"
         :key="i"
-        class="flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors relative"
+        class="flex shrink-0 flex-col items-center gap-0.5 py-2 px-3 transition-colors relative"
         :class="[
           item.label === '返回'
             ? 'opacity-60'

@@ -70,8 +70,9 @@ onBeforeUnmount(() => {
 
     <div v-if="error" class="text-error mb-4">{{ error }}</div>
 
-    <NSpin :show="loading && !data">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <NSpin :show="loading">
+      <template v-if="data">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <!-- CPU -->
         <div class="bg-base-100 rounded-xl border border-base-content/5 p-5">
           <div class="text-sm font-medium text-base-content mb-4">CPU 使用率</div>
@@ -147,6 +148,10 @@ onBeforeUnmount(() => {
           </NStatistic>
         </div>
       </div>
+      </template>
+      <template v-else-if="!loading && !error">
+        <div class="py-16 text-center text-base-content/30">暂无数据</div>
+      </template>
     </NSpin>
   </div>
 </template>
