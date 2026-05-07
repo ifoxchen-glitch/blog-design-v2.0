@@ -30,7 +30,7 @@ function pickPostListItem(row) {
   };
 }
 
-function buildListWhere({ keyword, status, category }) {
+function buildListWhere({ keyword, status, category, tag }) {
   const where = ["1=1"];
   const params = [];
   if (keyword) {
@@ -46,6 +46,10 @@ function buildListWhere({ keyword, status, category }) {
     where.push("EXISTS (SELECT 1 FROM post_categories pc JOIN categories c ON c.id = pc.category_id WHERE pc.post_id = p.id AND c.slug = ?)");
     params.push(category);
   }
+  if (tag) {
+    where.push("EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.slug = ?)");
+    params.push(tag);
+  }
   return { clause: where.join(" AND "), params };
 }
 
@@ -56,12 +60,13 @@ function listPosts(req, res) {
   const keyword = String(req.query.keyword || "").trim() || null;
   const status = String(req.query.status || "").trim() || null;
   const category = String(req.query.category || "").trim() || null;
+  const tag = String(req.query.tag || "").trim() || null;
   const orderField = String(req.query.orderBy || "updatedAt");
   const orderDir = String(req.query.order || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
   const allowedOrders = new Set(["updatedAt", "createdAt", "publishedAt", "title", "id"]);
   const orderCol = allowedOrders.has(orderField) ? orderField : "updatedAt";
 
-  const { clause, params } = buildListWhere({ keyword, status, category });
+  const { clause, params } = buildListWhere({ keyword, status, category, tag });
   const total = db.prepare(`SELECT COUNT(*) AS c FROM posts p WHERE ${clause}`).get(...params).c;
 
   const offset = (page - 1) * pageSize;

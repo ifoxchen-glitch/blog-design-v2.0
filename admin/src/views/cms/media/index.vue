@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, h, ref, watch } from 'vue'
 import {
   NButton,
   NEmpty,
@@ -7,9 +7,10 @@ import {
   NInput,
   NModal,
   NPopconfirm,
+  NDataTable,
   useMessage,
 } from 'naive-ui'
-import { CloudUploadOutline, CopyOutline, TrashOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline, CopyOutline, TrashOutline, GridOutline, ListOutline } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import ImageUploader from '../../../components/common/ImageUploader.vue'
 import { apiDeleteMedia } from '../../../api/cms'
@@ -18,6 +19,69 @@ import { usePermissionStore } from '../../../stores/permission'
 const message = useMessage()
 const permissionStore = usePermissionStore()
 const showUploadModal = ref(false)
+
+type ViewMode = 'card' | 'table'
+const viewMode = ref<ViewMode>('card')
+
+interface MediaFileItem {
+  url: string
+  filename: string
+}
+
+const mediaFiles = computed<MediaFileItem[]>(() =>
+  uploadedUrls.value.map((url) => ({
+    url,
+    filename: url.split('/').pop() ?? url,
+  })),
+)
+
+const tableColumns = computed(() => [
+  { title: '文件名', key: 'filename' as const, width: 200, ellipsis: { tooltip: true } },
+  { title: 'URL', key: 'url' as const, ellipsis: { tooltip: true } },
+  {
+    title: '预览',
+    key: 'url' as const,
+    width: 80,
+    render(row: MediaFileItem) {
+      return h(NImage, {
+        src: row.url,
+        width: 40,
+        height: 40,
+        style: { objectFit: 'cover', borderRadius: '4px' },
+        previewDisabled: true,
+        fallbackSrc: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="%232a323c"/></svg>`,
+      })
+    },
+  },
+  {
+    title: '操作',
+    key: 'actions' as const,
+    width: 140,
+    render(row: MediaFileItem) {
+      return h('div', { class: 'action-cell flex items-center gap-1' }, [
+        h(NButton, {
+          size: 'tiny',
+          quaternary: true,
+          onClick: () => copyUrl(row.url),
+        }, {
+          default: () => '复制',
+          icon: () => h(CopyOutline, { style: { width: '14px', height: '14px' } }),
+        }),
+        permissionStore.hasPermission('media:delete')
+          ? h(NPopconfirm, {
+            'onPositive-click': () => handleDeleteMedia(row.url),
+          }, {
+            trigger: () => h(NButton, { size: 'tiny', quaternary: true, type: 'error' }, {
+              default: () => '删除',
+              icon: () => h(TrashOutline, { style: { width: '14px', height: '14px' } }),
+            }),
+            default: () => '确认删除该图片?此操作不可恢复',
+          })
+          : null,
+      ])
+    },
+  },
+])
 
 const STORAGE_KEY = 'media:session-urls'
 function loadUrls(): string[] {
@@ -102,6 +166,31 @@ async function handleDeleteMedia(url: string) {
       </NButton>
     </PageHeader>
 
+    <!-- 视图切换 -->
+    <div class="flex items-center justify-end mb-4">
+      <div class="flex items-center gap-1 bg-base-200 rounded-lg p-0.5 border border-base-content/10">
+        <NButton
+          size="tiny"
+          :type="viewMode === 'card' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'card'"
+          title="卡片视图"
+        >
+          <GridOutline class="w-4 h-4" />
+        </NButton>
+        <NButton
+          size="tiny"
+          :type="viewMode === 'table' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'table'"
+          title="列表视图"
+        >
+          <ListOutline class="w-4 h-4" />
+        </NButton>
+      </div>
+    </div>
+
+    <!-- 空状态 -->
     <div v-if="uploadedUrls.length === 0" class="py-16">
       <NEmpty description="暂无图片">
         <template #extra>
@@ -112,47 +201,63 @@ async function handleDeleteMedia(url: string) {
       </NEmpty>
     </div>
 
-    <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-      <div
-        v-for="url in uploadedUrls"
-        :key="url"
-        class="group bg-base-100 rounded-xl border border-base-content/5 overflow-hidden hover:border-base-content/10 transition-all"
-      >
-        <div class="aspect-square overflow-hidden bg-base-300/30">
-          <NImage
-            :src="url"
-            class="w-full h-full object-cover"
-            preview-disabled
-            :fallback-src="`data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;100&quot; height=&quot;100&quot;><rect width=&quot;100&quot; height=&quot;100&quot; fill=&quot;%232a323c&quot;/></svg>`"
-          />
-        </div>
-        <div class="p-2">
-          <NInput :value="url" readonly size="small" class="text-xs" />
-          <div class="flex justify-end mt-1.5 gap-1">
-            <NButton size="tiny" quaternary @click="copyUrl(url)">
-              <template #icon>
-                <CopyOutline class="w-3.5 h-3.5" />
-              </template>
-              复制
-            </NButton>
-            <NPopconfirm
-              v-if="permissionStore.hasPermission('media:delete')"
-              @positive-click="handleDeleteMedia(url)"
-            >
-              <template #trigger>
-                <NButton size="tiny" quaternary type="error">
-                  <template #icon>
-                    <TrashOutline class="w-3.5 h-3.5" />
-                  </template>
-                  删除
-                </NButton>
-              </template>
-              确认删除该图片?此操作不可恢复
-            </NPopconfirm>
+    <!-- 卡片视图 -->
+    <template v-if="viewMode === 'card'">
+      <div v-if="uploadedUrls.length > 0" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+        <div
+          v-for="url in uploadedUrls"
+          :key="url"
+          class="group bg-base-100 rounded-xl border border-base-content/5 overflow-hidden hover:border-base-content/10 transition-all"
+        >
+          <div class="aspect-square overflow-hidden bg-base-300/30">
+            <NImage
+              :src="url"
+              class="w-full h-full object-cover"
+              preview-disabled
+              :fallback-src="`data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;100&quot; height=&quot;100&quot;><rect width=&quot;100&quot; height=&quot;100&quot; fill=&quot;%232a323c&quot;/></svg>`"
+            />
+          </div>
+          <div class="p-2">
+            <NInput :value="url" readonly size="small" class="text-xs" />
+            <div class="flex justify-end mt-1.5 gap-1">
+              <NButton size="tiny" quaternary @click="copyUrl(url)">
+                <template #icon>
+                  <CopyOutline class="w-3.5 h-3.5" />
+                </template>
+                复制
+              </NButton>
+              <NPopconfirm
+                v-if="permissionStore.hasPermission('media:delete')"
+                @positive-click="handleDeleteMedia(url)"
+              >
+                <template #trigger>
+                  <NButton size="tiny" quaternary type="error">
+                    <template #icon>
+                      <TrashOutline class="w-3.5 h-3.5" />
+                    </template>
+                    删除
+                  </NButton>
+                </template>
+                确认删除该图片?此操作不可恢复
+              </NPopconfirm>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </template>
+
+    <!-- 列表视图 -->
+    <template v-else>
+      <NDataTable
+        :columns="tableColumns"
+        :data="mediaFiles"
+        :bordered="false"
+        :single-line="false"
+        striped
+        size="small"
+        class="rounded-xl overflow-hidden"
+      />
+    </template>
 
     <NModal
       v-model:show="showUploadModal"

@@ -320,6 +320,7 @@ export interface PostListQuery {
   keyword?: string
   status?: PostStatus
   category?: string
+  tag?: string
   orderBy?: 'updatedAt' | 'createdAt' | 'publishedAt' | 'title' | 'id'
   order?: 'asc' | 'desc'
 }

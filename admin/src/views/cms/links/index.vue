@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, h, reactive, ref } from 'vue'
 import axios from 'axios'
 import {
   NButton,
@@ -12,6 +12,7 @@ import {
   NForm,
   NFormItem,
   NModal,
+  NDataTable,
   useMessage,
   type FormInst,
   type FormRules,
@@ -22,6 +23,7 @@ import {
   GridOutline,
   AddOutline,
   LinkOutline,
+  ListOutline,
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import FormDrawer from '../../../components/common/FormDrawer.vue'
@@ -41,6 +43,48 @@ const permissionStore = usePermissionStore()
 
 const links = ref<LinkItem[]>([])
 const loading = ref(false)
+
+// ---- 视图模式 ----
+type ViewMode = 'card' | 'table'
+const viewMode = ref<ViewMode>('card')
+
+const tableColumns = computed(() => [
+  { title: '标题', key: 'title' as const, width: 160, ellipsis: { tooltip: true } },
+  { title: 'URL', key: 'url' as const, width: 280, ellipsis: { tooltip: true } },
+  {
+    title: '尺寸',
+    key: 'iconSize' as const,
+    width: 80,
+  },
+  {
+    title: '排序',
+    key: 'sortOrder' as const,
+    width: 70,
+  },
+  {
+    title: '操作',
+    key: 'actions' as const,
+    width: 100,
+    render(row: LinkItem) {
+      return h('div', { class: 'action-cell flex items-center gap-1' }, [
+        h(NButton, {
+          size: 'tiny',
+          quaternary: true,
+          style: permissionStore.hasPermission('link:update') ? {} : { display: 'none' },
+          onClick: () => openEdit(row),
+        }, () => h(CreateOutline, { style: { width: '14px', height: '14px' } })),
+        h(NPopconfirm, {
+          'onPositive-click': () => handleDelete(row),
+        }, {
+          trigger: () => permissionStore.hasPermission('link:delete')
+            ? h(NButton, { size: 'tiny', quaternary: true, type: 'error' }, () => h(TrashOutline, { style: { width: '14px', height: '14px' } }))
+            : null,
+          default: () => '确认删除该友链?',
+        }),
+      ])
+    },
+  },
+])
 
 async function loadLinks() {
   loading.value = true
@@ -350,63 +394,27 @@ async function handleDelete(row: LinkItem) {
       </NSpace>
     </PageHeader>
 
-    <!-- 卡片网格 -->
-    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-      <div
-        v-for="row in links"
-        :key="row.id"
-        class="group bg-base-100 rounded-xl border border-base-content/5 overflow-hidden hover:border-primary/30 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20"
-      >
-        <!-- 图标区域 -->
-        <div class="relative bg-base-200/50 flex items-center justify-center p-3 aspect-square">
-          <img
-            v-if="row.icon"
-            :src="row.icon"
-            class="max-w-full max-h-full object-contain"
-            loading="lazy"
-          />
-          <LinkOutline v-else class="w-8 h-8 text-base-content/10" />
-        </div>
-
-        <!-- 内容 -->
-        <div class="p-2.5">
-          <div class="font-medium text-xs text-base-content truncate">{{ row.title }}</div>
-          <a
-            :href="row.url"
-            target="_blank"
-            rel="noopener"
-            class="text-[10px] text-base-content/30 truncate block hover:text-primary transition-colors mt-0.5"
-          >
-            {{ row.url }}
-          </a>
-
-          <div class="flex items-center justify-between mt-2">
-            <span class="text-[10px] text-base-content/20 px-1.5 py-0.5 rounded bg-base-content/5">
-              {{ row.iconSize }}
-            </span>
-            <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-              <NButton
-                v-if="permissionStore.hasPermission('link:update')"
-                size="tiny"
-                quaternary
-                @click="openEdit(row)"
-              >
-                <CreateOutline class="w-3 h-3" />
-              </NButton>
-              <NPopconfirm
-                v-if="permissionStore.hasPermission('link:delete')"
-                @positive-click="handleDelete(row)"
-              >
-                <template #trigger>
-                  <NButton size="tiny" quaternary type="error">
-                    <TrashOutline class="w-3 h-3" />
-                  </NButton>
-                </template>
-                确认删除该友链?
-              </NPopconfirm>
-            </div>
-          </div>
-        </div>
+    <!-- 视图切换 -->
+    <div class="flex items-center justify-end mb-4">
+      <div class="flex items-center gap-1 bg-base-200 rounded-lg p-0.5 border border-base-content/10">
+        <NButton
+          size="tiny"
+          :type="viewMode === 'card' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'card'"
+          title="卡片视图"
+        >
+          <GridOutline class="w-4 h-4" />
+        </NButton>
+        <NButton
+          size="tiny"
+          :type="viewMode === 'table' ? 'primary' : 'default'"
+          quaternary
+          @click="viewMode = 'table'"
+          title="列表视图"
+        >
+          <ListOutline class="w-4 h-4" />
+        </NButton>
       </div>
     </div>
 
@@ -418,6 +426,82 @@ async function handleDelete(row: LinkItem) {
         </template>
       </NEmpty>
     </div>
+
+    <!-- 卡片视图 -->
+    <template v-if="viewMode === 'card'">
+      <div v-if="links.length > 0" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+        <div
+          v-for="row in links"
+          :key="row.id"
+          class="group bg-base-100 rounded-xl border border-base-content/5 overflow-hidden hover:border-primary/30 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20"
+        >
+          <!-- 图标区域 -->
+          <div class="relative bg-base-200/50 flex items-center justify-center p-3 aspect-square">
+            <img
+              v-if="row.icon"
+              :src="row.icon"
+              class="max-w-full max-h-full object-contain"
+              loading="lazy"
+            />
+            <LinkOutline v-else class="w-8 h-8 text-base-content/10" />
+          </div>
+
+          <!-- 内容 -->
+          <div class="p-2.5">
+            <div class="font-medium text-xs text-base-content truncate">{{ row.title }}</div>
+            <a
+              :href="row.url"
+              target="_blank"
+              rel="noopener"
+              class="text-[10px] text-base-content/30 truncate block hover:text-primary transition-colors mt-0.5"
+            >
+              {{ row.url }}
+            </a>
+
+            <div class="flex items-center justify-between mt-2">
+              <span class="text-[10px] text-base-content/20 px-1.5 py-0.5 rounded bg-base-content/5">
+                {{ row.iconSize }}
+              </span>
+              <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <NButton
+                  v-if="permissionStore.hasPermission('link:update')"
+                  size="tiny"
+                  quaternary
+                  @click="openEdit(row)"
+                >
+                  <CreateOutline class="w-3 h-3" />
+                </NButton>
+                <NPopconfirm
+                  v-if="permissionStore.hasPermission('link:delete')"
+                  @positive-click="handleDelete(row)"
+                >
+                  <template #trigger>
+                    <NButton size="tiny" quaternary type="error">
+                      <TrashOutline class="w-3 h-3" />
+                    </NButton>
+                  </template>
+                  确认删除该友链?
+                </NPopconfirm>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- 列表视图 -->
+    <template v-else>
+      <NDataTable
+        :columns="tableColumns"
+        :data="links"
+        :loading="loading"
+        :bordered="false"
+        :single-line="false"
+        striped
+        size="small"
+        class="rounded-xl overflow-hidden"
+      />
+    </template>
 
     <!-- FormDrawer -->
     <FormDrawer
