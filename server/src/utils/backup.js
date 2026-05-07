@@ -85,11 +85,91 @@ function getBackupPath(filename) {
   return path.join(BACKUP_DIR, filename);
 }
 
+function getDbPath() {
+  return path.join(__dirname, "..", "..", "db", "blog.sqlite");
+}
+
+/**
+ * 从备份文件还原数据库。
+ * 1. 先对当前 DB 做安全快照（type='manual', note='restore-snapshot'）
+ * 2. 关闭 better-sqlite3 句柄
+ * 3. 复制备份文件覆盖 blog.sqlite，并删除 -wal/-shm
+ * 4. 调用 reopen 让下次 openDb 重新打开
+ * 注意：调用方必须在还原后重启进程或确保所有引用 _db 的模块重新拿句柄。
+ */
+function restoreFromBackup(id) {
+  const db = openDb();
+  const record = db.prepare(`SELECT * FROM backups WHERE id = ?`).get(id);
+  if (!record) return { ok: false, message: "备份不存在" };
+
+  const backupFile = getBackupPath(record.filename);
+  if (!fs.existsSync(backupFile)) {
+    return { ok: false, message: "备份文件已丢失" };
+  }
+
+  // 1. 还原前先做一次快照
+  let snapshot;
+  try {
+    snapshot = createBackup("manual", `restore-snapshot before #${id}`);
+  } catch (err) {
+    return { ok: false, message: "还原前快照失败: " + err.message };
+  }
+
+  // 2. 关闭句柄
+  try {
+    db.close();
+  } catch { /* ignore */ }
+  // 让 db 模块在下次 openDb 重新打开
+  require("../db").__resetForRestore?.();
+
+  const dbPath = getDbPath();
+
+  try {
+    // 3. 删除 wal/shm 文件
+    for (const ext of ["-wal", "-shm"]) {
+      const f = dbPath + ext;
+      if (fs.existsSync(f)) fs.unlinkSync(f);
+    }
+    // 复制备份覆盖
+    fs.copyFileSync(backupFile, dbPath);
+  } catch (err) {
+    return { ok: false, message: "还原失败: " + err.message, snapshotId: snapshot.id };
+  }
+
+  // 4. 标记原备份为已还原
+  try {
+    const ndb = openDb();
+    ndb.prepare(`UPDATE backups SET status = 'restored' WHERE id = ?`).run(id);
+  } catch { /* ignore */ }
+
+  return { ok: true, snapshotId: snapshot.id, restoredFrom: record.filename };
+}
+
+/**
+ * 从上传的 sqlite 文件创建一条备份记录（不还原，仅入库）
+ */
+function importBackup(srcFilePath, originalName, note) {
+  ensureBackupDir();
+  const db = openDb();
+  // 重命名为标准格式
+  const filename = generateFilename().replace(".sqlite", "-imported.sqlite");
+  const destPath = path.join(BACKUP_DIR, filename);
+  fs.copyFileSync(srcFilePath, destPath);
+  const size = fs.statSync(destPath).size;
+  const row = db.prepare(`
+    INSERT INTO backups (filename, size, type, status, note, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(filename, size, "manual", "ok", note || `imported from ${originalName}`, nowIso());
+  return { id: row.lastInsertRowid, filename, size };
+}
+
 module.exports = {
   createBackup,
   deleteBackupRecord,
   listBackups,
   getBackupById,
   getBackupPath,
+  restoreFromBackup,
+  importBackup,
   BACKUP_DIR,
 };

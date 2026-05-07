@@ -70,7 +70,7 @@ onBeforeUnmount(() => {
 
     <div v-if="error" class="text-error mb-4">{{ error }}</div>
 
-    <NSpin :show="loading && !data"">
+    <NSpin :show="loading && !data">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <!-- CPU -->
         <div class="bg-base-100 rounded-xl border border-base-content/5 p-5">

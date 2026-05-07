@@ -1,12 +1,35 @@
 const express = require("express");
 const path = require("node:path");
 const fs = require("node:fs");
+const os = require("node:os");
+const multer = require("multer");
+const cron = require("node-cron");
 const { openDb } = require("../../../db");
 const jwtAuth = require("../../../middleware/jwtAuth");
 const requirePermission = require("../../../middleware/rbac");
-const { createBackup, deleteBackupRecord, listBackups, getBackupById, getBackupPath } = require("../../../utils/backup");
+const { createBackup, deleteBackupRecord, listBackups, getBackupById, getBackupPath, restoreFromBackup, importBackup } = require("../../../utils/backup");
+const backupScheduler = require("../../../jobs/backupScheduler");
+const { nowIso } = require("../../../utils");
 
 const router = express.Router();
+
+const TMP_DIR = path.join(os.tmpdir(), "blog-backup-uploads");
+fs.mkdirSync(TMP_DIR, { recursive: true });
+
+const uploadBackup = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, TMP_DIR),
+    filename: (req, file, cb) => {
+      const ts = Date.now();
+      cb(null, `${ts}-${file.originalname}`);
+    },
+  }),
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, ext === ".sqlite" || ext === ".db");
+  },
+});
 
 /**
  * GET /api/v2/admin/ops/audit-logs
@@ -199,11 +222,131 @@ router.delete(
   }
 );
 
+/**
+ * POST /api/v2/admin/ops/backups/:id/restore
+ * 从已有备份还原数据库
+ */
+router.post(
+  "/backups/:id/restore",
+  jwtAuth,
+  requirePermission("ops:backup"),
+  (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const result = restoreFromBackup(id);
+    if (!result.ok) {
+      return res.status(400).json({ code: 400, message: result.message });
+    }
+    res.json({
+      code: 200,
+      message: "还原完成。建议尽快重启服务以确保所有连接使用新数据库。",
+      data: result,
+    });
+  }
+);
+
+/**
+ * POST /api/v2/admin/ops/backups/import
+ * 上传外部 sqlite 文件，作为备份记录入库（不还原）
+ */
+router.post(
+  "/backups/import",
+  jwtAuth,
+  requirePermission("ops:backup"),
+  uploadBackup.single("file"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ code: 400, message: "请选择 .sqlite 或 .db 文件" });
+    }
+    try {
+      const data = importBackup(req.file.path, req.file.originalname, req.body.note);
+      // 临时文件清理
+      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+      res.json({ code: 200, message: "success", data });
+    } catch (err) {
+      try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
+      console.error("[backup] import failed:", err.message);
+      res.status(500).json({ code: 500, message: "导入失败: " + err.message });
+    }
+  }
+);
+
+// ============================================================
+// Backup Schedule
+// ============================================================
+
+/**
+ * GET /api/v2/admin/ops/backup-schedule
+ */
+router.get(
+  "/backup-schedule",
+  jwtAuth,
+  requirePermission("ops:backup"),
+  (req, res) => {
+    const row = backupScheduler.loadSchedule();
+    res.json({ code: 200, message: "success", data: row || null });
+  }
+);
+
+/**
+ * PUT /api/v2/admin/ops/backup-schedule
+ * 更新或创建定时备份配置
+ */
+router.put(
+  "/backup-schedule",
+  jwtAuth,
+  requirePermission("ops:backup"),
+  (req, res) => {
+    const { name, cron: cronExpr, enabled, timezone, keepCount } = req.body || {};
+
+    if (!cronExpr || typeof cronExpr !== "string") {
+      return res.status(400).json({ code: 400, message: "cron 表达式不能为空" });
+    }
+    if (!cron.validate(cronExpr)) {
+      return res.status(400).json({ code: 400, message: "cron 表达式格式无效" });
+    }
+
+    const db = openDb();
+    const now = nowIso();
+    const existing = db.prepare(`SELECT id FROM backup_schedules ORDER BY id DESC LIMIT 1`).get();
+
+    if (existing) {
+      db.prepare(`
+        UPDATE backup_schedules
+        SET name = ?, cron = ?, enabled = ?, timezone = ?, keep_count = ?, updated_at = ?
+        WHERE id = ?
+      `).run(
+        name || "默认定时备份",
+        cronExpr,
+        enabled ? 1 : 0,
+        timezone || "Asia/Shanghai",
+        parseInt(keepCount, 10) || 30,
+        now,
+        existing.id,
+      );
+    } else {
+      db.prepare(`
+        INSERT INTO backup_schedules (name, cron, enabled, timezone, keep_count, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        name || "默认定时备份",
+        cronExpr,
+        enabled ? 1 : 0,
+        timezone || "Asia/Shanghai",
+        parseInt(keepCount, 10) || 30,
+        now,
+        now,
+      );
+    }
+
+    backupScheduler.restartSchedule();
+    const row = backupScheduler.loadSchedule();
+    res.json({ code: 200, message: "success", data: row });
+  }
+);
+
 // ============================================================
 // Monitor
 // ============================================================
-
-const os = require("node:os");
 
 function getDiskUsage() {
   try {

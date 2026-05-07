@@ -87,12 +87,74 @@ export async function apiCreateBackup(
   return res.data.data
 }
 
-export function apiDownloadBackupUrl(id: number): string {
-  return `/api/v2/admin/ops/backups/${id}/download`
+export async function apiDownloadBackup(
+  id: number,
+  client: AxiosInstance = request,
+): Promise<Blob> {
+  const res = await client.get<Blob>(`/api/v2/admin/ops/backups/${id}/download`, {
+    responseType: 'blob',
+  })
+  return res.data
 }
 
 export async function apiDeleteBackup(id: number, client: AxiosInstance = request): Promise<void> {
   await client.delete<ApiResponse<void>>(`/api/v2/admin/ops/backups/${id}`)
+}
+
+export async function apiRestoreBackup(
+  id: number,
+  client: AxiosInstance = request,
+): Promise<{ snapshotId: number; restoredFrom: string }> {
+  const res = await client.post<ApiResponse<{ snapshotId: number; restoredFrom: string }>>(
+    `/api/v2/admin/ops/backups/${id}/restore`,
+  )
+  return res.data.data
+}
+
+export async function apiImportBackup(
+  file: File,
+  note?: string,
+  client: AxiosInstance = request,
+): Promise<BackupItem> {
+  const form = new FormData()
+  form.append('file', file)
+  if (note) form.append('note', note)
+  const res = await client.post<ApiResponse<BackupItem>>('/api/v2/admin/ops/backups/import', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+  return res.data.data
+}
+
+export interface BackupSchedule {
+  id: number
+  name: string
+  cron: string
+  enabled: number
+  timezone: string
+  keepCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export async function apiGetBackupSchedule(
+  client: AxiosInstance = request,
+): Promise<BackupSchedule | null> {
+  const res = await client.get<ApiResponse<BackupSchedule | null>>('/api/v2/admin/ops/backup-schedule')
+  return res.data.data
+}
+
+export async function apiSetBackupSchedule(
+  data: {
+    name?: string
+    cron: string
+    enabled: boolean
+    timezone?: string
+    keepCount?: number
+  },
+  client: AxiosInstance = request,
+): Promise<BackupSchedule> {
+  const res = await client.put<ApiResponse<BackupSchedule>>('/api/v2/admin/ops/backup-schedule', data)
+  return res.data.data
 }
 
 export interface MonitorData {

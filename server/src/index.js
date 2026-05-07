@@ -73,5 +73,5 @@ adminApp.listen(ADMIN_PORT, BIND_HOST, () => {
 });
 
 // Register cron jobs
-require('./jobs/backupSqlite').register();
+require('./jobs/backupScheduler').register();
 require('./jobs/cleanupAuditLogs').register();

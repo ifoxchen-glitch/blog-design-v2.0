@@ -15,6 +15,12 @@ function openDb() {
   return _db;
 }
 
+function __resetForRestore() {
+  // 还原备份前清空模块级缓存的 db 句柄
+  // 调用方负责在调用前关闭 db
+  _db = null;
+}
+
 function migrate(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS posts (
@@ -223,6 +229,18 @@ function migrate(db) {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_backups_created_at ON backups(created_at);
+
+    -- Phase 6: 备份定时任务配置
+    CREATE TABLE IF NOT EXISTS backup_schedules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      cron TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai',
+      keep_count INTEGER NOT NULL DEFAULT 30,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -418,6 +436,7 @@ function setPostCategories(db, postId, categoryNames) {
 
 module.exports = {
   openDb,
+  __resetForRestore,
   migrate,
   ensureSeed,
   listTagsForPost,
