@@ -28,6 +28,8 @@ import {
   apiTriggerCouchDBSyncImport,
   apiGetSyncStatus,
   apiListSyncLogs,
+  apiTestFilesystem,
+  apiTestCouchDB,
   type SyncConfig,
   type SyncStatus,
   type SyncLogEntry,
@@ -42,6 +44,8 @@ const loading = ref(false)
 const syncing = ref(false)
 const couchdbSyncing = ref(false)
 const saving = ref(false)
+const testingFs = ref(false)
+const testingCouch = ref(false)
 
 const config = ref<SyncConfig>({
   vault_path: '',
@@ -252,6 +256,40 @@ async function handleCouchDBSyncNow() {
   }
 }
 
+async function handleTestFilesystem() {
+  testingFs.value = true
+  try {
+    const result = await apiTestFilesystem()
+    if (result.ok) {
+      message.success(result.message)
+    } else {
+      message.error(result.message)
+    }
+    loadLogs()
+  } catch {
+    message.error('连接测试失败')
+  } finally {
+    testingFs.value = false
+  }
+}
+
+async function handleTestCouchDB() {
+  testingCouch.value = true
+  try {
+    const result = await apiTestCouchDB()
+    if (result.ok) {
+      message.success(result.message)
+    } else {
+      message.error(result.message)
+    }
+    loadLogs()
+  } catch {
+    message.error('CouchDB 连接测试失败')
+  } finally {
+    testingCouch.value = false
+  }
+}
+
 function handleRefreshAll() {
   loadConfig()
   loadStatus()
@@ -412,12 +450,30 @@ onMounted(() => {
           <div class="flex items-center gap-2">
             <NButton
               size="small"
+              quaternary
+              :loading="testingCouch"
+              :disabled="!hasSyncPerm || !config.couchdb_enabled"
+              @click="handleTestCouchDB"
+            >
+              测试 CouchDB
+            </NButton>
+            <NButton
+              size="small"
               :loading="couchdbSyncing"
               :disabled="!hasSyncPerm || !config.couchdb_enabled"
               @click="handleCouchDBSyncNow"
             >
               <template #icon><CloudOutline class="w-4 h-4" /></template>
               CouchDB 导入
+            </NButton>
+            <NButton
+              size="small"
+              quaternary
+              :loading="testingFs"
+              :disabled="!hasSyncPerm"
+              @click="handleTestFilesystem"
+            >
+              测试文件系统
             </NButton>
             <NButton
               type="primary"

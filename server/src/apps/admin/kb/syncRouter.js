@@ -12,5 +12,7 @@ router.post("/sync/trigger-couchdb-import", jwtAuth, requirePermission("kb:sync"
 router.post("/sync/trigger-export", jwtAuth, requirePermission("kb:sync"), handlers.triggerExport);
 router.get("/sync/logs", jwtAuth, requirePermission("kb:sync"), handlers.listSyncLogs);
 router.get("/sync/status", jwtAuth, requirePermission("kb:sync"), handlers.getSyncStatus);
+router.post("/sync/test-filesystem", jwtAuth, requirePermission("kb:sync"), handlers.testFilesystem);
+router.post("/sync/test-couchdb", jwtAuth, requirePermission("kb:sync"), handlers.testCouchDB);
 
 module.exports = router;

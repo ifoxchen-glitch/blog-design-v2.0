@@ -1,3 +1,4 @@
+const fs = require("fs");
 const { openDb } = require("../../../db");
 const { nowIso, toInt } = require("../../../utils");
 const syncEngine = require("./syncEngine");
@@ -202,4 +203,122 @@ function getSyncStatus(_req, res) {
   });
 }
 
-module.exports = { getSyncConfig, updateSyncConfig, triggerImport, triggerCouchDBImport, triggerExport, listSyncLogs, getSyncStatus };
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+async function testFilesystem(req, res) {
+  const db = openDb();
+  const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
+  const vaultPath = config?.vault_path || req.body?.vault_path;
+  const now = nowIso();
+
+  if (!vaultPath) {
+    return res.status(400).json({ code: 400, message: "请先配置仓库路径" });
+  }
+
+  try {
+    const resolved = require("path").resolve(vaultPath);
+    if (!fs.existsSync(resolved)) {
+      db.prepare(
+        "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+      ).run("import", vaultPath, "error", `路径不存在: ${resolved}`, now);
+      return res.json({ code: 200, data: { ok: false, message: `路径不存在: ${resolved}`, path: resolved } });
+    }
+
+    const stat = fs.statSync(resolved);
+    if (!stat.isDirectory()) {
+      db.prepare(
+        "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+      ).run("import", vaultPath, "error", "路径不是目录", now);
+      return res.json({ code: 200, data: { ok: false, message: "路径不是目录", path: resolved } });
+    }
+
+    // Scan for .md files (same logic as scanVault but lightweight)
+    let mdCount = 0;
+    let totalSize = 0;
+    function walk(dir, depth) {
+      if (depth > 20) return;
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of entries) {
+        if (e.name.startsWith(".")) continue;
+        const full = require("path").join(dir, e.name);
+        if (e.isDirectory()) { walk(full, depth + 1); }
+        else if (e.isFile() && e.name.endsWith(".md")) {
+          try {
+            const st = fs.statSync(full);
+            if (st.size <= MAX_FILE_SIZE) { mdCount++; totalSize += st.size; }
+          } catch { /* skip */ }
+        }
+      }
+    }
+    walk(resolved, 0);
+
+    const detail = `连接成功: 找到 ${mdCount} 个 .md 文件 (${(totalSize / 1024 / 1024).toFixed(1)} MB)`;
+    db.prepare(
+      "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+    ).run("import", vaultPath, "success", detail, now);
+
+    res.json({
+      code: 200,
+      data: { ok: true, message: detail, path: resolved, mdCount, totalSize },
+    });
+  } catch (err) {
+    db.prepare(
+      "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+    ).run("import", vaultPath, "error", err.message, now);
+    res.json({ code: 200, data: { ok: false, message: err.message, path: vaultPath } });
+  }
+}
+
+async function testCouchDB(req, res) {
+  const db = openDb();
+  const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
+  const now = nowIso();
+
+  const url = config?.couchdb_url || req.body?.couchdb_url;
+  const dbName = config?.couchdb_db_name || req.body?.couchdb_db_name;
+  const username = config?.couchdb_username || req.body?.couchdb_username;
+  const password = config?.couchdb_password || req.body?.couchdb_password;
+
+  if (!url || !dbName) {
+    return res.status(400).json({ code: 400, message: "请先配置 CouchDB URL 和数据库名称" });
+  }
+
+  try {
+    const headers = { Accept: "application/json" };
+    if (username && password) {
+      headers.Authorization = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
+    }
+
+    const dbUrl = `${url.replace(/\/+$/, "")}/${encodeURIComponent(dbName)}`;
+    const resp = await fetch(dbUrl, { headers });
+
+    if (!resp.ok) {
+      const detail = `CouchDB 连接失败: HTTP ${resp.status} ${resp.statusText}`;
+      db.prepare(
+        "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+      ).run("import", `couchdb://${dbName}`, "error", detail, now);
+      return res.json({ code: 200, data: { ok: false, message: detail } });
+    }
+
+    const info = await resp.json();
+    const docCount = info.doc_count ?? info.doc_count ?? 0;
+    const detail = `CouchDB 连接成功: 数据库 "${info.db_name || dbName}" 包含 ${docCount} 个文档`;
+    db.prepare(
+      "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+    ).run("import", `couchdb://${dbName}`, "success", detail, now);
+
+    res.json({
+      code: 200,
+      data: { ok: true, message: detail, dbName: info.db_name || dbName, docCount },
+    });
+  } catch (err) {
+    const detail = `CouchDB 连接失败: ${err.message}`;
+    db.prepare(
+      "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+    ).run("import", `couchdb://${dbName}`, "error", detail, now);
+    res.json({ code: 200, data: { ok: false, message: err.message } });
+  }
+}
+
+module.exports = { getSyncConfig, updateSyncConfig, triggerImport, triggerCouchDBImport, triggerExport, listSyncLogs, getSyncStatus, testFilesystem, testCouchDB };

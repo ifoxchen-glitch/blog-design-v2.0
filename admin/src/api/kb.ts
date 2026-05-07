@@ -457,6 +457,26 @@ export async function apiTriggerSyncExport(client: AxiosInstance = request): Pro
   return res.data.data
 }
 
+export interface TestConnectionResult {
+  ok: boolean
+  message: string
+  path?: string
+  mdCount?: number
+  totalSize?: number
+  dbName?: string
+  docCount?: number
+}
+
+export async function apiTestFilesystem(client: AxiosInstance = request): Promise<TestConnectionResult> {
+  const res = await client.post<ApiResponse<TestConnectionResult>>('/api/v2/admin/kb/sync/test-filesystem')
+  return res.data.data
+}
+
+export async function apiTestCouchDB(client: AxiosInstance = request): Promise<TestConnectionResult> {
+  const res = await client.post<ApiResponse<TestConnectionResult>>('/api/v2/admin/kb/sync/test-couchdb')
+  return res.data.data
+}
+
 export async function apiListSyncLogs(
   params: { page: number; pageSize: number; direction?: string; status?: string; since?: string },
   client: AxiosInstance = request,
