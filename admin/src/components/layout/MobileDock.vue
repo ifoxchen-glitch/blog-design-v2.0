@@ -123,6 +123,15 @@ const iconMap: Record<string, () => any> = {
   SparklesOutline: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
     h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M16.5 4.5l1.5 3 3 1.5-3 1.5-1.5 3-1.5-3-3-1.5 3-1.5 1.5-3zM6.75 9.75l1.5 3 3 1.5-3 1.5-1.5 3-1.5-3-3-1.5 3-1.5 1.5-3zM12 15l1.5 3 3 1.5-3 1.5-1.5 3-1.5-3-3-1.5 3-1.5 1.5-3z' })
   ]),
+  LibraryOutline: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
+    h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6M4.5 10.5v8.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V10.5M3 21h18' })
+  ]),
+  ShapesOutline: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
+    h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M9.53 2.47a.75.75 0 0 1 1.06 0l3.28 3.28a.75.75 0 0 1 0 1.06L10.59 10a.75.75 0 0 1-1.06 0L6.25 6.81a.75.75 0 0 1 0-1.06l3.28-3.28zm6.72 4.22 5.28 5.28a.75.75 0 0 1 0 1.06L17.25 17.3a.75.75 0 0 1-1.06 0l-5.28-5.28a.75.75 0 0 1 0-1.06l4.28-4.27a.75.75 0 0 1 1.06 0zM4.5 12.75l6.75 6.75a.75.75 0 0 1 0 1.06l-3.28 3.28a.75.75 0 0 1-1.06 0L.66 17.34a.75.75 0 0 1 0-1.06l3.28-3.28a.75.75 0 0 1 .56-.25z' })
+  ]),
+  SyncOutline: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
+    h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M21.015 4.356v4.992h-4.992' })
+  ]),
   MenuOutline: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
     h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5' }),
   ]),

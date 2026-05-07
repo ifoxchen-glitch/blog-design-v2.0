@@ -117,6 +117,43 @@ const router = createRouter({
           component: () => import('../views/cms/media/index.vue'),
           meta: { permission: 'post:list' },
         },
+        // 知识库
+        {
+          path: '/cms/kb/documents',
+          name: 'kb-documents',
+          component: () => import('../views/kb/documents/index.vue'),
+          meta: { permission: 'kb:list' },
+        },
+        {
+          path: '/cms/kb/documents/new',
+          name: 'kb-document-new',
+          component: () => import('../views/kb/documents/edit.vue'),
+          meta: { permission: 'kb:create' },
+        },
+        {
+          path: '/cms/kb/documents/:id/edit',
+          name: 'kb-document-edit',
+          component: () => import('../views/kb/documents/edit.vue'),
+          meta: { permission: 'kb:update' },
+        },
+        {
+          path: '/cms/kb/canvases',
+          name: 'kb-canvases',
+          component: () => import('../views/kb/canvases/index.vue'),
+          meta: { permission: 'kb:list' },
+        },
+        {
+          path: '/cms/kb/canvases/:id',
+          name: 'kb-canvas-editor',
+          component: () => import('../views/kb/canvases/editor.vue'),
+          meta: { permission: 'kb:update' },
+        },
+        {
+          path: '/cms/kb/sync',
+          name: 'kb-sync',
+          component: () => import('../views/kb/sync/index.vue'),
+          meta: { permission: 'kb:sync' },
+        },
         {
           path: '/cms/backup',
           name: 'cms-backup',

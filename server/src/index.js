@@ -75,3 +75,4 @@ adminApp.listen(ADMIN_PORT, BIND_HOST, () => {
 // Register cron jobs
 require('./jobs/backupScheduler').register();
 require('./jobs/cleanupAuditLogs').register();
+require('./jobs/kbSync').register();

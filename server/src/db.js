@@ -241,7 +241,110 @@ function migrate(db) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    -- Phase 7: Knowledge Base
+    CREATE TABLE IF NOT EXISTS kb_documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      excerpt TEXT,
+      content_markdown TEXT NOT NULL DEFAULT '',
+      content_html TEXT,
+      source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('obsidian','manual','api')),
+      original_path TEXT,
+      checksum TEXT,
+      tags TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','archived')),
+      word_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_kb_docs_slug ON kb_documents(slug);
+    CREATE INDEX IF NOT EXISTS idx_kb_docs_source ON kb_documents(source);
+    CREATE INDEX IF NOT EXISTS idx_kb_docs_status ON kb_documents(status);
+
+    CREATE TABLE IF NOT EXISTS kb_canvases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      zoom REAL NOT NULL DEFAULT 1.0,
+      pan_x REAL NOT NULL DEFAULT 0.0,
+      pan_y REAL NOT NULL DEFAULT 0.0,
+      grid_visible INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS kb_canvas_nodes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      canvas_id INTEGER NOT NULL REFERENCES kb_canvases(id) ON DELETE CASCADE,
+      type TEXT NOT NULL DEFAULT 'concept' CHECK (type IN ('concept','note','term','reference')),
+      label TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      x REAL NOT NULL DEFAULT 0,
+      y REAL NOT NULL DEFAULT 0,
+      width REAL NOT NULL DEFAULT 180,
+      height REAL NOT NULL DEFAULT 80,
+      color TEXT NOT NULL DEFAULT '#6366f1',
+      metadata TEXT NOT NULL DEFAULT '{}',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_kb_cn_canvas ON kb_canvas_nodes(canvas_id);
+
+    CREATE TABLE IF NOT EXISTS kb_canvas_edges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      canvas_id INTEGER NOT NULL REFERENCES kb_canvases(id) ON DELETE CASCADE,
+      source_node_id INTEGER NOT NULL REFERENCES kb_canvas_nodes(id) ON DELETE CASCADE,
+      target_node_id INTEGER NOT NULL REFERENCES kb_canvas_nodes(id) ON DELETE CASCADE,
+      label TEXT NOT NULL DEFAULT '',
+      style TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_kb_ce_canvas ON kb_canvas_edges(canvas_id);
+    CREATE INDEX IF NOT EXISTS idx_kb_ce_source ON kb_canvas_edges(source_node_id);
+    CREATE INDEX IF NOT EXISTS idx_kb_ce_target ON kb_canvas_edges(target_node_id);
+
+    CREATE TABLE IF NOT EXISTS kb_document_posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER NOT NULL REFERENCES kb_documents(id) ON DELETE CASCADE,
+      post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+      sync_enabled INTEGER NOT NULL DEFAULT 0,
+      last_synced_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE (document_id, post_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_kb_dp_doc ON kb_document_posts(document_id);
+    CREATE INDEX IF NOT EXISTS idx_kb_dp_post ON kb_document_posts(post_id);
+
+    CREATE TABLE IF NOT EXISTS kb_sync_config (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vault_path TEXT NOT NULL DEFAULT '',
+      auto_sync_enabled INTEGER NOT NULL DEFAULT 0,
+      sync_interval_minutes INTEGER NOT NULL DEFAULT 30,
+      conflict_strategy TEXT NOT NULL DEFAULT 'last_write_wins' CHECK (conflict_strategy IN ('last_write_wins','keep_both','skip')),
+      last_sync_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS kb_sync_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      direction TEXT NOT NULL CHECK (direction IN ('import','export')),
+      file_path TEXT,
+      document_id INTEGER REFERENCES kb_documents(id) ON DELETE SET NULL,
+      status TEXT NOT NULL CHECK (status IN ('success','skipped','conflict','error')),
+      checksum TEXT,
+      detail TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_kb_sl_created ON kb_sync_logs(created_at);
   `);
+  // Seed the singleton row for kb_sync_config
+  db.prepare(`INSERT OR IGNORE INTO kb_sync_config (id, vault_path, created_at, updated_at) VALUES (1, '', datetime('now'), datetime('now'))`).run();
 }
 
 function ensureSeed(db) {

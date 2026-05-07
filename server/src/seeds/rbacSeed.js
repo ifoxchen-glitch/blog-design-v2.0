@@ -56,6 +56,12 @@ const PERMISSIONS = [
   { code: "workspace:api",    resource: "workspace", action: "api",     name: "管理 API 配置",  description: "管理 API 配置" },
   { code: "workspace:ai",     resource: "workspace", action: "ai",      name: "管理 AI 设置",   description: "管理 AI 设置" },
   { code: "workspace:config", resource: "workspace", action: "config",  name: "管理全局参数",   description: "管理全局参数配置" },
+  { code: "kb:list",       resource: "kb",        action: "list",    name: "查看知识库",     description: "浏览知识库文档与画布" },
+  { code: "kb:create",     resource: "kb",        action: "create",  name: "创建知识库内容", description: "新建知识库文档或画布" },
+  { code: "kb:update",     resource: "kb",        action: "update",  name: "编辑知识库内容", description: "修改知识库文档或画布" },
+  { code: "kb:delete",     resource: "kb",        action: "delete",  name: "删除知识库内容", description: "删除知识库文档或画布" },
+  { code: "kb:sync",       resource: "kb",        action: "sync",    name: "同步 Obsidian",  description: "管理 Obsidian 双向同步" },
+  { code: "kb:publish",    resource: "kb",        action: "publish", name: "发布到博客",     description: "将知识库文档发布为博客文章" },
 ];
 
 // ============================================================
@@ -110,7 +116,15 @@ const MENUS = [
     ],
   },
   {
-    name: "权限管理", path: null, icon: "ShieldCheckmarkOutline", permission: "user:list", sort: 4,
+    name: "知识库",   path: null,             icon: "LibraryOutline",       permission: "kb:list",        sort: 4,
+    children: [
+      { name: "文档管理",   path: "/cms/kb/documents", icon: "DocumentOutline",  permission: "kb:list" },
+      { name: "画布管理",   path: "/cms/kb/canvases",  icon: "ShapesOutline",    permission: "kb:list" },
+      { name: "Obsidian同步", path: "/cms/kb/sync",    icon: "SyncOutline",      permission: "kb:sync" },
+    ],
+  },
+  {
+    name: "权限管理", path: null, icon: "ShieldCheckmarkOutline", permission: "user:list", sort: 5,
     children: [
       { name: "用户", path: "/cms/rbac/users",       icon: "PersonOutline",        permission: "user:list" },
       { name: "角色", path: "/cms/rbac/roles",       icon: "PeopleOutline",        permission: "role:assign" },
@@ -118,16 +132,16 @@ const MENUS = [
       { name: "菜单", path: "/cms/rbac/menus",       icon: "MenuOutline",          permission: "menu:manage" },
     ],
   },
-  { name: "数据分析", path: "/cms/analytics", icon: "BarChartOutline",      permission: "analytics:view", sort: 5 },
+  { name: "数据分析", path: "/cms/analytics", icon: "BarChartOutline",      permission: "analytics:view", sort: 6 },
   {
-    name: "运维",     path: null,             icon: "SettingsOutline",      permission: "ops:logs",       sort: 6,
+    name: "运维",     path: null,             icon: "SettingsOutline",      permission: "ops:logs",       sort: 7,
     children: [
       { name: "审计日志", path: "/cms/ops/logs",    icon: "ReceiptOutline",  permission: "ops:logs" },
       { name: "备份",     path: "/cms/ops/backup",  icon: "ArchiveOutline",  permission: "ops:backup" },
       { name: "系统监控", path: "/cms/ops/monitor", icon: "PulseOutline",    permission: "ops:monitor" },
     ],
   },
-  { name: "数据导入导出", path: "/cms/backup",   icon: "ArchiveOutline",     permission: "cms:export",     sort: 7 },
+  { name: "数据导入导出", path: "/cms/backup",   icon: "ArchiveOutline",     permission: "cms:export",     sort: 8 },
 ];
 
 // ============================================================
