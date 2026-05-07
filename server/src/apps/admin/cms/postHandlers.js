@@ -43,11 +43,11 @@ function buildListWhere({ keyword, status, category, tag }) {
     params.push(status);
   }
   if (category) {
-    where.push("EXISTS (SELECT 1 FROM post_categories pc JOIN categories c ON c.id = pc.category_id WHERE pc.post_id = p.id AND c.slug = ?)");
+    where.push("EXISTS (SELECT 1 FROM post_categories pc JOIN categories c ON c.id = pc.categoryId WHERE pc.postId = p.id AND c.slug = ?)");
     params.push(category);
   }
   if (tag) {
-    where.push("EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.post_id = p.id AND t.slug = ?)");
+    where.push("EXISTS (SELECT 1 FROM post_tags pt JOIN tags t ON t.id = pt.tagId WHERE pt.postId = p.id AND t.slug = ?)");
     params.push(tag);
   }
   return { clause: where.join(" AND "), params };

@@ -1,26 +1,66 @@
 <script setup lang="ts">
-import { computed, h } from 'vue'
+import { computed, ref, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePermissionStore } from '../../stores/permission'
+import type { MenuNode } from '../../api/auth'
 
 const route = useRoute()
 const router = useRouter()
 const permission = usePermissionStore()
 
-// Top-level menu items only (max 5 for mobile dock)
-const dockItems = computed(() => {
+// --- drill-down state ---
+// null = showing top-level menus; MenuNode = showing that menu's children
+const activeParent = ref<MenuNode | null>(null)
+
+interface DockItem {
+  path: string
+  label: string
+  icon: string
+}
+
+const dockItems = computed<DockItem[]>(() => {
+  if (activeParent.value) {
+    // Child level — show "返回" + up to 4 children
+    const children = (activeParent.value.children ?? []).slice(0, 4)
+    return [
+      { path: '', label: '返回', icon: 'ArrowBack' },
+      ...children.map((c) => ({
+        path: c.path ?? '/cms/dashboard',
+        label: c.name,
+        icon: c.icon ?? 'DocumentOutline',
+      })),
+    ]
+  }
+
+  // Top level — first 5 root menus
   return permission.menus
     .filter((m) => !m.parent_id)
     .slice(0, 5)
     .map((m) => ({
-      path: m.path ?? `/cms/${m.name}`,
+      path: m.path ?? (m.children?.[0]?.path ?? '/cms/dashboard'),
       label: m.name,
       icon: m.icon ?? 'DashboardOutline',
     }))
 })
 
+function handleClick(item: DockItem) {
+  if (item.label === '返回') {
+    activeParent.value = null
+    return
+  }
+  // If currently at top level, check if clicked menu has children to drill into
+  if (!activeParent.value) {
+    const menu = permission.menus.find((m) => !m.parent_id && m.name === item.label)
+    if (menu && menu.children && menu.children.length > 0) {
+      activeParent.value = menu
+      return
+    }
+  }
+  // Navigate
+  router.push(item.path)
+}
+
 const isActive = (path: string) => route.path.startsWith(path)
-const navigate = (path: string) => router.push(path)
 
 // SVG icon map
 const iconMap: Record<string, () => any> = {
@@ -74,6 +114,12 @@ const iconMap: Record<string, () => any> = {
   PulseOutline: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
     h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941' })
   ]),
+  ArrowBack: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
+    h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M15.75 19.5 8.25 12l7.5-7.5' }),
+  ]),
+  MenuOutline: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }, [
+    h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', d: 'M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5' }),
+  ]),
 }
 </script>
 
@@ -83,17 +129,32 @@ const iconMap: Record<string, () => any> = {
     style="border-color: color-mix(in srgb, var(--color-base-content) 5%, transparent); background: color-mix(in srgb, var(--color-base-200) 95%, transparent); backdrop-filter: blur(12px);"
   >
     <div class="flex items-center justify-around px-1 pb-2">
+      <!-- header badge when showing children -->
+      <div
+        v-if="activeParent"
+        class="absolute -top-6 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-t-lg text-[10px] font-medium"
+        style="background: color-mix(in srgb, var(--color-base-200) 95%, transparent); border-color: color-mix(in srgb, var(--color-base-content) 5%, transparent);"
+      >
+        {{ activeParent.name }}
+      </div>
+
       <button
         v-for="(item, i) in dockItems"
         :key="i"
-        class="flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors"
-        :class="isActive(item.path) ? 'text-[var(--color-primary)]' : 'text-[var(--color-base-content)] opacity-40'"
-        @click="navigate(item.path)"
+        class="flex flex-1 flex-col items-center gap-0.5 py-2 transition-colors relative"
+        :class="[
+          item.label === '返回'
+            ? 'opacity-60'
+            : isActive(item.path) && !activeParent
+              ? 'text-[var(--color-primary)]'
+              : 'text-[var(--color-base-content)] opacity-40',
+        ]"
+        @click="handleClick(item)"
       >
         <component :is="iconMap[item.icon] ?? iconMap['DashboardOutline']" class="h-5 w-5" />
         <span class="text-[10px] font-medium">{{ item.label }}</span>
         <span
-          v-if="isActive(item.path)"
+          v-if="isActive(item.path) && !activeParent && item.label !== '返回'"
           class="mt-0.5 h-0.5 w-4 rounded-full"
           style="background: var(--color-primary);"
         />
