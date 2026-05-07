@@ -6,13 +6,17 @@ import {
   NImage,
   NInput,
   NModal,
+  NPopconfirm,
   useMessage,
 } from 'naive-ui'
-import { CloudUploadOutline, CopyOutline } from '@vicons/ionicons5'
+import { CloudUploadOutline, CopyOutline, TrashOutline } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import ImageUploader from '../../../components/common/ImageUploader.vue'
+import { apiDeleteMedia } from '../../../api/cms'
+import { usePermissionStore } from '../../../stores/permission'
 
 const message = useMessage()
+const permissionStore = usePermissionStore()
 const showUploadModal = ref(false)
 
 const STORAGE_KEY = 'media:session-urls'
@@ -74,6 +78,17 @@ async function copyUrl(url: string) {
     message.success('已复制 URL')
   }
 }
+
+async function handleDeleteMedia(url: string) {
+  try {
+    await apiDeleteMedia(url)
+    uploadedUrls.value = uploadedUrls.value.filter((u) => u !== url)
+    message.success('已删除')
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '删除失败'
+    message.error(msg)
+  }
+}
 </script>
 
 <template>
@@ -113,13 +128,27 @@ async function copyUrl(url: string) {
         </div>
         <div class="p-2">
           <NInput :value="url" readonly size="small" class="text-xs" />
-          <div class="flex justify-end mt-1.5">
+          <div class="flex justify-end mt-1.5 gap-1">
             <NButton size="tiny" quaternary @click="copyUrl(url)">
               <template #icon>
                 <CopyOutline class="w-3.5 h-3.5" />
               </template>
               复制
             </NButton>
+            <NPopconfirm
+              v-if="permissionStore.hasPermission('media:delete')"
+              @positive-click="handleDeleteMedia(url)"
+            >
+              <template #trigger>
+                <NButton size="tiny" quaternary type="error">
+                  <template #icon>
+                    <TrashOutline class="w-3.5 h-3.5" />
+                  </template>
+                  删除
+                </NButton>
+              </template>
+              确认删除该图片?此操作不可恢复
+            </NPopconfirm>
           </div>
         </div>
       </div>

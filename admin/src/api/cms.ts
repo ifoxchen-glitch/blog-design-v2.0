@@ -59,6 +59,20 @@ export async function apiUpload(
   return res.data.data
 }
 
+/**
+ * Delete an uploaded media file by its URL path.
+ * The backend expects just the filename (extracted from the URL).
+ */
+export async function apiDeleteMedia(
+  url: string,
+  client: AxiosInstance = request,
+): Promise<void> {
+  const filename = url.split('/').pop() ?? ''
+  await client.delete<ApiResponse<void>>(
+    `/api/v2/admin/cms/${encodeURIComponent(filename)}`,
+  )
+}
+
 // ============================================================
 // Tag
 // ============================================================
@@ -305,6 +319,7 @@ export interface PostDetail extends PostListItem {
 export interface PostListQuery {
   keyword?: string
   status?: PostStatus
+  category?: string
   orderBy?: 'updatedAt' | 'createdAt' | 'publishedAt' | 'title' | 'id'
   order?: 'asc' | 'desc'
 }

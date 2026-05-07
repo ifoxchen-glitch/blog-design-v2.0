@@ -67,6 +67,39 @@ router.post(
 // TODO(T2.13): 上传成功的文件没记 DB，无法做媒体库列表（T2.31 前端要）。后续考虑加 media 表 + 软删除。
 // TODO(T2.13): adminApp 端口 3000 未挂 /admin-static 静态目录；前端拿到 URL 后访问 frontApp 端口 8787 或生产同域 /admin-static。保持 legacy 行为。
 
+// DELETE /:filename — 删除已上传的文件
+router.delete(
+  "/:filename",
+  jwtAuth,
+  requirePermission("media:delete"),
+  (req, res) => {
+    const raw = String(req.params.filename || "");
+    // 防止路径穿越：只取 basename，并且禁止 .. 和 /
+    const filename = path.basename(raw);
+    if (!filename || !/^[\w.-]+$/.test(filename)) {
+      return res.status(400).json({ code: 400, message: "invalid_filename" });
+    }
+    const filePath = path.join(UPLOAD_DIR, filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ code: 404, message: "file_not_found" });
+    }
+    try {
+      fs.unlinkSync(filePath);
+      return res.status(200).json({
+        code: 200,
+        message: "success",
+        data: { deleted: filename },
+      });
+    } catch (e) {
+      return res.status(500).json({
+        code: 500,
+        message: "delete_failed",
+        error: String(e.message || ""),
+      });
+    }
+  },
+);
+
 module.exports = router;
 module.exports._uploader = upload; // 单测内部访问 multer 实例（验证 limits / fileFilter）
 module.exports._UPLOAD_DIR = UPLOAD_DIR;

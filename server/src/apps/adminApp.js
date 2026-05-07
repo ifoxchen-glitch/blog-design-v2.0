@@ -23,6 +23,10 @@ const app = express();
 const adminDist = path.join(__dirname, "..", "..", "..", "admin", "dist");
 app.use(express.static(adminDist));
 
+// Serve uploaded media files (same directory as frontApp)
+const SERVER_PUBLIC = path.join(__dirname, "..", "..", "public");
+app.use("/admin-static", express.static(SERVER_PUBLIC));
+
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 

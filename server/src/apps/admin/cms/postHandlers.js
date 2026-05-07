@@ -30,7 +30,7 @@ function pickPostListItem(row) {
   };
 }
 
-function buildListWhere({ keyword, status }) {
+function buildListWhere({ keyword, status, category }) {
   const where = ["1=1"];
   const params = [];
   if (keyword) {
@@ -39,8 +39,12 @@ function buildListWhere({ keyword, status }) {
     params.push(like, like, like);
   }
   if (status) {
-    where.push("status = ?");
+    where.push("p.status = ?");
     params.push(status);
+  }
+  if (category) {
+    where.push("EXISTS (SELECT 1 FROM post_categories pc JOIN categories c ON c.id = pc.category_id WHERE pc.post_id = p.id AND c.slug = ?)");
+    params.push(category);
   }
   return { clause: where.join(" AND "), params };
 }
@@ -51,21 +55,22 @@ function listPosts(req, res) {
   const pageSize = Math.min(100, Math.max(1, toInt(req.query.pageSize, 20)));
   const keyword = String(req.query.keyword || "").trim() || null;
   const status = String(req.query.status || "").trim() || null;
+  const category = String(req.query.category || "").trim() || null;
   const orderField = String(req.query.orderBy || "updatedAt");
   const orderDir = String(req.query.order || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
   const allowedOrders = new Set(["updatedAt", "createdAt", "publishedAt", "title", "id"]);
   const orderCol = allowedOrders.has(orderField) ? orderField : "updatedAt";
 
-  const { clause, params } = buildListWhere({ keyword, status });
-  const total = db.prepare(`SELECT COUNT(*) AS c FROM posts WHERE ${clause}`).get(...params).c;
+  const { clause, params } = buildListWhere({ keyword, status, category });
+  const total = db.prepare(`SELECT COUNT(*) AS c FROM posts p WHERE ${clause}`).get(...params).c;
 
   const offset = (page - 1) * pageSize;
   const rows = db
     .prepare(`
-      SELECT id, title, slug, excerpt, coverImageUrl, status, publishedAt, createdAt, updatedAt
-        FROM posts
+      SELECT p.id, p.title, p.slug, p.excerpt, p.coverImageUrl, p.status, p.publishedAt, p.createdAt, p.updatedAt
+        FROM posts p
        WHERE ${clause}
-       ORDER BY ${orderCol} ${orderDir}, id DESC
+       ORDER BY p.${orderCol} ${orderDir}, p.id DESC
        LIMIT ? OFFSET ?
     `)
     .all(...params, pageSize, offset);

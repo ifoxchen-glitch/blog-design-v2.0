@@ -38,6 +38,7 @@ const PERMISSIONS = [
   { code: "link:update",     resource: "link",     action: "update",    name: "编辑友链",       description: "修改友链与排序" },
   { code: "link:delete",     resource: "link",     action: "delete",    name: "删除友链",       description: "永久删除友情链接" },
   { code: "media:upload",    resource: "media",    action: "upload",    name: "上传媒体",       description: "上传图片到媒体库（5MB 上限）" },
+  { code: "media:delete",    resource: "media",    action: "delete",    name: "删除媒体",       description: "删除图片文件" },
   { code: "user:list",      resource: "user",      action: "list",      name: "查看用户",       description: "浏览后台用户列表" },
   { code: "user:create",    resource: "user",      action: "create",    name: "创建用户",       description: "新增后台用户" },
   { code: "user:update",    resource: "user",      action: "update",    name: "更新用户",       description: "修改后台用户资料 / 状态" },
@@ -66,7 +67,7 @@ const ROLES = [
     code: "content_admin",
     name: "内容管理员",
     description: "可管理博客内容（文章 / 标签 / 分类 / 友链）",
-    permissions: ["post:list", "post:create", "post:update", "post:delete", "post:publish", "tag:list", "tag:create", "tag:update", "tag:delete", "category:list", "category:create", "category:update", "category:delete", "link:list", "link:create", "link:update", "link:delete", "media:upload", "analytics:view"],
+    permissions: ["post:list", "post:create", "post:update", "post:delete", "post:publish", "tag:list", "tag:create", "tag:update", "tag:delete", "category:list", "category:create", "category:update", "category:delete", "link:list", "link:create", "link:update", "link:delete", "media:upload", "media:delete", "analytics:view"],
   },
   {
     code: "viewer",

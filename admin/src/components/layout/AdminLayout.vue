@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, ref } from 'vue'
+import { computed, h, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { usePermissionStore } from '../../stores/permission'
@@ -13,6 +13,31 @@ const auth = useAuthStore()
 const permission = usePermissionStore()
 
 const isCollapsed = ref(false)
+const expandedMenus = ref<Set<string>>(new Set())
+
+// Initialize expanded from current route's parent chain
+function initExpanded() {
+  const walk = (opts: any[], depth = 0) => {
+    for (const opt of opts) {
+      if (opt.children) {
+        if (opt.children.some((c: any) => route.path.startsWith(String(c.key) + '/') || String(c.key) === route.path)) {
+          expandedMenus.value.add(String(opt.key))
+        }
+        walk(opt.children, depth + 1)
+      }
+    }
+  }
+  walk(menuOptions.value)
+}
+onMounted(initExpanded)
+
+function toggleMenu(key: string) {
+  if (expandedMenus.value.has(key)) {
+    expandedMenus.value.delete(key)
+  } else {
+    expandedMenus.value.add(key)
+  }
+}
 
 // Icon mapping from permission store icons to SVG render functions
 const iconMap: Record<string, () => Component> = {
@@ -132,13 +157,68 @@ const breadcrumbs = computed(() => {
           </div>
 
           <!-- Nav Menu -->
-          <ul class="menu w-full flex-1 overflow-y-auto">
-            <li v-for="opt in menuOptions" :key="opt.key">
+          <ul class="menu w-full flex-1 overflow-y-auto py-1">
+            <li v-for="opt in menuOptions" :key="String(opt.key)">
+              <!-- Parent item (with children) -->
+              <template v-if="opt.children && opt.children.length > 0">
+                <div
+                  :class="[
+                    'flex items-center rounded-xl cursor-pointer select-none transition-all duration-200',
+                    isCollapsed ? 'justify-center px-0' : 'px-3',
+                    expandedMenus.has(String(opt.key))
+                      ? 'bg-base-300/20 text-base-content'
+                      : 'text-base-content/70 hover:bg-base-300/10 hover:text-base-content',
+                  ]"
+                  @click="isCollapsed ? (opt.key && handleMenuSelect(String(opt.key))) : toggleMenu(String(opt.key))"
+                >
+                  <a class="flex items-center gap-3 py-2.5 flex-1 min-w-0" :class="isCollapsed ? 'justify-center px-0' : ''">
+                    <component
+                      :is="iconMap[permission.menus.find(m => (m.path ?? String(m.id)) === opt.key)?.icon ?? ''] ?? (() => null)"
+                      class="h-5 w-5 flex-shrink-0"
+                    />
+                    <span v-if="!isCollapsed" class="truncate text-sm font-medium">{{ opt.label }}</span>
+                  </a>
+                  <svg
+                    v-if="!isCollapsed"
+                    class="h-4 w-4 shrink-0 text-base-content/30 transition-transform duration-200"
+                    :class="expandedMenus.has(String(opt.key)) ? 'rotate-90' : ''"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </div>
+                <ul
+                  v-show="isCollapsed || expandedMenus.has(String(opt.key))"
+                  class="overflow-hidden transition-all duration-200"
+                >
+                  <li v-for="child in opt.children" :key="String(child.key)">
+                    <a
+                      :class="[
+                        activeMenuKey === child.key ? 'menu-active bg-primary/10 text-primary' : 'text-base-content/60 hover:text-base-content hover:bg-base-300/10',
+                        'flex items-center gap-3 rounded-xl py-2 cursor-pointer transition-all duration-200 text-sm',
+                        isCollapsed ? 'justify-center px-0' : 'pl-10 pr-3',
+                      ]"
+                      @click="child.key && handleMenuSelect(String(child.key))"
+                    >
+                      <template v-if="isCollapsed">
+                        <span class="w-1.5 h-1.5 rounded-full" :class="activeMenuKey === child.key ? 'bg-primary' : 'bg-base-content/20'"></span>
+                      </template>
+                      <span v-else class="truncate">{{ child.label }}</span>
+                    </a>
+                  </li>
+                </ul>
+              </template>
+
+              <!-- Leaf item (no children) -->
               <a
+                v-else
                 :class="[
-                  activeMenuKey === opt.key ? 'menu-active bg-base-300/40' : '',
-                  isCollapsed && 'justify-center',
-                  'py-2.5 rounded-xl',
+                  activeMenuKey === opt.key ? 'menu-active bg-primary/10 text-primary' : 'text-base-content/70 hover:bg-base-300/10 hover:text-base-content',
+                  'flex items-center gap-3 rounded-xl py-2.5 cursor-pointer transition-all duration-200',
+                  isCollapsed ? 'justify-center px-0' : 'px-3',
                 ]"
                 @click="opt.key && handleMenuSelect(String(opt.key))"
               >
@@ -146,21 +226,8 @@ const breadcrumbs = computed(() => {
                   :is="iconMap[permission.menus.find(m => (m.path ?? String(m.id)) === opt.key)?.icon ?? ''] ?? (() => null)"
                   class="h-5 w-5 flex-shrink-0"
                 />
-                <template v-if="!isCollapsed">{{ opt.label }}</template>
+                <span v-if="!isCollapsed" class="text-sm truncate">{{ opt.label }}</span>
               </a>
-              <ul v-if="opt.children && !isCollapsed">
-                <li v-for="child in opt.children" :key="child.key">
-                  <a
-                    :class="[
-                      activeMenuKey === child.key ? 'menu-active bg-base-300/40' : '',
-                      'py-2 rounded-xl',
-                    ]"
-                    @click="child.key && handleMenuSelect(String(child.key))"
-                  >
-                    {{ child.label }}
-                  </a>
-                </li>
-              </ul>
             </li>
           </ul>
 
