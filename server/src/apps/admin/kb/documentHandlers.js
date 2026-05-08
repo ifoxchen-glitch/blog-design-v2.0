@@ -20,6 +20,10 @@ function pickDocumentListItem(row) {
     source: row.source,
     tags: parseTags(row.tags),
     status: row.status,
+    category: row.category || null,
+    doc_type: row.doc_type || null,
+    doc_date: row.doc_date || null,
+    review_status: row.review_status || null,
     word_count: row.word_count,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -53,6 +57,8 @@ function pickDocumentPublic(row) {
     content_html: row.content_html || null,
     original_path: row.original_path || null,
     checksum: row.checksum || null,
+    connections: parseTags(row.connections),
+    sources: parseTags(row.sources),
   };
 }
 
@@ -65,6 +71,7 @@ function listDocuments(req, res) {
   const source = String(req.query.source || "").trim() || null;
   const status = String(req.query.status || "").trim() || null;
   const tag = String(req.query.tag || "").trim() || null;
+  const category = String(req.query.category || "").trim() || null;
   const sortBy = String(req.query.sortBy || "updated_at");
   const sortDir = String(req.query.sortDir || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
   const allowedSorts = new Set(["updated_at", "created_at", "title", "word_count"]);
@@ -97,6 +104,10 @@ function listDocuments(req, res) {
     where.push("tags LIKE ?");
     params.push(`%"${tag}"%`);
   }
+  if (category) {
+    where.push("category = ?");
+    params.push(category);
+  }
 
   const clause = where.join(" AND ");
   const total = db.prepare(`SELECT COUNT(*) AS c FROM kb_documents WHERE ${clause}`).get(...params).c;
@@ -104,7 +115,7 @@ function listDocuments(req, res) {
   const offset = (page - 1) * pageSize;
   const rows = db
     .prepare(`
-      SELECT id, title, slug, excerpt, source, tags, status, word_count, created_at, updated_at
+      SELECT id, title, slug, excerpt, source, tags, status, category, doc_type, doc_date, review_status, word_count, created_at, updated_at
         FROM kb_documents
        WHERE ${clause}
        ORDER BY ${orderCol} ${sortDir}, id DESC
@@ -148,13 +159,20 @@ function createDocument(req, res) {
   const createdAt = nowIso();
   const updatedAt = createdAt;
 
+  const category = String(body.category ?? "").trim() || null;
+  const docType = ["entity", "concept", "source", "synthesis"].includes(body.doc_type) ? body.doc_type : null;
+  const connections = JSON.stringify(Array.isArray(body.connections) ? body.connections.filter(Boolean) : []);
+  const sources = JSON.stringify(Array.isArray(body.sources) ? body.sources.filter(Boolean) : []);
+  const docDate = String(body.doc_date ?? "").trim() || null;
+  const reviewStatus = ["seed", "developing", "mature"].includes(body.review_status) ? body.review_status : null;
+
   try {
     const info = db
       .prepare(`
-        INSERT INTO kb_documents (title, slug, excerpt, content_markdown, content_html, source, tags, checksum, word_count, created_at, updated_at)
-        VALUES (@title, @slug, @excerpt, @content_markdown, NULL, 'manual', @tags, @checksum, @word_count, @created_at, @updated_at)
+        INSERT INTO kb_documents (title, slug, excerpt, content_markdown, content_html, source, tags, checksum, category, doc_type, connections, sources, doc_date, review_status, word_count, created_at, updated_at)
+        VALUES (@title, @slug, @excerpt, @content_markdown, NULL, 'manual', @tags, @checksum, @category, @docType, @connections, @sources, @docDate, @reviewStatus, @word_count, @createdAt, @updatedAt)
       `)
-      .run({ title, slug, excerpt, content_markdown, tags: tagsJson, checksum, word_count, created_at: createdAt, updated_at: updatedAt });
+      .run({ title, slug, excerpt, content_markdown, tags: tagsJson, checksum, category, docType, connections, sources, docDate, reviewStatus, word_count, created_at: createdAt, updated_at: updatedAt });
 
     const row = db.prepare("SELECT * FROM kb_documents WHERE id = ?").get(info.lastInsertRowid);
     auditLog(db, req, "create", info.lastInsertRowid, `创建文档: ${title}`);
@@ -194,14 +212,35 @@ function updateDocument(req, res) {
     : existing.word_count;
   const updatedAt = nowIso();
 
+  const category = body.category !== undefined
+    ? (String(body.category).trim() || null)
+    : (existing.category || null);
+  const docType = body.doc_type !== undefined
+    ? (["entity", "concept", "source", "synthesis"].includes(body.doc_type) ? body.doc_type : null)
+    : (existing.doc_type || null);
+  const connections = body.connections !== undefined
+    ? JSON.stringify(Array.isArray(body.connections) ? body.connections.filter(Boolean) : [])
+    : existing.connections;
+  const sources = body.sources !== undefined
+    ? JSON.stringify(Array.isArray(body.sources) ? body.sources.filter(Boolean) : [])
+    : existing.sources;
+  const docDate = body.doc_date !== undefined
+    ? (String(body.doc_date).trim() || null)
+    : (existing.doc_date || null);
+  const reviewStatus = body.review_status !== undefined
+    ? (["seed", "developing", "mature"].includes(body.review_status) ? body.review_status : null)
+    : (existing.review_status || null);
+
   try {
     db.prepare(`
       UPDATE kb_documents
          SET title=@title, slug=@slug, excerpt=@excerpt, content_markdown=@content_markdown,
              content_html=NULL, source=@source, tags=@tags, checksum=@checksum,
+             category=@category, doc_type=@docType, connections=@connections, sources=@sources,
+             doc_date=@docDate, review_status=@reviewStatus,
              word_count=@word_count, status=@status, updated_at=@updatedAt
        WHERE id=@id
-    `).run({ id, title, slug, excerpt, content_markdown, source, tags, checksum, word_count, status, updatedAt });
+    `).run({ id, title, slug, excerpt, content_markdown, source, tags, checksum, word_count, status, updatedAt, category, docType, connections, sources, docDate, reviewStatus });
 
     // If this document is mapped to a post with sync_enabled=1, update the post too
     const mapping = db.prepare(`
@@ -246,10 +285,20 @@ function deleteDocument(req, res) {
   return res.status(200).json({ code: 200, message: "success", data: { deleted: true } });
 }
 
+function listCategories(req, res) {
+  const db = openDb();
+  const rows = db
+    .prepare("SELECT DISTINCT category FROM kb_documents WHERE category IS NOT NULL ORDER BY category")
+    .all();
+  const categories = rows.map(r => r.category).filter(Boolean);
+  return res.status(200).json({ code: 200, message: "success", data: categories });
+}
+
 module.exports = {
   listDocuments,
   getDocument,
   createDocument,
   updateDocument,
   deleteDocument,
+  listCategories,
 };

@@ -42,6 +42,12 @@ interface DocForm {
   excerpt: string
   content_markdown: string
   tags: string[]
+  category: string
+  doc_type: string
+  connections: string[]
+  sources: string[]
+  doc_date: string
+  review_status: string
 }
 
 const initialForm = (): DocForm => ({
@@ -50,6 +56,12 @@ const initialForm = (): DocForm => ({
   excerpt: '',
   content_markdown: '',
   tags: [],
+  category: '',
+  doc_type: '',
+  connections: [],
+  sources: [],
+  doc_date: '',
+  review_status: '',
 })
 
 const form = reactive<DocForm>(initialForm())
@@ -95,6 +107,12 @@ async function loadDocument() {
     form.excerpt = detail.excerpt ?? ''
     form.content_markdown = detail.content_markdown ?? ''
     form.tags = detail.tags ?? []
+    form.category = detail.category ?? ''
+    form.doc_type = detail.doc_type ?? ''
+    form.connections = detail.connections ?? []
+    form.sources = detail.sources ?? []
+    form.doc_date = detail.doc_date ?? ''
+    form.review_status = detail.review_status ?? ''
   } catch (e: unknown) {
     message.error(extractError(e, '加载文档失败'))
   } finally {
@@ -127,6 +145,12 @@ async function doSave(): Promise<boolean> {
       excerpt: form.excerpt || undefined,
       content_markdown: form.content_markdown || undefined,
       tags: form.tags,
+      category: form.category || undefined,
+      doc_type: form.doc_type || undefined,
+      connections: form.connections,
+      sources: form.sources,
+      doc_date: form.doc_date || undefined,
+      review_status: form.review_status || undefined,
     }
 
     if (isEdit.value && editingId.value !== null) {
@@ -240,6 +264,61 @@ const headerSubtitle = computed(() => isEdit.value ? `文档 ID #${editingId.val
               tag
               filterable
               placeholder="输入标签回车添加"
+            />
+          </NFormItem>
+
+          <NFormItem label="分类">
+            <NInput v-model:value="form.category" placeholder="文档分类（如: notes, concepts）" />
+          </NFormItem>
+
+          <NFormItem label="文档类型">
+            <NSelect
+              v-model:value="form.doc_type"
+              clearable
+              placeholder="选择类型"
+              :options="[
+                { label: '实体 (entity)', value: 'entity' },
+                { label: '概念 (concept)', value: 'concept' },
+                { label: '来源 (source)', value: 'source' },
+                { label: '综合 (synthesis)', value: 'synthesis' },
+              ]"
+            />
+          </NFormItem>
+
+          <NFormItem label="关联页面">
+            <NSelect
+              v-model:value="form.connections"
+              multiple
+              tag
+              filterable
+              placeholder="输入关联页面名回车添加"
+            />
+          </NFormItem>
+
+          <NFormItem label="来源文件">
+            <NSelect
+              v-model:value="form.sources"
+              multiple
+              tag
+              filterable
+              placeholder="输入源文件名回车添加"
+            />
+          </NFormItem>
+
+          <NFormItem label="文档日期">
+            <NInput v-model:value="form.doc_date" placeholder="YYYY-MM-DD" />
+          </NFormItem>
+
+          <NFormItem label="成熟度">
+            <NSelect
+              v-model:value="form.review_status"
+              clearable
+              placeholder="选择状态"
+              :options="[
+                { label: '草稿 (seed)', value: 'seed' },
+                { label: '完善中 (developing)', value: 'developing' },
+                { label: '成熟 (mature)', value: 'mature' },
+              ]"
             />
           </NFormItem>
 
