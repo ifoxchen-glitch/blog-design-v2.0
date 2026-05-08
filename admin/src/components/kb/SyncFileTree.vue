@@ -9,6 +9,7 @@ defineProps<{
   loading?: boolean
   emptyText?: string
   showStatus?: boolean
+  diffStatusMap?: Record<string, 'new' | 'old' | 'synced'>
 }>()
 
 const expanded = ref<Set<string>>(new Set())
@@ -30,6 +31,7 @@ function toggleExpand(path: string) {
         :depth="0"
         :expanded="expanded"
         :show-status="showStatus"
+        :diff-status="diffStatusMap?.[node.path] || null"
         @toggle="toggleExpand"
       />
     </template>

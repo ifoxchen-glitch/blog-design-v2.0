@@ -15,6 +15,7 @@ const props = defineProps({
   depth: { type: Number, default: 0 },
   expanded: { type: Object as PropType<Set<string>>, required: true },
   showStatus: { type: Boolean, default: false },
+  diffStatus: { type: String as PropType<'new' | 'old' | 'synced' | null>, default: null },
 })
 
 const emit = defineEmits<{ toggle: [path: string] }>()
@@ -39,6 +40,23 @@ function statusType(s: string | null | undefined): 'success' | 'default' | 'warn
     case 'conflict': return 'warning'
     case 'error': return 'error'
     default: return 'default'
+  }
+}
+
+function diffLabel(s: string | null | undefined): string {
+  switch (s) {
+    case 'new': return '新'
+    case 'old': return '旧'
+    case 'synced': return '已同步'
+    default: return ''
+  }
+}
+function diffType(s: string | null | undefined): 'info' | 'warning' | 'success' {
+  switch (s) {
+    case 'new': return 'info'
+    case 'old': return 'warning'
+    case 'synced': return 'success'
+    default: return 'success'
   }
 }
 
@@ -72,6 +90,11 @@ function formatSize(bytes: number): string {
       <!-- Name -->
       <span class="truncate" :style="{ color: isFolder ? '#e2e8f0' : '#cbd5e1' }">{{ node.name }}</span>
 
+      <!-- Diff status badge (对比标记) -->
+      <NTag v-if="diffStatus" :type="diffType(diffStatus)" size="tiny" style="margin-left:4px">
+        {{ diffLabel(diffStatus) }}
+      </NTag>
+
       <!-- Status badge -->
       <NTag v-if="showStatus && node.status" :type="statusType(node.status)" size="tiny" style="margin-left:4px">
         {{ statusLabel(node.status) }}
@@ -97,6 +120,7 @@ function formatSize(bytes: number): string {
         :depth="depth + 1"
         :expanded="expanded"
         :show-status="showStatus"
+        :diff-status="diffStatus"
         @toggle="emit('toggle', $event)"
       />
     </template>

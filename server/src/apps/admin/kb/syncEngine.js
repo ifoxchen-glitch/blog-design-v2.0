@@ -297,6 +297,39 @@ function scanVaultPaths(vaultPath) {
 }
 
 /**
+ * Lightweight scan: return file paths with checksums (no content), for diff comparison.
+ */
+function scanVaultChecksums(vaultPath) {
+  const results = [];
+  const wikiPath = path.join(vaultPath, "wiki");
+  if (!fs.existsSync(wikiPath)) return results;
+  const resolved = path.resolve(wikiPath);
+  const normalized = path.normalize(resolved);
+  function walk(dir) {
+    if (dir.length > 4000) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name.startsWith(".")) continue;
+      const full = path.join(dir, e.name);
+      const real = path.normalize(full);
+      if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
+      if (e.isDirectory()) { walk(full); }
+      else if (e.isFile() && e.name.endsWith(".md")) {
+        let stat;
+        try { stat = fs.statSync(full); } catch { continue; }
+        if (stat.size > MAX_FILE_SIZE) continue;
+        const relPath = path.relative(wikiPath, full).replace(/\\/g, "/");
+        const content = fs.readFileSync(full, "utf8");
+        results.push({ relativePath: relPath, checksum: computeChecksum(content), size: stat.size });
+      }
+    }
+  }
+  walk(wikiPath);
+  return results;
+}
+
+/**
  * Build a nested tree from flat file paths.
  * e.g. ["a/b/note.md"] → [{ name:"a", type:"folder", children: [{ name:"b", type:"folder", children: [{ name:"note.md", type:"file" }] }] }]
  */
@@ -444,4 +477,4 @@ async function fullExport(vaultPath) {
   }
 }
 
-module.exports = { scanVault, scanVaultPaths, buildFileTree, importDocument, fullImport, importFromFiles, fullExport, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE };
+module.exports = { scanVault, scanVaultPaths, scanVaultChecksums, buildFileTree, importDocument, fullImport, importFromFiles, fullExport, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE };

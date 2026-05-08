@@ -291,7 +291,8 @@ function getRemoteFiles(_req, res) {
 
     if (config && config.vault_path) {
       const vaultPath = require("path").resolve(config.vault_path);
-      files = syncEngine.scanVaultPaths(vaultPath);
+      // Use checksum scan so frontend can compare with synced files
+      files = syncEngine.scanVaultChecksums(vaultPath);
     }
 
     const tree = syncEngine.buildFileTree(files);

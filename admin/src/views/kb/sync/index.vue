@@ -34,6 +34,7 @@ import {
   type SyncStatus,
   type SyncLogEntry,
   type FileTreeData,
+  type FileTreeNode,
 } from '../../../api/kb'
 import { usePermissionStore } from '../../../stores/permission'
 
@@ -52,6 +53,8 @@ const testingFs = ref(false)
 const remoteTree = ref<FileTreeData>({ source: '', tree: [], fileCount: 0 })
 const syncedTree = ref<FileTreeData>({ source: '', tree: [], fileCount: 0 })
 const treeLoading = ref(false)
+const remoteDiffMap = ref<Record<string, 'new' | 'old' | 'synced'>>({})
+const localDiffMap = ref<Record<string, 'new' | 'old' | 'synced'>>({})
 
 const config = ref<SyncConfig>({
   vault_path: '',
@@ -277,6 +280,40 @@ async function handleTestFilesystem() {
   }
 }
 
+/**
+ * Flatten a file tree into a map of path → { checksum, documentId } for files only.
+ */
+function flattenFiles(nodes: FileTreeNode[], map: Record<string, { checksum?: string | null; documentId?: number | null }> = {}) {
+  for (const n of nodes) {
+    if (n.type === 'file') { map[n.path] = { checksum: n.checksum, documentId: n.documentId } }
+    if (n.children) flattenFiles(n.children, map)
+  }
+  return map
+}
+
+/**
+ * Compute diff status map between remote and local file trees.
+ */
+function computeDiffStatus(
+  remoteFiles: Record<string, { checksum?: string | null }>,
+  localFiles: Record<string, { checksum?: string | null }>,
+): { remote: Record<string, 'new' | 'old' | 'synced'>; local: Record<string, 'new' | 'old' | 'synced'> } {
+  const remote: Record<string, 'new' | 'old' | 'synced'> = {}
+  const local: Record<string, 'new' | 'old' | 'synced'> = {}
+
+  for (const path of Object.keys(remoteFiles)) {
+    const lf = localFiles[path]
+    if (!lf) { remote[path] = 'new' }
+    else if (remoteFiles[path].checksum && lf.checksum && remoteFiles[path].checksum !== lf.checksum) {
+      remote[path] = 'old'; local[path] = 'old'
+    } else { remote[path] = 'synced'; local[path] = 'synced' }
+  }
+  for (const path of Object.keys(localFiles)) {
+    if (!remoteFiles[path]) local[path] = 'new'
+  }
+  return { remote, local }
+}
+
 async function loadFileTrees() {
   treeLoading.value = true
   try {
@@ -286,10 +323,46 @@ async function loadFileTrees() {
     ])
     remoteTree.value = remote
     syncedTree.value = synced
+    const remoteFlat = flattenFiles(remote.tree)
+    const localFlat = flattenFiles(synced.tree)
+    const diff = computeDiffStatus(remoteFlat, localFlat)
+    remoteDiffMap.value = diff.remote
+    localDiffMap.value = diff.local
   } catch {
     /* ignore */
   } finally {
     treeLoading.value = false
+  }
+}
+
+async function handleSyncBoth() {
+  syncing.value = true
+  exporting.value = true
+  try {
+    const imp = await apiTriggerSyncImport()
+    if ((imp as unknown as { status: string }).status) {
+      message.info('导入已启动')
+      startLivePolling()
+      const pollUntilDone = () => new Promise<void>((resolve) => {
+        const check = setInterval(async () => {
+          try {
+            const s = await apiGetSyncStatus()
+            if (!s.running) { clearInterval(check); resolve() }
+          } catch { /* ignore */ }
+        }, 1000)
+      })
+      await pollUntilDone()
+    }
+    const exp = await apiTriggerSyncExport()
+    if ((exp as unknown as { status: string }).status) {
+      message.info('导出已启动')
+      startLivePolling()
+    }
+  } catch {
+    message.error('双向同步启动失败')
+  } finally {
+    syncing.value = false
+    exporting.value = false
   }
 }
 
@@ -473,17 +546,18 @@ onMounted(() => {
                 :loading="treeLoading"
                 empty-text="暂无远程文件，请先配置数据源"
                 :show-status="false"
+                :diff-status-map="remoteDiffMap"
               />
             </NSpin>
           </div>
         </div>
 
-        <!-- 已同步文件树 -->
+        <!-- 本地文件树 -->
         <div class="bg-base-100 rounded-xl border border-base-content/5 overflow-hidden">
           <div class="flex items-center justify-between px-4 py-2.5 bg-base-200/50 border-b border-base-content/5">
             <h3 class="font-medium text-sm">
-              已同步文件
-              <span class="text-xs text-base-content/40 font-normal ml-2">Obsidian</span>
+              本地文件
+              <span class="text-xs text-base-content/40 font-normal ml-2">KB 数据库</span>
             </h3>
             <div class="flex items-center gap-2 text-[10px] text-base-content/30">
               <span v-if="syncedTree.stats" class="text-green-500">{{ syncedTree.stats.active }} 活跃</span>
@@ -496,12 +570,29 @@ onMounted(() => {
               <SyncFileTree
                 :tree="syncedTree.tree"
                 :loading="treeLoading"
-                empty-text="暂无已同步文件，点击立即导入开始同步"
+                empty-text="暂无本地文件，点击立即导入开始同步"
                 :show-status="true"
+                :diff-status-map="localDiffMap"
               />
             </NSpin>
           </div>
         </div>
+      </div>
+
+      <!-- 文件操作按钮 -->
+      <div class="flex items-center justify-center gap-4 mb-6">
+        <NButton size="small" type="primary" :loading="syncing" :disabled="!hasSyncPerm" @click="handleSyncNow">
+          <template #icon><CloudUploadOutline class="w-4 h-4" /></template>
+          拉取到本地
+        </NButton>
+        <NButton size="small" type="warning" secondary :loading="exporting" :disabled="!hasSyncPerm" @click="handleSyncExport">
+          <template #icon><RefreshOutline class="w-4 h-4" /></template>
+          发布到远程
+        </NButton>
+        <NButton size="small" type="primary" secondary :loading="syncing || exporting" :disabled="!hasSyncPerm" @click="handleSyncBoth">
+          <template #icon><RefreshOutline class="w-4 h-4" /></template>
+          双向同步
+        </NButton>
       </div>
 
       <!-- 同步日志 -->
