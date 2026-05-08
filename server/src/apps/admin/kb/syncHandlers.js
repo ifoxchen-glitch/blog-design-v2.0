@@ -111,9 +111,38 @@ async function triggerImport(req, res) {
   }
 }
 
-function triggerExport(req, res) {
-  // Export is a placeholder for now
-  res.status(501).json({ code: 501, message: "导出功能尚未实现" });
+async function triggerExport(req, res) {
+  const db = openDb();
+  const config = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
+  if (!config || !config.vault_path) {
+    return res.status(400).json({ code: 400, message: "请先配置仓库路径 (vault_path)" });
+  }
+
+  if (syncEngine.isRunning()) {
+    return res.status(409).json({ code: 409, message: "同步正在进行中" });
+  }
+
+  // Validate wiki/ exists
+  const wikiPath = require("path").join(config.vault_path, "wiki");
+  if (!require("fs").existsSync(wikiPath)) {
+    return res.status(400).json({ code: 400, message: "仓库路径下未找到 wiki/ 子目录，请先创建或导入数据" });
+  }
+
+  auditLog(db, req, "trigger_export", config.vault_path, "触发平台→Obsidian导出");
+  res.status(202).json({ code: 202, message: "导出已启动" });
+
+  try {
+    await syncEngine.fullExport(config.vault_path);
+  } catch (err) {
+    console.error("[kb-sync] export failed:", err.message);
+    try {
+      const db2 = openDb();
+      const now2 = nowIso();
+      db2.prepare(
+        "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+      ).run("export", config.vault_path, "error", `导出失败: ${err.message}`, now2);
+    } catch { /* ignore */ }
+  }
 }
 
 function listSyncLogs(req, res) {

@@ -23,6 +23,7 @@ import {
   apiGetSyncConfig,
   apiUpdateSyncConfig,
   apiTriggerSyncImport,
+  apiTriggerSyncExport,
   apiGetSyncStatus,
   apiListSyncLogs,
   apiTestFilesystem,
@@ -42,6 +43,7 @@ const hasSyncPerm = computed(() => permissionStore.hasPermission('kb:sync'))
 
 const loading = ref(false)
 const syncing = ref(false)
+const exporting = ref(false)
 const clearing = ref(false)
 const saving = ref(false)
 const testingFs = ref(false)
@@ -230,6 +232,21 @@ async function handleSyncNow() {
   }
 }
 
+async function handleSyncExport() {
+  exporting.value = true
+  try {
+    const res = await apiTriggerSyncExport()
+    if ((res as unknown as { status: string }).status) {
+      message.info('导出已启动')
+      startLivePolling()
+    }
+  } catch {
+    message.error('启动导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
+
 async function handleClearData() {
   clearing.value = true
   try {
@@ -400,6 +417,17 @@ onMounted(() => {
             >
               <template #icon><CloudUploadOutline class="w-4 h-4" /></template>
               立即导入
+            </NButton>
+            <NButton
+              size="small"
+              secondary
+              type="warning"
+              :loading="exporting"
+              :disabled="!hasSyncPerm"
+              @click="handleSyncExport"
+            >
+              <template #icon><RefreshOutline class="w-4 h-4" /></template>
+              导出到Obsidian
             </NButton>
             <NButton
               size="small"

@@ -3,7 +3,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { openDb } = require("../../../db");
 const { normalizeSlug } = require("../../../utils");
-const { parseFrontMatter } = require("./frontmatter");
+const { parseFrontMatter, buildFrontMatter } = require("./frontmatter");
 
 let _syncing = false;
 
@@ -348,4 +348,93 @@ function buildFileTree(files) {
   return root;
 }
 
-module.exports = { scanVault, scanVaultPaths, buildFileTree, importDocument, fullImport, importFromFiles, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE };
+function parseTags(raw) {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
+/**
+ * Full export: write all obsidian-sourced documents back to the vault as .md files.
+ * Builds YAML front matter from DB fields + body from content_markdown.
+ */
+async function fullExport(vaultPath) {
+  if (!acquireLock()) throw new Error("同步正在进行中，请稍后重试");
+  const db = openDb();
+  const now = new Date().toISOString();
+  const wikiPath = path.join(vaultPath, "wiki");
+
+  const logStmt = db.prepare(
+    `INSERT INTO kb_sync_logs (direction, file_path, document_id, status, checksum, detail, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  );
+
+  const summary = { exported: 0, skipped: 0, errors: 0 };
+
+  try {
+    // Ensure wiki/ directory exists
+    fs.mkdirSync(wikiPath, { recursive: true });
+
+    const docs = db
+      .prepare("SELECT * FROM kb_documents WHERE source = 'obsidian'")
+      .all();
+
+    for (const doc of docs) {
+      const targetPath = doc.original_path;
+      if (!targetPath) {
+        summary.errors++;
+        logStmt.run("export", `doc-${doc.id}`, doc.id, "error", null, "missing original_path", now);
+        continue;
+      }
+
+      try {
+        // Build YAML front matter from DB fields
+        const lastUpdated = doc.doc_date || doc.updated_at ? doc.updated_at.slice(0, 10) : null;
+        const yamlAttrs = {
+          title: doc.title || undefined,
+          type: doc.doc_type || undefined,
+          tags: parseTags(doc.tags),
+          connections: parseTags(doc.connections),
+          sources: parseTags(doc.sources),
+          last_updated: lastUpdated,
+          status: doc.review_status || undefined,
+        };
+
+        const body = doc.content_markdown || "";
+        const fullContent = buildFrontMatter(yamlAttrs, body);
+        const checksum = computeChecksum(fullContent);
+
+        // Write file
+        const fullPath = path.join(wikiPath, targetPath);
+        fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+        fs.writeFileSync(fullPath, fullContent, "utf8");
+
+        // Update checksum in DB
+        db.prepare("UPDATE kb_documents SET checksum = ?, updated_at = ? WHERE id = ?")
+          .run(checksum, now, doc.id);
+
+        summary.exported++;
+        logStmt.run("export", targetPath, doc.id, "success", checksum, null, now);
+      } catch (err) {
+        summary.errors++;
+        logStmt.run("export", targetPath, doc.id, "error", null, err.message, now);
+      }
+    }
+
+    db.prepare("UPDATE kb_sync_config SET last_sync_at = ?, updated_at = ? WHERE id = 1").run(now, now);
+    try { db.pragma("wal_checkpoint(PASSIVE)"); } catch { /* ignore */ }
+
+    return summary;
+  } catch (err) {
+    console.error("[kb-sync] fullExport error:", err.message);
+    try {
+      db.prepare(
+        "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+      ).run("export", vaultPath, "error", `导出异常: ${err.message}`, now);
+    } catch { /* ignore */ }
+    return { exported: 0, skipped: 0, errors: 1 };
+  } finally {
+    releaseLock();
+  }
+}
+
+module.exports = { scanVault, scanVaultPaths, buildFileTree, importDocument, fullImport, importFromFiles, fullExport, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE };
