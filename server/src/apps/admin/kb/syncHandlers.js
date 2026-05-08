@@ -95,7 +95,7 @@ async function triggerImport(req, res) {
 
   // Respond immediately, run sync async
   auditLog(db, req, "trigger_import", config.vault_path, "触发文件系统同步");
-  res.status(202).json({ code: 202, message: "同步已启动 (文件系统)" });
+  res.status(202).json({ code: 202, message: "同步已启动 (文件系统)", data: { status: "started" } });
 
   try {
     await syncEngine.fullImport(config.vault_path, config.conflict_strategy || "last_write_wins");
@@ -129,7 +129,7 @@ async function triggerExport(req, res) {
   }
 
   auditLog(db, req, "trigger_export", config.vault_path, "触发平台→Obsidian导出");
-  res.status(202).json({ code: 202, message: "导出已启动" });
+  res.status(202).json({ code: 202, message: "导出已启动", data: { status: "started" } });
 
   try {
     await syncEngine.fullExport(config.vault_path);
@@ -182,15 +182,13 @@ function getSyncStatus(_req, res) {
   let lastResult = null;
   if (config && config.last_sync_at) {
     const logs = db
-      .prepare("SELECT status, COUNT(*) AS c FROM kb_sync_logs WHERE direction = 'import' AND created_at = ? GROUP BY status")
+      .prepare("SELECT direction, status, COUNT(*) AS c FROM kb_sync_logs WHERE created_at = ? GROUP BY direction, status")
       .all(config.last_sync_at);
     if (logs.length > 0) {
-      lastResult = { imported: 0, skipped: 0, conflicted: 0, errors: 0 };
+      lastResult = { imported: 0, skipped: 0, conflicted: 0, errors: 0, exported: 0 };
       for (const row of logs) {
-        if (row.status === "success") lastResult.imported += row.c;
-        else if (row.status === "skipped") lastResult.skipped += row.c;
-        else if (row.status === "conflict") lastResult.conflicted += row.c;
-        else if (row.status === "error") lastResult.errors += row.c;
+        const key = row.direction === "export" ? "exported" : row.status === "success" ? "imported" : row.status;
+        if (lastResult[key] !== undefined) lastResult[key] += row.c;
       }
     }
   }
