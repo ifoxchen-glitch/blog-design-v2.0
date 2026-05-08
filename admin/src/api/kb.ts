@@ -13,10 +13,6 @@ export interface KbDocumentListItem {
   source: 'obsidian' | 'manual' | 'api'
   tags: string[]
   status: 'active' | 'archived'
-  category: string | null
-  doc_type: 'entity' | 'concept' | 'source' | 'synthesis' | null
-  doc_date: string | null
-  review_status: 'seed' | 'developing' | 'mature' | null
   word_count: number
   created_at: string
   updated_at: string
@@ -27,8 +23,6 @@ export interface KbDocumentDetail extends KbDocumentListItem {
   content_html: string | null
   original_path: string | null
   checksum: string | null
-  connections: string[]
-  sources: string[]
 }
 
 export interface KbDocumentQuery {
@@ -37,7 +31,6 @@ export interface KbDocumentQuery {
   source?: string
   status?: string
   tag?: string
-  category?: string
   sortBy?: 'updated_at' | 'created_at' | 'title' | 'word_count'
   sortDir?: 'asc' | 'desc'
 }
@@ -50,13 +43,6 @@ export async function apiListKbDocuments(
     '/api/v2/admin/kb/documents',
     { params },
   )
-  return res.data.data
-}
-
-export async function apiListKbDocumentCategories(
-  client: AxiosInstance = request,
-): Promise<string[]> {
-  const res = await client.get<ApiResponse<string[]>>('/api/v2/admin/kb/documents/categories')
   return res.data.data
 }
 
@@ -74,12 +60,6 @@ export interface CreateKbDocumentPayload {
   excerpt?: string
   content_markdown?: string
   tags?: string[]
-  category?: string
-  doc_type?: string
-  connections?: string[]
-  sources?: string[]
-  doc_date?: string
-  review_status?: string
 }
 
 export async function apiCreateKbDocument(
@@ -98,12 +78,6 @@ export interface UpdateKbDocumentPayload {
   tags?: string[]
   source?: string
   status?: string
-  category?: string
-  doc_type?: string
-  connections?: string[]
-  sources?: string[]
-  doc_date?: string
-  review_status?: string
 }
 
 export async function apiUpdateKbDocument(

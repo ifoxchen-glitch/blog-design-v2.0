@@ -346,25 +346,6 @@ function migrate(db) {
   // Seed the singleton row for kb_sync_config
   db.prepare(`INSERT OR IGNORE INTO kb_sync_config (id, vault_path, created_at, updated_at) VALUES (1, '', datetime('now'), datetime('now'))`).run();
 
-  // Phase 7b: Wiki subdirectory + YAML front matter fields
-  const kbAdds = [
-    `ALTER TABLE kb_documents ADD COLUMN category TEXT DEFAULT NULL`,
-    `ALTER TABLE kb_documents ADD COLUMN doc_type TEXT DEFAULT NULL CHECK (doc_type IN ('entity','concept','source','synthesis'))`,
-    `ALTER TABLE kb_documents ADD COLUMN connections TEXT NOT NULL DEFAULT '[]'`,
-    `ALTER TABLE kb_documents ADD COLUMN sources TEXT NOT NULL DEFAULT '[]'`,
-    `ALTER TABLE kb_documents ADD COLUMN doc_date TEXT DEFAULT NULL`,
-    `ALTER TABLE kb_documents ADD COLUMN review_status TEXT DEFAULT NULL CHECK (review_status IN ('seed','developing','mature'))`,
-  ];
-  for (const sql of kbAdds) {
-    try { db.exec(sql); } catch (e) { /* column already exists */ }
-  }
-  try { db.exec(`CREATE INDEX IF NOT EXISTS idx_kb_docs_category ON kb_documents(category)`); } catch { /* ignore */ }
-
-  // Migrate existing obsidian original_path to strip wiki/ prefix
-  try {
-    db.exec(`UPDATE kb_documents SET original_path = SUBSTR(original_path, 6), checksum = NULL, updated_at = datetime('now') WHERE source = 'obsidian' AND original_path LIKE 'wiki/%'`);
-  } catch { /* ignore */ }
-
 }
 
 function ensureSeed(db) {
