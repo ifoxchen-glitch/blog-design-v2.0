@@ -72,9 +72,10 @@ function listDocuments(req, res) {
   const status = String(req.query.status || "").trim() || null;
   const tag = String(req.query.tag || "").trim() || null;
   const category = String(req.query.category || "").trim() || null;
+  const reviewStatus = String(req.query.review_status || "").trim() || null;
   const sortBy = String(req.query.sortBy || "updated_at");
   const sortDir = String(req.query.sortDir || "desc").toLowerCase() === "asc" ? "ASC" : "DESC";
-  const allowedSorts = new Set(["updated_at", "created_at", "title", "word_count"]);
+  const allowedSorts = new Set(["updated_at", "created_at", "title", "word_count", "category", "doc_type", "review_status"]);
   const orderCol = allowedSorts.has(sortBy) ? sortBy : "updated_at";
 
   const where = ["1=1"];
@@ -107,6 +108,10 @@ function listDocuments(req, res) {
   if (category) {
     where.push("category = ?");
     params.push(category);
+  }
+  if (reviewStatus) {
+    where.push("review_status = ?");
+    params.push(reviewStatus);
   }
 
   const clause = where.join(" AND ");

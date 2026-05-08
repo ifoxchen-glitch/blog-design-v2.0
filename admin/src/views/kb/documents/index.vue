@@ -56,9 +56,13 @@ interface DocQuery {
   source: string
   status: string
   category: string
+  tag: string
+  review_status: string
+  sortBy: string
+  sortDir: string
 }
 
-const initialQuery: DocQuery = { search: '', contentSearch: false, source: '', status: '', category: '' }
+const initialQuery: DocQuery = { search: '', contentSearch: false, source: '', status: '', category: '', tag: '', review_status: '', sortBy: 'updated_at', sortDir: 'desc' }
 
 const table = useTable<KbDocumentListItem, DocQuery>({
   fetch: async (params) => {
@@ -69,12 +73,28 @@ const table = useTable<KbDocumentListItem, DocQuery>({
       contentSearch: params.contentSearch || undefined,
       source: params.source || undefined,
       status: params.status || undefined,
+      category: params.category || undefined,
+      tag: params.tag || undefined,
+      review_status: params.review_status || undefined,
+      sortBy: params.sortBy || undefined,
+      sortDir: (params.sortDir as 'asc' | 'desc') || undefined,
     })
     return { list: res.items, total: res.total }
   },
   initialQuery,
   pageSize: 12,
 })
+
+function handleSortChange(sorter: { columnKey?: string; order?: 'ascend' | 'descend' }) {
+  if (!sorter.columnKey || !sorter.order) {
+    table.query.sortBy = 'updated_at'
+    table.query.sortDir = 'desc'
+  } else {
+    table.query.sortBy = sorter.columnKey
+    table.query.sortDir = sorter.order === 'ascend' ? 'asc' : 'desc'
+  }
+  table.refresh()
+}
 
 const categoryOptions = ref<Array<{ label: string; value: string }>>([])
 
@@ -102,6 +122,13 @@ const STATUS_OPTIONS = [
   { label: '全部状态', value: '' },
   { label: '活跃', value: 'active' },
   { label: '归档', value: 'archived' },
+]
+
+const REVIEW_STATUS_OPTIONS = [
+  { label: '全部成熟度', value: '' },
+  { label: '草稿 (seed)', value: 'seed' },
+  { label: '完善中 (developing)', value: 'developing' },
+  { label: '成熟 (mature)', value: 'mature' },
 ]
 
 function handleCreate() {
@@ -153,13 +180,14 @@ const tableColumns = computed(() => [
   {
     title: '标题',
     key: 'title' as const,
+    sorter: true,
     ellipsis: { tooltip: true },
-    width: 240,
+    width: 200,
   },
   {
     title: '来源',
     key: 'source' as const,
-    width: 90,
+    width: 80,
     render(row: KbDocumentListItem) {
       return h(NTag, { size: 'small', type: sourceTagType(row.source) }, () => sourceLabel(row.source))
     },
@@ -167,29 +195,53 @@ const tableColumns = computed(() => [
   {
     title: '分类',
     key: 'category' as const,
-    width: 100,
+    sorter: true,
+    width: 90,
     render(row: KbDocumentListItem) {
       return row.category ? h(NTag, { size: 'small', type: 'info' }, () => row.category) : ''
     },
   },
   {
+    title: '文档类型',
+    key: 'doc_type' as const,
+    sorter: true,
+    width: 90,
+    render(row: KbDocumentListItem) {
+      return row.doc_type ? h(NTag, { size: 'small', type: 'warning' }, () => row.doc_type) : ''
+    },
+  },
+  {
     title: '标签',
     key: 'tags' as const,
-    width: 160,
+    width: 140,
     render(row: KbDocumentListItem) {
       if (!row.tags?.length) return ''
-      return row.tags.map((t) => t).join(', ')
+      return row.tags.join(', ')
+    },
+  },
+  {
+    title: '成熟度',
+    key: 'review_status' as const,
+    sorter: true,
+    width: 80,
+    render(row: KbDocumentListItem) {
+      if (!row.review_status) return ''
+      const typeMap: Record<string, 'success' | 'warning' | 'info' | 'default'> = { mature: 'success', developing: 'warning', seed: 'info' }
+      const labelMap: Record<string, string> = { mature: '成熟', developing: '完善中', seed: '草稿' }
+      const rs = row.review_status ?? ''
+      return h(NTag, { size: 'small', type: typeMap[rs] || 'default' }, () => labelMap[rs] || rs)
     },
   },
   {
     title: '字数',
     key: 'word_count' as const,
-    width: 70,
+    sorter: true,
+    width: 60,
   },
   {
     title: '状态',
     key: 'status' as const,
-    width: 70,
+    width: 65,
     render(row: KbDocumentListItem) {
       return row.status === 'active'
         ? h(NTag, { size: 'small', type: 'success' }, () => '活跃')
@@ -199,7 +251,8 @@ const tableColumns = computed(() => [
   {
     title: '更新时间',
     key: 'updated_at' as const,
-    width: 160,
+    sorter: true,
+    width: 150,
     render(row: KbDocumentListItem) {
       return formatDateTime(row.updated_at)
     },
@@ -207,7 +260,7 @@ const tableColumns = computed(() => [
   {
     title: '操作',
     key: 'actions' as const,
-    width: 160,
+    width: 140,
     render(row: KbDocumentListItem) {
       return h('div', { class: 'flex items-center gap-1' }, [
         h(
@@ -292,6 +345,19 @@ const tableColumns = computed(() => [
         v-model:value="table.query.category"
         :options="categoryOptions"
         placeholder="分类"
+        clearable
+        style="width: 130px"
+      />
+      <NInput
+        v-model:value="table.query.tag"
+        placeholder="标签筛选"
+        clearable
+        style="width: 120px"
+      />
+      <NSelect
+        v-model:value="table.query.review_status"
+        :options="REVIEW_STATUS_OPTIONS"
+        placeholder="成熟度"
         clearable
         style="width: 130px"
       />
@@ -409,6 +475,7 @@ const tableColumns = computed(() => [
           striped
           size="small"
           class="rounded-xl overflow-hidden"
+          @update:sorter="handleSortChange"
         />
       </template>
     </NSpin>
