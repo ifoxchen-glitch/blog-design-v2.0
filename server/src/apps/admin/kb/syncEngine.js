@@ -403,6 +403,13 @@ async function fullExport(vaultPath) {
         const fullContent = buildFrontMatter(yamlAttrs, body);
         const checksum = computeChecksum(fullContent);
 
+        // Skip if content hasn't changed since last export/import
+        if (doc.checksum === checksum) {
+          summary.skipped++;
+          logStmt.run("export", targetPath, doc.id, "skipped", checksum, "no changes", now);
+          continue;
+        }
+
         // Write file
         const fullPath = path.join(wikiPath, targetPath);
         fs.mkdirSync(path.dirname(fullPath), { recursive: true });

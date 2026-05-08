@@ -98,9 +98,7 @@ function startLivePolling() {
       const s = await apiGetSyncStatus()
       status.value = s
       const res = await apiListSyncLogs({ page: 1, pageSize: 200, since })
-      const fresh = res.items
-        .filter((l) => l.direction === 'import')
-        .reverse()
+      const fresh = res.items.reverse()
       if (fresh.length > liveLogs.value.length) {
         liveLogs.value = fresh
         autoScrollLive()
