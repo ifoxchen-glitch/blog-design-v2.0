@@ -132,13 +132,17 @@ function parseYamlFrontMatter(content: string): { attributes: Record<string, unk
 
 /**
  * Build YAML front matter string from attributes object.
+ * Writes all keys, with known keys ordered first.
  */
 function buildYamlFrontMatter(attrs: Record<string, unknown>): string {
-  const keys = ['title', 'type', 'tags', 'connections', 'sources', 'last_updated', 'status']
+  const knownKeys = ['title', 'type', 'tags', 'connections', 'sources', 'last_updated', 'status']
+  const written = new Set<string>()
   const lines: string[] = []
-  for (const k of keys) {
+
+  for (const k of knownKeys) {
     const v = attrs[k]
     if (v === undefined || v === null || v === '') continue
+    written.add(k)
     if (Array.isArray(v) && v.length === 0) continue
     if (Array.isArray(v)) {
       const items = v.map((i: unknown) => typeof i === 'string' && i.includes(' ') ? `"${i}"` : String(i)).join(', ')
@@ -149,6 +153,21 @@ function buildYamlFrontMatter(attrs: Record<string, unknown>): string {
       lines.push(`${k}: ${v}`)
     }
   }
+
+  // Write extra keys (preserves unknown YAML fields)
+  for (const k of Object.keys(attrs)) {
+    if (written.has(k)) continue
+    const v = attrs[k]
+    if (v === undefined || v === null || v === '') continue
+    if (Array.isArray(v) && v.length === 0) continue
+    if (Array.isArray(v)) {
+      const items = v.map((i: unknown) => typeof i === 'string' && i.includes(' ') ? `"${i}"` : String(i)).join(', ')
+      lines.push(`${k}: [${items}]`)
+    } else {
+      lines.push(`${k}: ${v}`)
+    }
+  }
+
   if (lines.length === 0) return ''
   return `---\n${lines.join('\n')}\n---\n`
 }
@@ -172,6 +191,15 @@ async function loadDocument() {
     form.sources = Array.isArray(yaml.sources) ? yaml.sources as string[] : (detail.sources ?? [])
     form.doc_date = yaml.last_updated as string ?? detail.doc_date ?? ''
     form.review_status = yaml.status as string ?? detail.review_status ?? ''
+
+    // Preserve any extra YAML fields not in the known schema
+    const knownKeys = new Set(['title', 'type', 'tags', 'connections', 'sources', 'last_updated', 'status', 'category'])
+    for (const k of Object.keys(extraYamlFields)) delete extraYamlFields[k]
+    for (const k of Object.keys(yaml)) {
+      if (!knownKeys.has(k)) {
+        extraYamlFields[k] = yaml[k]
+      }
+    }
 
     // Editor shows only body (YAML front matter stripped)
     form.content_markdown = body
@@ -201,7 +229,7 @@ async function doSave(): Promise<boolean> {
   }
   submitting.value = true
   try {
-    // Reconstruct YAML front matter from form fields + body
+    // Reconstruct YAML front matter from form fields + extra fields + body
     const yamlStr = buildYamlFrontMatter({
       title: form.title || undefined,
       type: form.doc_type || undefined,
@@ -210,6 +238,7 @@ async function doSave(): Promise<boolean> {
       sources: form.sources,
       last_updated: form.doc_date || undefined,
       status: form.review_status || undefined,
+      ...extraYamlFields,
     })
     const fullContent = yamlStr + form.content_markdown
 
@@ -292,6 +321,21 @@ onBeforeUnmount(() => {
 
 const headerTitle = computed(() => isEdit.value ? '编辑文档' : '新建文档')
 const headerSubtitle = computed(() => isEdit.value ? `文档 ID #${editingId.value}` : '创建新知识库文档')
+
+// Holds extra YAML fields not part of the known schema, to preserve on save
+const extraYamlFields = reactive<Record<string, unknown>>({})
+const extraYamlEntries = computed<[string, unknown][]>(() => Object.keys(extraYamlFields).map(k => [k, extraYamlFields[k]]))
+const hasExtraFields = computed(() => extraYamlEntries.value.length > 0)
+
+function formatExtraVal(val: unknown): string {
+  return Array.isArray(val) ? (val as string[]).join(', ') : String(val ?? '')
+}
+
+function updateExtraField(key: string, origVal: unknown, newVal: string) {
+  extraYamlFields[key] = Array.isArray(origVal)
+    ? newVal.split(',').map(s => s.trim()).filter(Boolean)
+    : newVal
+}
 </script>
 
 <template>
@@ -399,6 +443,21 @@ const headerSubtitle = computed(() => isEdit.value ? `文档 ID #${editingId.val
           <NFormItem label="正文" path="content_markdown">
             <MarkdownEditor v-model="form.content_markdown" :height="500" />
           </NFormItem>
+
+          <!-- Extra YAML fields (preserved from original front matter) -->
+          <template v-if="hasExtraFields && isEdit">
+            <NFormItem
+              v-for="[key, val] in extraYamlEntries"
+              :key="key"
+              :label="key"
+            >
+              <NInput
+                :value="formatExtraVal(val)"
+                @update:value="updateExtraField(key, val, $event)"
+                :placeholder="key"
+              />
+            </NFormItem>
+          </template>
         </NForm>
       </div>
     </NSpin>

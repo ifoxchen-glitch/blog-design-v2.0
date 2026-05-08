@@ -38,7 +38,8 @@ export interface KbDocumentQuery {
   status?: string
   tag?: string
   category?: string
-  sortBy?: 'updated_at' | 'created_at' | 'title' | 'word_count'
+  review_status?: string
+  sortBy?: string
   sortDir?: 'asc' | 'desc'
 }
 
