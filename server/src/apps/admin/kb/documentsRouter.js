@@ -6,7 +6,6 @@ const requirePermission = require("../../../middleware/rbac");
 const router = express.Router();
 
 router.get("/", jwtAuth, requirePermission("kb:list"), handlers.listDocuments);
-router.get("/categories", jwtAuth, requirePermission("kb:list"), handlers.listCategories);
 router.get("/:id", jwtAuth, requirePermission("kb:list"), handlers.getDocument);
 router.post("/", jwtAuth, requirePermission("kb:create"), handlers.createDocument);
 router.put("/:id", jwtAuth, requirePermission("kb:update"), handlers.updateDocument);
