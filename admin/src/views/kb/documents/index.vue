@@ -334,9 +334,14 @@ const tableColumns = computed(() => [
                 <h3 class="font-medium text-sm text-base-content truncate flex-1">{{ row.title }}</h3>
                 <span
                   class="px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0"
-                  :class="row.status === 'active' ? 'bg-success/10 text-success' : 'bg-base-content/5 text-base-content/40'"
+                  :class="
+                    row.review_status === 'mature' ? 'bg-success/10 text-success' :
+                    row.review_status === 'developing' ? 'bg-warning/10 text-warning' :
+                    row.review_status === 'seed' ? 'bg-info/10 text-info' :
+                    'bg-base-content/5 text-base-content/40'
+                  "
                 >
-                  {{ row.status === 'active' ? '活跃' : '归档' }}
+                  {{ row.review_status === 'mature' ? '成熟' : row.review_status === 'developing' ? '完善中' : row.review_status === 'seed' ? '草稿' : '' }}
                 </span>
               </div>
               <p class="text-xs text-base-content/30 mt-1 truncate">{{ row.slug }}</p>
