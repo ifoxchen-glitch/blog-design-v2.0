@@ -97,22 +97,84 @@ const formRules = computed<FormRules>(() => ({
   excerpt: [{ max: 500, message: '摘要不能超过 500 字', trigger: 'blur' }],
 }))
 
+// ---- YAML front matter helpers ----
+
+/**
+ * Parse YAML front matter from markdown content (frontend lightweight parser).
+ */
+function parseYamlFrontMatter(content: string): { attributes: Record<string, unknown>; body: string } {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/)
+  if (!match) return { attributes: {}, body: content }
+
+  const yamlStr = match[1]
+  const body = content.slice(match[0].length)
+  const attrs: Record<string, unknown> = {}
+
+  for (const line of yamlStr.split('\n')) {
+    const colonIdx = line.indexOf(':')
+    if (colonIdx === -1) continue
+    const key = line.slice(0, colonIdx).trim()
+    let val: unknown = line.slice(colonIdx + 1).trim()
+
+    if (typeof val === 'string' && val.startsWith('[') && val.endsWith(']')) {
+      val = val.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
+    } else if (typeof val === 'string' && (val.startsWith('"') && val.endsWith('"') || val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1)
+    } else if (typeof val === 'string' && val.length === 0) {
+      continue
+    }
+
+    attrs[key] = val
+  }
+
+  return { attributes: attrs, body }
+}
+
+/**
+ * Build YAML front matter string from attributes object.
+ */
+function buildYamlFrontMatter(attrs: Record<string, unknown>): string {
+  const keys = ['title', 'type', 'tags', 'connections', 'sources', 'last_updated', 'status']
+  const lines: string[] = []
+  for (const k of keys) {
+    const v = attrs[k]
+    if (v === undefined || v === null || v === '') continue
+    if (Array.isArray(v) && v.length === 0) continue
+    if (Array.isArray(v)) {
+      const items = v.map((i: unknown) => typeof i === 'string' && i.includes(' ') ? `"${i}"` : String(i)).join(', ')
+      lines.push(`${k}: [${items}]`)
+    } else if (typeof v === 'string' && /[:\-\[\]]/.test(v)) {
+      lines.push(`${k}: "${v}"`)
+    } else {
+      lines.push(`${k}: ${v}`)
+    }
+  }
+  if (lines.length === 0) return ''
+  return `---\n${lines.join('\n')}\n---\n`
+}
+
 async function loadDocument() {
   if (!editingId.value) return
   loading.value = true
   try {
     const detail = await apiGetKbDocument(editingId.value)
-    form.title = detail.title
+    const rawContent = detail.content_markdown ?? ''
+    const { attributes: yaml, body } = parseYamlFrontMatter(rawContent)
+
+    // Populate form fields: YAML attributes take precedence over DB values
+    form.title = String(yaml.title ?? detail.title ?? '')
     form.slug = detail.slug
     form.excerpt = detail.excerpt ?? ''
-    form.content_markdown = detail.content_markdown ?? ''
-    form.tags = detail.tags ?? []
-    form.category = detail.category ?? ''
-    form.doc_type = detail.doc_type ?? ''
-    form.connections = detail.connections ?? []
-    form.sources = detail.sources ?? []
-    form.doc_date = detail.doc_date ?? ''
-    form.review_status = detail.review_status ?? ''
+    form.tags = Array.isArray(yaml.tags) ? yaml.tags as string[] : (detail.tags ?? [])
+    form.category = yaml.category as string ?? detail.category ?? ''
+    form.doc_type = yaml.type as string ?? detail.doc_type ?? ''
+    form.connections = Array.isArray(yaml.connections) ? yaml.connections as string[] : (detail.connections ?? [])
+    form.sources = Array.isArray(yaml.sources) ? yaml.sources as string[] : (detail.sources ?? [])
+    form.doc_date = yaml.last_updated as string ?? detail.doc_date ?? ''
+    form.review_status = yaml.status as string ?? detail.review_status ?? ''
+
+    // Editor shows only body (YAML front matter stripped)
+    form.content_markdown = body
   } catch (e: unknown) {
     message.error(extractError(e, '加载文档失败'))
   } finally {
@@ -139,11 +201,23 @@ async function doSave(): Promise<boolean> {
   }
   submitting.value = true
   try {
+    // Reconstruct YAML front matter from form fields + body
+    const yamlStr = buildYamlFrontMatter({
+      title: form.title || undefined,
+      type: form.doc_type || undefined,
+      tags: form.tags,
+      connections: form.connections,
+      sources: form.sources,
+      last_updated: form.doc_date || undefined,
+      status: form.review_status || undefined,
+    })
+    const fullContent = yamlStr + form.content_markdown
+
     const payload = {
       title: form.title,
       slug: form.slug || undefined,
       excerpt: form.excerpt || undefined,
-      content_markdown: form.content_markdown || undefined,
+      content_markdown: fullContent || undefined,
       tags: form.tags,
       category: form.category || undefined,
       doc_type: form.doc_type || undefined,
