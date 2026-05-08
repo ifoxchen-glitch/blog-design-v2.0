@@ -3,6 +3,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { openDb } = require("../../../db");
 const { normalizeSlug } = require("../../../utils");
+const { parseFrontMatter } = require("./frontmatter");
 
 let _syncing = false;
 
@@ -25,13 +26,14 @@ function computeChecksum(content) {
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 /**
- * Recursively scan a directory for .md files, returning file info with checksums.
+ * Recursively scan the wiki/ subdirectory for .md files, returning file info with checksums.
  */
 function scanVault(vaultPath) {
   const results = [];
-  if (!fs.existsSync(vaultPath)) return results;
+  const wikiPath = path.join(vaultPath, "wiki");
+  if (!fs.existsSync(wikiPath)) return results;
 
-  const resolved = path.resolve(vaultPath);
+  const resolved = path.resolve(wikiPath);
   const normalized = path.normalize(resolved);
 
   function walk(dir) {
@@ -58,7 +60,7 @@ function scanVault(vaultPath) {
           continue;
         }
         if (stat.size > MAX_FILE_SIZE) continue;
-        const relPath = path.relative(vaultPath, full).replace(/\\/g, "/");
+        const relPath = path.relative(wikiPath, full).replace(/\\/g, "/");
         const content = fs.readFileSync(full, "utf8");
         results.push({
           relativePath: relPath,
@@ -69,7 +71,7 @@ function scanVault(vaultPath) {
       }
     }
   }
-  walk(vaultPath);
+  walk(wikiPath);
   return results;
 }
 
@@ -84,10 +86,44 @@ function slugFromPath(relativePath) {
 
 /**
  * Import a single file into kb_documents.
+ * Parses YAML front matter to extract title, type, tags, connections, sources, dates, status.
  * Returns { action, id, path, detail? }
  */
 function importDocument(db, fileInfo, conflictStrategy, now, source) {
   const src = source || "obsidian";
+
+  // Parse YAML front matter
+  const { attributes, body } = parseFrontMatter(fileInfo.content);
+
+  // Extract fields from YAML with sensible defaults
+  const title = (attributes.title && String(attributes.title).trim())
+    || fileInfo.relativePath.replace(/\.md$/, "").split("/").pop();
+
+  const docType = ["entity", "concept", "source", "synthesis"].includes(attributes.type)
+    ? attributes.type : null;
+
+  const tags = Array.isArray(attributes.tags)
+    ? JSON.stringify(attributes.tags.filter(Boolean))
+    : JSON.stringify([]);
+
+  const connections = Array.isArray(attributes.connections)
+    ? JSON.stringify(attributes.connections.filter(Boolean))
+    : JSON.stringify([]);
+
+  const sources = Array.isArray(attributes.sources)
+    ? JSON.stringify(attributes.sources.filter(Boolean))
+    : JSON.stringify([]);
+
+  const docDate = (attributes.last_updated && typeof attributes.last_updated === "string")
+    ? attributes.last_updated.trim() : null;
+
+  const reviewStatus = ["seed", "developing", "mature"].includes(attributes.status)
+    ? attributes.status : null;
+
+  // Extract category from the first path segment (subdirectory under wiki/)
+  const parts = fileInfo.relativePath.split("/");
+  const category = parts.length > 1 ? parts[0] : null;
+
   const existing = db
     .prepare("SELECT * FROM kb_documents WHERE original_path = ? AND source = ?")
     .get(fileInfo.relativePath, src);
@@ -103,15 +139,13 @@ function importDocument(db, fileInfo, conflictStrategy, now, source) {
       const hash = crypto.createHash("sha256").update(fileInfo.relativePath, "utf8").digest("hex").slice(0, 8);
       slug = slug + "-" + hash;
     }
-    const tags = JSON.stringify([]);
-    const title = fileInfo.relativePath.replace(/\.md$/, "").split("/").pop();
-    const wordCount = fileInfo.content.split(/\s+/).filter(Boolean).length;
+    const wordCount = body.split(/\s+/).filter(Boolean).length;
     const info = db
       .prepare(
-        `INSERT INTO kb_documents (title, slug, content_markdown, source, original_path, checksum, tags, status, word_count, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
+        `INSERT INTO kb_documents (title, slug, content_markdown, source, original_path, checksum, tags, status, category, doc_type, connections, sources, doc_date, review_status, word_count, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(title, slug, fileInfo.content, src, fileInfo.relativePath, fileInfo.checksum, tags, wordCount, now, now);
+      .run(title, slug, body, src, fileInfo.relativePath, fileInfo.checksum, tags, category, docType, connections, sources, docDate, reviewStatus, wordCount, now, now);
     return { action: "imported", id: info.lastInsertRowid, path: fileInfo.relativePath };
   }
 
@@ -130,23 +164,22 @@ function importDocument(db, fileInfo, conflictStrategy, now, source) {
 
   if (conflictStrategy === "keep_both") {
     const newSlug = existing.slug + "-" + Date.now();
-    const title = existing.title + " (冲突副本)";
-    const wordCount = fileInfo.content.split(/\s+/).filter(Boolean).length;
-    const tags = JSON.stringify([]);
+    const newTitle = existing.title + " (冲突副本)";
+    const wordCount = body.split(/\s+/).filter(Boolean).length;
     const info = db
       .prepare(
-        `INSERT INTO kb_documents (title, slug, content_markdown, source, original_path, checksum, tags, status, word_count, created_at, updated_at)
-       VALUES (?, ?, ?, 'obsidian', ?, ?, ?, 'active', ?, ?, ?)`,
+        `INSERT INTO kb_documents (title, slug, content_markdown, source, original_path, checksum, tags, status, category, doc_type, connections, sources, doc_date, review_status, word_count, created_at, updated_at)
+       VALUES (?, ?, ?, 'obsidian', ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(title, newSlug, fileInfo.content, fileInfo.relativePath, fileInfo.checksum, tags, wordCount, now, now);
+      .run(newTitle, newSlug, body, fileInfo.relativePath, fileInfo.checksum, tags, category, docType, connections, sources, docDate, reviewStatus, wordCount, now, now);
     return { action: "conflict", id: info.lastInsertRowid, path: fileInfo.relativePath, detail: "created conflict copy" };
   }
 
   // last_write_wins
-  const wordCount = fileInfo.content.split(/\s+/).filter(Boolean).length;
+  const wordCount = body.split(/\s+/).filter(Boolean).length;
   db.prepare(
-    "UPDATE kb_documents SET content_markdown = ?, checksum = ?, content_html = NULL, word_count = ?, updated_at = ? WHERE id = ?",
-  ).run(fileInfo.content, fileInfo.checksum, wordCount, now, existing.id);
+    `UPDATE kb_documents SET title=?, slug=?, content_markdown=?, checksum=?, content_html=NULL, tags=?, category=?, doc_type=?, connections=?, sources=?, doc_date=?, review_status=?, word_count=?, updated_at=? WHERE id=?`,
+  ).run(title, existing.slug, body, fileInfo.checksum, tags, category, docType, connections, sources, docDate, reviewStatus, wordCount, now, existing.id);
   return { action: "updated", id: existing.id, path: fileInfo.relativePath };
 }
 
@@ -226,13 +259,14 @@ async function fullImport(vaultPath, conflictStrategy) {
 }
 
 /**
- * Lightweight scan: only return file paths (no content), for building file trees.
+ * Lightweight scan: only return file paths (no content) from wiki/ subdirectory, for building file trees.
  */
 function scanVaultPaths(vaultPath) {
   const results = [];
-  if (!fs.existsSync(vaultPath)) return results;
+  const wikiPath = path.join(vaultPath, "wiki");
+  if (!fs.existsSync(wikiPath)) return results;
 
-  const resolved = path.resolve(vaultPath);
+  const resolved = path.resolve(wikiPath);
   const normalized = path.normalize(resolved);
 
   function walk(dir) {
@@ -251,14 +285,14 @@ function scanVaultPaths(vaultPath) {
         try { size = fs.statSync(full).size; } catch { /* skip */ }
         if (size > MAX_FILE_SIZE) continue;
         results.push({
-          relativePath: path.relative(vaultPath, full).replace(/\\/g, "/"),
+          relativePath: path.relative(wikiPath, full).replace(/\\/g, "/"),
           size,
           checksum: null, // not computed for tree view
         });
       }
     }
   }
-  walk(vaultPath);
+  walk(wikiPath);
   return results;
 }
 
