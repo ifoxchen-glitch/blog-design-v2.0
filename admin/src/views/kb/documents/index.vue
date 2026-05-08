@@ -28,6 +28,7 @@ import PageHeader from '../../../components/common/PageHeader.vue'
 import PublishDialog from '../../../components/kb/publish/PublishDialog.vue'
 import {
   apiListKbDocuments,
+  apiListKbDocumentCategories,
   apiDeleteKbDocument,
   type KbDocumentListItem,
 } from '../../../api/kb'
@@ -73,6 +74,21 @@ const table = useTable<KbDocumentListItem, DocQuery>({
   initialQuery,
   pageSize: 12,
 })
+
+const categoryOptions = ref<Array<{ label: string; value: string }>>([])
+
+async function loadCategories() {
+  try {
+    const cats = await apiListKbDocumentCategories()
+    categoryOptions.value = [
+      { label: '全部分类', value: '' },
+      ...cats.map(c => ({ label: c, value: c })),
+    ]
+  } catch {
+    categoryOptions.value = [{ label: '全部分类', value: '' }]
+  }
+}
+loadCategories()
 
 const SOURCE_OPTIONS = [
   { label: '全部来源', value: '' },
@@ -145,6 +161,14 @@ const tableColumns = computed(() => [
     width: 90,
     render(row: KbDocumentListItem) {
       return h(NTag, { size: 'small', type: sourceTagType(row.source) }, () => sourceLabel(row.source))
+    },
+  },
+  {
+    title: '分类',
+    key: 'category' as const,
+    width: 100,
+    render(row: KbDocumentListItem) {
+      return row.category ? h(NTag, { size: 'small', type: 'info' }, () => row.category) : ''
     },
   },
   {
@@ -263,6 +287,13 @@ const tableColumns = computed(() => [
         clearable
         style="width: 120px"
       />
+      <NSelect
+        v-model:value="table.query.category"
+        :options="categoryOptions"
+        placeholder="分类"
+        clearable
+        style="width: 130px"
+      />
       <NButton quaternary circle :loading="table.loading.value" @click="table.refresh()">
         <RefreshOutline class="w-4 h-4" />
       </NButton>
@@ -308,6 +339,7 @@ const tableColumns = computed(() => [
                 </span>
               </div>
               <p class="text-xs text-base-content/30 mt-1 truncate">{{ row.slug }}</p>
+              <p v-if="row.category" class="text-xs text-primary/60 mt-1">分类: {{ row.category }}</p>
 
               <!-- 标签 -->
               <div class="flex flex-wrap gap-1 mt-2.5">
