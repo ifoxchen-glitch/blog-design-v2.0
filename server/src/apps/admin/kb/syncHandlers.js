@@ -205,7 +205,17 @@ async function testFilesystem(req, res) {
       return res.json({ code: 200, data: { ok: false, message: "路径不是目录", path: resolved } });
     }
 
-    // Scan for .md files
+    // Only scan the wiki/ subdirectory
+    const wikiPath = require("path").join(resolved, "wiki");
+    if (!fs.existsSync(wikiPath)) {
+      const detail = `路径下未找到 wiki/ 子目录: ${resolved}`;
+      db.prepare(
+        "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
+      ).run("import", vaultPath, "error", detail, now);
+      return res.json({ code: 200, data: { ok: false, message: detail, path: wikiPath } });
+    }
+
+    // Scan for .md files in wiki/
     let mdCount = 0;
     let totalSize = 0;
     function walk(dir, depth) {
@@ -224,7 +234,7 @@ async function testFilesystem(req, res) {
         }
       }
     }
-    walk(resolved, 0);
+    walk(wikiPath, 0);
 
     const detail = `连接成功: 找到 ${mdCount} 个 .md 文件 (${(totalSize / 1024 / 1024).toFixed(1)} MB)`;
     db.prepare(
