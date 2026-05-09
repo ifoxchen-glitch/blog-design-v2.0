@@ -33,10 +33,10 @@ async function handleAddFromDoc(doc: KbDocumentListItem) {
   const extent = canvas.cy.value.extent()
   const cx = (extent.x1 + extent.x2) / 2
   const cy_ = (extent.y1 + extent.y2) / 2
-  const jitter = (Math.random() - 0.5) * 100
-  const result = await canvas.addDocNode(doc, cx + jitter, cy_ + jitter)
+  const result = await canvas.addDocNodeWithConnections(doc, cx, cy_)
   if (result) {
-    message.success(`已添加「${doc.title}」`)
+    message.success(`已添加「${doc.title}」及关联文档`)
+    canvas.isDirty.value = true
   } else {
     message.error('添加失败')
   }

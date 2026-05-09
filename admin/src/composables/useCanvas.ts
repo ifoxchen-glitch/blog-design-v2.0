@@ -8,10 +8,13 @@ import {
   apiDeleteCanvasNode,
   apiAddCanvasEdge,
   apiDeleteCanvasEdge,
+  apiGetKbDocument,
+  apiGetKbGraph,
   type CanvasData,
   type CanvasNode,
   type CanvasEdge,
   type KbDocumentListItem,
+  type KbGraphNode,
 } from '../api/kb'
 
 function dbNodeId(cyId: string): number {
@@ -41,6 +44,7 @@ export interface UseCanvasReturn {
   toJson: () => CanvasData | null
   addNode: (type: string, x: number, y: number) => Promise<string | null>
   addDocNode: (doc: KbDocumentListItem, x: number, y: number) => Promise<string | null>
+  addDocNodeWithConnections: (doc: KbDocumentListItem, x: number, y: number) => Promise<string | null>
   removeSelected: () => Promise<void>
   addEdge: (sourceId: string, targetId: string) => Promise<boolean>
   updateNodeLabel: (nodeId: string, label: string) => Promise<void>
@@ -421,6 +425,100 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     }
   }
 
+  /**
+   * Add a KB document node AND auto-add + connect its related documents.
+   * Fetches the document's connections/sources, finds matching docs in the
+   * knowledge graph, creates nodes for them (if not already on canvas), and
+   * creates edges between the main document and each connected document.
+   */
+  async function addDocNodeWithConnections(doc: KbDocumentListItem, x: number, y: number): Promise<string | null> {
+    if (!cy.value || !canvasId.value) return null
+
+    // 1. Add the main document node
+    const mainNodeId = await addDocNode(doc, x, y)
+    if (!mainNodeId) return null
+
+    // 2. Fetch document detail to get connections/sources
+    let connectedTitles: string[] = []
+    try {
+      const detail = await apiGetKbDocument(doc.id)
+      connectedTitles = [...(detail.connections || []), ...(detail.sources || [])]
+    } catch {
+      // If we can't fetch detail, just return the main node
+      return mainNodeId
+    }
+
+    if (connectedTitles.length === 0) return mainNodeId
+
+    // 3. Fetch graph data to find connected doc IDs and titles
+    let titleToNode = new Map<string, KbGraphNode>()
+    try {
+      const graphData = await apiGetKbGraph()
+      for (const n of graphData.nodes) {
+        titleToNode.set(n.title, n)
+      }
+    } catch {
+      return mainNodeId
+    }
+
+    // 4. Add connected docs as nodes and create edges
+    const existingTitles = new Set(
+      cy.value.nodes().map(n => (n.data('metadata') as Record<string, unknown> | undefined)?.['doc_title'] as string).filter(Boolean)
+    )
+    const addedTitles = new Set<string>([doc.title])
+
+    let offsetRow = 0
+    for (const title of connectedTitles) {
+      if (addedTitles.has(title)) continue
+      addedTitles.add(title)
+
+      const graphNode = titleToNode.get(title)
+      if (!graphNode) continue
+
+      // Check if this doc already exists on the canvas (by doc_title in metadata)
+      if (existingTitles.has(title)) {
+        // Find existing node and create edge to it
+        const existingNodes = cy.value.nodes().filter(n => {
+          const meta = n.data('metadata') as Record<string, unknown> | undefined
+          return meta?.['doc_title'] === title
+        })
+        if (existingNodes.length > 0) {
+          await addEdge(mainNodeId, existingNodes[0].id())
+        }
+        continue
+      }
+
+      offsetRow++
+      const dx = (offsetRow % 3) * 220 - 220
+      const dy = Math.floor(offsetRow / 3) * 150 + 150
+
+      const connectedDoc: KbDocumentListItem = {
+        id: Number(graphNode.id),
+        title: graphNode.title,
+        slug: graphNode.slug,
+        excerpt: graphNode.excerpt,
+        source: 'manual' as const,
+        tags: graphNode.tags,
+        status: 'active' as const,
+        category: graphNode.category,
+        doc_type: (graphNode.doc_type || 'concept') as KbDocumentListItem['doc_type'],
+        doc_date: null,
+        review_status: (graphNode.review_status || null) as KbDocumentListItem['review_status'],
+        word_count: 0,
+        created_at: '',
+        updated_at: '',
+      }
+
+      const connectedNodeId = await addDocNode(connectedDoc, x + dx, y + dy)
+      if (connectedNodeId) {
+        existingTitles.add(title)
+        await addEdge(mainNodeId, connectedNodeId)
+      }
+    }
+
+    return mainNodeId
+  }
+
   async function removeSelected(): Promise<void> {
     if (!cy.value || !canvasId.value) return
     const sel = cy.value.$(':selected')
@@ -561,6 +659,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     toJson,
     addNode,
     addDocNode,
+    addDocNodeWithConnections,
     removeSelected,
     addEdge,
     updateNodeLabel,

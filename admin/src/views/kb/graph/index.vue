@@ -108,11 +108,6 @@ function renderGraph() {
   }
 
   const { nodes, edges } = filterNodes()
-  console.log('[kb-graph] rendering', nodes.length, 'nodes,', edges.length, 'edges')
-  if (nodes.length > 0) {
-    console.log('[kb-graph] sample node:', JSON.stringify(nodes[0]))
-  }
-
   cy = cytoscape({
     container: graphContainer.value,
     elements: [
@@ -195,11 +190,8 @@ function renderGraph() {
   })
 
   cy.ready(() => {
-    console.log('[kb-graph] cy ready, nodes:', cy!.nodes().length, 'edges:', cy!.edges().length)
-    console.log('[kb-graph] extent:', cy!.extent())
-    console.log('[kb-graph] container size:', cy!.container()?.clientWidth, cy!.container()?.clientHeight)
     // Defer fit to ensure layout completes
-    setTimeout(() => { cy!.fit(undefined, 40); console.log('[kb-graph] deferred fit done') }, 300)
+    setTimeout(() => { cy!.fit(undefined, 40) }, 300)
   })
 
   cy.on('tap', 'node', (evt) => {

@@ -110,8 +110,29 @@ function bindEvents() {
   cy.on('tap', 'node', (evt: { target: { id: () => string; data: (key: string) => unknown; position: () => { x: number; y: number } } }) => {
     hideCtxMenu()
     const n = evt.target
+    const nodeId = n.id()
+
+    // Connect mode: first click sets source, second click creates edge
+    if (canvas.connectMode.value) {
+      if (connectSource.value) {
+        if (connectSource.value === nodeId) {
+          message.warning('不能连接自身')
+          return
+        }
+        canvas.addEdge(connectSource.value, nodeId).then((ok) => {
+          if (ok) message.success('连线已创建')
+          else message.warning('连线已存在或创建失败')
+          connectSource.value = null
+        })
+      } else {
+        connectSource.value = nodeId
+        message.info('已选择起点，请点击目标节点完成连线')
+      }
+      return
+    }
+
     emit('node-click', {
-      id: dbNodeId(n.id()),
+      id: dbNodeId(nodeId),
       type: n.data('type'),
       label: n.data('label'),
       content: n.data('content'),
@@ -163,7 +184,10 @@ function bindEvents() {
 
   cy.on('tap', (evt: { target: unknown }) => {
     hideCtxMenu()
-    connectSource.value = null
+    // In connect mode, clicking background cancels the pending source
+    if (!canvas.connectMode.value) {
+      connectSource.value = null
+    }
     if (evt.target === cy) {
       emit('canvas-click')
     }
@@ -231,9 +255,6 @@ watch(() => canvas.connectMode.value, (active) => {
     connectSource.value = null
   }
 })
-
-// Additional tap handler for connect mode
-// We handle this in the existing tap handler by checking connectMode + connectSource
 
 onMounted(() => {
   if (container.value) {
