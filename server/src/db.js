@@ -327,6 +327,7 @@ function migrate(db) {
       sync_interval_minutes INTEGER NOT NULL DEFAULT 30,
       conflict_strategy TEXT NOT NULL DEFAULT 'last_write_wins' CHECK (conflict_strategy IN ('last_write_wins','keep_both','skip')),
       last_sync_at TEXT,
+      selected_paths TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -364,6 +365,9 @@ function migrate(db) {
   try {
     db.exec(`UPDATE kb_documents SET original_path = SUBSTR(original_path, 6), checksum = NULL, updated_at = datetime('now') WHERE source = 'obsidian' AND original_path LIKE 'wiki/%'`);
   } catch { /* ignore */ }
+
+  // Add selected_paths column for sync folder selection
+  try { db.exec(`ALTER TABLE kb_sync_config ADD COLUMN selected_paths TEXT NOT NULL DEFAULT '[]'`); } catch { /* already exists */ }
 
 }
 

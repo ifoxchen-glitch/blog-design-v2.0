@@ -28,7 +28,18 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 /**
  * Recursively scan the wiki/ subdirectory for .md files, returning file info with checksums.
  */
-function scanVault(vaultPath) {
+function matchSelectedPaths(relPath, selectedPaths) {
+  if (!selectedPaths || selectedPaths.length === 0) return true; // no filter = include all
+  return selectedPaths.some(sp => {
+    // sp can be a folder (e.g., "concepts/") or a file (e.g., "entities/ai.md")
+    if (sp.endsWith('/')) {
+      return relPath.startsWith(sp);
+    }
+    return relPath === sp || relPath.startsWith(sp + '/');
+  });
+}
+
+function scanVault(vaultPath, selectedPaths) {
   const results = [];
   const wikiPath = path.join(vaultPath, "wiki");
   if (!fs.existsSync(wikiPath)) return results;
@@ -61,6 +72,7 @@ function scanVault(vaultPath) {
         }
         if (stat.size > MAX_FILE_SIZE) continue;
         const relPath = path.relative(wikiPath, full).replace(/\\/g, "/");
+        if (!matchSelectedPaths(relPath, selectedPaths)) continue;
         const content = fs.readFileSync(full, "utf8");
         results.push({
           relativePath: relPath,
@@ -236,12 +248,12 @@ async function importFromFiles(files, conflictStrategy, source) {
 /**
  * Full import from filesystem: scan vault, import each file, log results.
  */
-async function fullImport(vaultPath, conflictStrategy) {
+async function fullImport(vaultPath, conflictStrategy, selectedPaths) {
   if (!acquireLock()) throw new Error("同步正在进行中，请稍后重试");
   const db = openDb();
   const now = new Date().toISOString();
   try {
-    const files = scanVault(vaultPath);
+    const files = scanVault(vaultPath, selectedPaths);
     return await importFromFiles(files, conflictStrategy, "obsidian");
   } catch (err) {
     console.error("[kb-sync] fullImport error:", err.message);

@@ -448,6 +448,7 @@ export interface SyncConfig {
   sync_interval_minutes: number
   conflict_strategy: 'last_write_wins' | 'keep_both' | 'skip'
   last_sync_at: string | null
+  selected_paths: string[]
 }
 
 export interface SyncStatus {
@@ -485,6 +486,7 @@ export interface UpdateSyncConfigPayload {
   auto_sync_enabled?: boolean
   sync_interval_minutes?: number
   conflict_strategy?: 'last_write_wins' | 'keep_both' | 'skip'
+  selected_paths?: string[]
 }
 
 export async function apiUpdateSyncConfig(

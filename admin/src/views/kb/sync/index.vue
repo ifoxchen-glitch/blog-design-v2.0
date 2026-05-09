@@ -22,6 +22,7 @@ import {
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import SyncFileTree from '../../../components/kb/SyncFileTree.vue'
+import FolderCheckItem from '../../../components/kb/FolderCheckItem.vue'
 import {
   apiGetSyncConfig,
   apiUpdateSyncConfig,
@@ -77,7 +78,19 @@ const config = ref<SyncConfig>({
   sync_interval_minutes: 30,
   conflict_strategy: 'last_write_wins',
   last_sync_at: null,
+  selected_paths: [],
 })
+
+// Folder selection toggle
+function toggleFolderSelect(folderPath: string) {
+  const paths = config.value.selected_paths
+  const idx = paths.indexOf(folderPath)
+  if (idx >= 0) {
+    paths.splice(idx, 1)
+  } else {
+    paths.push(folderPath)
+  }
+}
 
 const status = ref<SyncStatus>({
   running: false,
@@ -143,7 +156,7 @@ async function loadConfig() {
   try {
     config.value = await apiGetSyncConfig()
     if (!config.value) {
-      config.value = { vault_path: '', auto_sync_enabled: false, sync_interval_minutes: 30, conflict_strategy: 'last_write_wins', last_sync_at: null }
+      config.value = { vault_path: '', auto_sync_enabled: false, sync_interval_minutes: 30, conflict_strategy: 'last_write_wins', last_sync_at: null, selected_paths: [] }
     }
   } catch { /* ignore */ } finally {
     loading.value = false
@@ -170,6 +183,7 @@ async function handleSaveConfig() {
       auto_sync_enabled: config.value.auto_sync_enabled,
       sync_interval_minutes: config.value.sync_interval_minutes,
       conflict_strategy: config.value.conflict_strategy,
+      selected_paths: config.value.selected_paths,
     })
     message.success('配置已保存')
   } catch {
@@ -743,6 +757,29 @@ onMounted(() => {
               :disabled="!hasSyncPerm"
               @update:value="(val: number | null) => { if (val !== null) config.sync_interval_minutes = val }"
             />
+          </div>
+
+          <!-- Folder selection -->
+          <div>
+            <label class="text-xs text-base-content/50 block mb-1.5">
+              同步文件夹
+              <span class="text-base-content/20 ml-1">(选中的文件夹及其子文件会被同步)</span>
+            </label>
+            <div class="border border-base-content/10 rounded-lg p-2 max-h-48 overflow-y-auto">
+              <NSpin :show="treeLoading" size="small">
+                <div v-if="remoteTree.tree.length === 0 && !treeLoading" class="text-[10px] text-base-content/30 p-2">
+                  请先配置仓库路径并测试连接
+                </div>
+                <FolderCheckItem
+                  v-for="node in remoteTree.tree"
+                  :key="node.path"
+                  :node="node"
+                  :selected-paths="config.selected_paths"
+                  :depth="0"
+                  @toggle="toggleFolderSelect"
+                />
+              </NSpin>
+            </div>
           </div>
         </div>
 

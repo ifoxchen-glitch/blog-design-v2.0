@@ -3,6 +3,11 @@ const { openDb } = require("../../../db");
 const { nowIso, toInt } = require("../../../utils");
 const syncEngine = require("./syncEngine");
 
+function parseJsonArray(raw) {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
 function auditLog(db, req, action, resourceId, detail, resourceType) {
   try {
     db.prepare(
@@ -35,6 +40,7 @@ function getSyncConfig(_req, res) {
           sync_interval_minutes: config.sync_interval_minutes,
           conflict_strategy: config.conflict_strategy,
           last_sync_at: config.last_sync_at,
+          selected_paths: parseJsonArray(config.selected_paths),
         }
       : null,
   });
@@ -44,7 +50,7 @@ function updateSyncConfig(req, res) {
   const db = openDb();
   const now = nowIso();
   const {
-    vault_path, auto_sync_enabled, sync_interval_minutes, conflict_strategy,
+    vault_path, auto_sync_enabled, sync_interval_minutes, conflict_strategy, selected_paths,
   } = req.body || {};
 
   const existing = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
@@ -57,16 +63,18 @@ function updateSyncConfig(req, res) {
     auto_sync_enabled: auto_sync_enabled !== undefined ? (auto_sync_enabled ? 1 : 0) : existing.auto_sync_enabled,
     sync_interval_minutes: sync_interval_minutes ?? existing.sync_interval_minutes,
     conflict_strategy: conflict_strategy ?? existing.conflict_strategy,
+    selected_paths: selected_paths !== undefined ? JSON.stringify(selected_paths) : existing.selected_paths,
     updated_at: now,
   };
 
   db.prepare(
-    `UPDATE kb_sync_config SET vault_path=?, auto_sync_enabled=?, sync_interval_minutes=?, conflict_strategy=?, updated_at=? WHERE id=1`,
+    `UPDATE kb_sync_config SET vault_path=?, auto_sync_enabled=?, sync_interval_minutes=?, conflict_strategy=?, selected_paths=?, updated_at=? WHERE id=1`,
   ).run(
     updates.vault_path,
     updates.auto_sync_enabled,
     updates.sync_interval_minutes,
     updates.conflict_strategy,
+    updates.selected_paths,
     updates.updated_at,
   );
 
@@ -98,7 +106,8 @@ async function triggerImport(req, res) {
   res.status(202).json({ code: 202, message: "同步已启动 (文件系统)", data: { status: "started" } });
 
   try {
-    await syncEngine.fullImport(config.vault_path, config.conflict_strategy || "last_write_wins");
+    const selected = parseJsonArray(config.selected_paths);
+    await syncEngine.fullImport(config.vault_path, config.conflict_strategy || "last_write_wins", selected.length > 0 ? selected : null);
   } catch (err) {
     console.error("[kb-sync] import failed:", err.message);
     try {
