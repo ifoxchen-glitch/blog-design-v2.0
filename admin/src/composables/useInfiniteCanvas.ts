@@ -330,8 +330,17 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     if (!canvas) return
 
     canvas.clear()
+    // Reset sequences to max known IDs + buffer to avoid collisions
     _nodeSeq = 1000
     _edgeSeq = 1000
+    for (const node of nodes) {
+      const idNum = parseInt(String(node.id).replace(/[^0-9]/g, '')) || 0
+      _nodeSeq = Math.max(_nodeSeq, idNum + 1)
+    }
+    for (const edge of edges) {
+      const idNum = parseInt(String(edge.id).replace(/[^0-9]/g, '')) || 0
+      _edgeSeq = Math.max(_edgeSeq, idNum + 1)
+    }
 
     // Restore viewport
     canvas.setZoom(viewport.zoom || 1)
@@ -1066,9 +1075,11 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
   function updateDbIds(nodes: any[], edges: any[]) {
     const canvas = fabCanvas.value
     if (!canvas) return
+    const fabricObjs = canvas.getObjects()
     for (const node of nodes) {
       if (node.id > 0) {
-        const obj = canvas.getObjects().find(o => (o as any).fabricId === `n-${node.id}` || ((o as any).dbId === 0 && (o as any)._label === node.label))
+        const fabricId = `n-${node.id}`
+        const obj = fabricObjs.find(o => (o as any).fabricId === fabricId)
         if (obj) {
           ;(obj as any).dbId = node.id
         }
@@ -1076,7 +1087,8 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     }
     for (const edge of edges) {
       if (edge.id > 0) {
-        const obj = canvas.getObjects().find(o => (o as any).customType === 'connection' && (o as any).dbId === 0 && (o as any).fromDbId === edge.source_node_id && (o as any).toDbId === edge.target_node_id)
+        const fabricId = `e-${edge.id}`
+        const obj = fabricObjs.find(o => (o as any).fabricId === fabricId)
         if (obj) {
           ;(obj as any).dbId = edge.id
         }
