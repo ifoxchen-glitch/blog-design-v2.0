@@ -312,8 +312,6 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
         dragOffsetX = pos.x - el.x
         dragOffsetY = pos.y - el.y
       }
-      dragStartX = pos.x
-      dragStartY = pos.y
     } else {
       // Click on empty canvas
       clearSelection()
@@ -447,8 +445,6 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
         const pos = screenToCanvas(e.clientX, e.clientY)
         dragOffsetX = pos.x - data.x
         dragOffsetY = pos.y - data.y
-        dragStartX = pos.x
-        dragStartY = pos.y
       })
 
       el.addEventListener('click', (e: MouseEvent) => {

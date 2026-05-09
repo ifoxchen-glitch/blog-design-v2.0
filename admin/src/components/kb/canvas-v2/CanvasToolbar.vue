@@ -2,8 +2,8 @@
 import { inject } from 'vue'
 import { NButton, NPopover, NSpace } from 'naive-ui'
 import {
-  MoveOutline, ResizeOutline, DocumentTextOutline, ShapesOutline,
-  LinkOutline, TrashOutline, ExpandOutline, DownloadOutline,
+  MoveOutline, ResizeOutline, DocumentTextOutline,
+  LinkOutline, TrashOutline, ExpandOutline,
   SaveOutline, AddOutline, RemoveOutline,
 } from '@vicons/ionicons5'
 import type { CanvasTool, UseInfiniteCanvasReturn } from '../../../composables/useInfiniteCanvas'
@@ -11,35 +11,20 @@ import type { CanvasTool, UseInfiniteCanvasReturn } from '../../../composables/u
 const canvas = inject<UseInfiniteCanvasReturn>('canvasV2')!
 const emit = defineEmits<{ (e: 'save'): void }>()
 
-const tools: Array<{ tool: CanvasTool; icon: any; label: string }> = [
+const tools: Array<{ tool: Exclude<CanvasTool, 'note' | 'connect'>; icon: any; label: string }> = [
   { tool: 'select', icon: MoveOutline, label: '选择 (V)' },
   { tool: 'pan', icon: ResizeOutline, label: '平移 (H)' },
 ]
 
-const shapes: Array<{ tool: CanvasTool; label: string }> = [
-  { tool: 'rect', label: '矩形' },
-  { tool: 'circle', label: '圆形' },
-  { tool: 'triangle', label: '三角形' },
-]
-
 function setTool(tool: CanvasTool) {
   canvas.currentTool.value = tool
-  if (canvas.fabCanvas.value) {
-    canvas.fabCanvas.value.selection = tool === 'select'
-    if (tool === 'pan') {
-      canvas.fabCanvas.value.setCursor('grab')
-    } else {
-      canvas.fabCanvas.value.setCursor(tool === 'select' ? 'default' : 'crosshair')
-    }
-  }
 }
 
 function handleConnect() {
   if (canvas.currentTool.value === 'connect') {
-    setTool('select')
-    canvas.cancelConnection()
+    canvas.currentTool.value = 'select'
   } else {
-    setTool('connect')
+    canvas.currentTool.value = 'connect'
   }
 }
 </script>
@@ -69,22 +54,6 @@ function handleConnect() {
       <DocumentTextOutline class="w-3.5 h-3.5" />
     </NButton>
 
-    <!-- Shapes popover -->
-    <NPopover trigger="hover">
-      <template #trigger>
-        <NButton size="tiny" quaternary title="形状"
-          :type="['rect','circle','triangle'].includes(canvas.currentTool.value) ? 'primary' : 'default'">
-          <ShapesOutline class="w-3.5 h-3.5" />
-        </NButton>
-      </template>
-      <div class="flex flex-col gap-1 p-1">
-        <NButton v-for="s in shapes" :key="s.tool" size="tiny" quaternary
-          @click="setTool(s.tool)" :type="canvas.currentTool.value === s.tool ? 'primary' : 'default'">
-          {{ s.label }}
-        </NButton>
-      </div>
-    </NPopover>
-
     <div class="w-px h-4 bg-base-content/10 mx-1" />
 
     <!-- Connect -->
@@ -94,48 +63,18 @@ function handleConnect() {
     </NButton>
 
     <!-- Delete selected -->
-    <NButton size="tiny" quaternary @click="canvas.removeSelectedElements()" title="删除选中 (Del)">
+    <NButton size="tiny" quaternary @click="canvas.removeSelected()" title="删除选中 (Del)">
       <TrashOutline class="w-3.5 h-3.5" />
     </NButton>
 
     <div class="w-px h-4 bg-base-content/10 mx-1" />
 
-    <!-- Auto-layout -->
-    <NPopover trigger="hover">
-      <template #trigger>
-        <NButton size="tiny" quaternary title="自动布局" disabled>
-          <ShapesOutline class="w-3.5 h-3.5" />
-        </NButton>
-      </template>
-      <div class="flex flex-col gap-1 p-1 text-xs text-base-content/50">
-        <span>即将支持自动布局</span>
-      </div>
-    </NPopover>
-
-    <div class="w-px h-4 bg-base-content/10 mx-1" />
-
     <!-- Zoom controls -->
-    <NButton size="tiny" quaternary @click="() => {
-      const c = canvas.fabCanvas.value
-      if (c) {
-        const z = Math.max(0.05, c.getZoom() * 0.8)
-        c.setZoom(z)
-        canvas.zoom.value = Math.round(z * 100)
-        c.requestRenderAll()
-      }
-    }" title="缩小">
+    <NButton size="tiny" quaternary @click="canvas.zoomOut()" title="缩小">
       <RemoveOutline class="w-3.5 h-3.5" />
     </NButton>
     <span class="text-[10px] text-base-content/50 w-10 text-center tabular-nums">{{ canvas.zoom.value }}%</span>
-    <NButton size="tiny" quaternary @click="() => {
-      const c = canvas.fabCanvas.value
-      if (c) {
-        const z = Math.min(10, c.getZoom() * 1.25)
-        c.setZoom(z)
-        canvas.zoom.value = Math.round(z * 100)
-        c.requestRenderAll()
-      }
-    }" title="放大">
+    <NButton size="tiny" quaternary @click="canvas.zoomIn()" title="放大">
       <AddOutline class="w-3.5 h-3.5" />
     </NButton>
     <NButton size="tiny" quaternary @click="canvas.zoomToFit()" title="适应画布">
@@ -145,10 +84,7 @@ function handleConnect() {
     <div class="flex-1" />
 
     <!-- Export + Save -->
-    <NButton size="tiny" quaternary @click="canvas.exportPng()" title="导出 PNG">
-      <DownloadOutline class="w-3.5 h-3.5" />
-    </NButton>
-    <NButton size="tiny" type="primary" @click="emit('save')" title="保存">
+    <NButton size="tiny" quaternary @click="emit('save')" title="保存">
       <SaveOutline class="w-3.5 h-3.5" />
     </NButton>
   </div>
