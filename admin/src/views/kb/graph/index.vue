@@ -102,14 +102,6 @@ function filterNodes(): { nodes: KbGraphNode[]; edges: KbGraphEdge[] } {
 function renderGraph() {
   if (!graphContainer.value) return
 
-  // Wait for container to have pixel dimensions before init
-  const rect = graphContainer.value.getBoundingClientRect()
-  console.log('[kb-graph] container rect:', rect.width, 'x', rect.height)
-  if (rect.width === 0 || rect.height === 0) {
-    requestAnimationFrame(() => renderGraph())
-    return
-  }
-
   if (cy) {
     cy.destroy()
     cy = null
@@ -117,7 +109,9 @@ function renderGraph() {
 
   const { nodes, edges } = filterNodes()
   console.log('[kb-graph] rendering', nodes.length, 'nodes,', edges.length, 'edges')
-  console.log('[kb-graph] node colors:', nodes.map(n => n.color))
+  if (nodes.length > 0) {
+    console.log('[kb-graph] sample node:', JSON.stringify(nodes[0]))
+  }
 
   cy = cytoscape({
     container: graphContainer.value,
@@ -126,14 +120,14 @@ function renderGraph() {
         data: {
           id: n.id,
           label: n.title.length > 20 ? n.title.slice(0, 20) + '…' : n.title,
-          title: n.title,
+          nodeColor: n.color || '#f59e0b',
+          fullTitle: n.title,
+          slug: n.slug,
           category: n.category,
           doc_type: n.doc_type,
           review_status: n.review_status,
           tags: n.tags,
           excerpt: n.excerpt,
-          slug: n.slug,
-          color: n.color,
         },
       })),
       ...edges.map((e, i) => ({
@@ -150,7 +144,7 @@ function renderGraph() {
         selector: 'node',
         style: {
           'shape': 'round-rectangle',
-          'background-color': 'data(color)',
+          'background-color': 'data(nodeColor)',
           'label': 'data(label)',
           'width': 100,
           'height': 40,
@@ -161,7 +155,7 @@ function renderGraph() {
           'text-wrap': 'ellipsis',
           'text-max-width': '90px',
           'border-width': 2,
-          'border-color': 'data(color)',
+          'border-color': 'data(nodeColor)',
           'border-opacity': 0.7,
           'padding': '8px',
           'min-zoomed-font-size': 6,
@@ -213,14 +207,14 @@ function renderGraph() {
     const d = n.data()
     selectedNode.value = {
       id: d.id,
-      title: d.title,
-      slug: d.slug,
-      category: d.category,
-      doc_type: d.doc_type,
-      review_status: d.review_status,
-      tags: d.tags,
-      excerpt: d.excerpt,
-      color: d.color,
+      title: d.fullTitle || d.label,
+      slug: d.slug || '',
+      category: d.category || null,
+      doc_type: d.doc_type || null,
+      review_status: d.review_status || null,
+      tags: d.tags || [],
+      excerpt: d.excerpt || null,
+      color: d.nodeColor || '#6366f1',
     }
   })
 
