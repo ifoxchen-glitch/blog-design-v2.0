@@ -99,7 +99,7 @@ onBeforeUnmount(() => {
     <CanvasToolbar class="shrink-0" />
 
     <!-- Main area -->
-    <div class="flex flex-1 min-h-0 relative">
+    <div class="flex flex-1 min-h-0 overflow-hidden">
       <div class="flex-1 relative">
         <CanvasGraph
           :canvas-id="canvasId"
