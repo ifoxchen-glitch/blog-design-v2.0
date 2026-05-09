@@ -143,6 +143,18 @@ const router = createRouter({
           meta: { permission: 'kb:list' },
         },
         {
+          path: '/cms/kb/canvases-v2',
+          name: 'kb-canvases-v2',
+          component: () => import('../views/kb/canvases-v2/index.vue'),
+          meta: { permission: 'kb:list' },
+        },
+        {
+          path: '/cms/kb/canvases-v2/:id',
+          name: 'kb-canvas-editor-v2',
+          component: () => import('../views/kb/canvases-v2/editor.vue'),
+          meta: { permission: 'kb:update' },
+        },
+        {
           path: '/cms/kb/canvases/:id',
           name: 'kb-canvas-editor',
           component: () => import('../views/kb/canvases/editor.vue'),
