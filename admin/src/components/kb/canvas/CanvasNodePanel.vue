@@ -80,39 +80,6 @@ function handleOpenDetail() {
           {{ kbMeta.excerpt }}
         </div>
 
-        <!-- Connections -->
-        <div v-if="kbMeta.connections && (kbMeta.connections as string[]).length > 0">
-          <label class="text-[11px] text-base-content/50 block mb-1.5">引用关键词条</label>
-          <div class="flex flex-wrap gap-1">
-            <NTag
-              v-for="conn in (kbMeta.connections as string[])"
-              :key="conn"
-              size="tiny"
-              :bordered="false"
-              type="success"
-              round
-            >
-              {{ conn }}
-            </NTag>
-          </div>
-        </div>
-
-        <!-- Sources -->
-        <div v-if="kbMeta.sources && (kbMeta.sources as string[]).length > 0">
-          <label class="text-[11px] text-base-content/50 block mb-1.5">参考来源</label>
-          <div class="flex flex-col gap-0.5">
-            <a
-              v-for="src in (kbMeta.sources as string[])"
-              :key="src"
-              :href="src"
-              target="_blank"
-              class="text-[11px] text-primary hover:underline truncate"
-            >
-              {{ src }}
-            </a>
-          </div>
-        </div>
-
         <!-- Tags -->
         <div v-if="kbMeta.tags && (kbMeta.tags as string[]).length > 0">
           <label class="text-[11px] text-base-content/50 block mb-1.5">标签</label>

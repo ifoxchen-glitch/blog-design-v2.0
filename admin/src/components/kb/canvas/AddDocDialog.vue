@@ -2,7 +2,6 @@
 import { ref, watch, onMounted } from 'vue'
 import {
   NModal,
-  NButton,
   NInput,
   NSpin,
   NEmpty,
@@ -11,7 +10,6 @@ import {
 import {
   SearchOutline,
   DocumentOutline,
-  LinkOutline,
   ArrowForwardOutline,
 } from '@vicons/ionicons5'
 import {
@@ -29,7 +27,6 @@ const emit = defineEmits<{
   (e: 'select', doc: KbDocumentListItem): void
 }>()
 
-const loading = ref(false)
 const categories = ref<Array<{ label: string; value: string }>>([])
 const selectedCategory = ref<string>('')
 const search = ref('')
@@ -176,12 +173,6 @@ onMounted(() => {
                   {{ reviewLabel(doc.review_status) }}
                 </NTag>
                 <NTag v-if="doc.doc_type" size="tiny" :bordered="false" type="warning">{{ doc.doc_type }}</NTag>
-
-                <!-- Connections preview -->
-                <span v-if="doc.connections && doc.connections.length > 0" class="flex items-center gap-0.5 text-[10px] text-base-content/30">
-                  <LinkOutline class="w-3 h-3" />
-                  {{ doc.connections.length }}
-                </span>
 
                 <!-- Tags -->
                 <span

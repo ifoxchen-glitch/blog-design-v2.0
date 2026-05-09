@@ -382,8 +382,6 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       doc_type: doc.doc_type,
       review_status: doc.review_status,
       tags: doc.tags,
-      connections: doc.connections,
-      sources: doc.sources,
       excerpt: doc.excerpt,
     }
 

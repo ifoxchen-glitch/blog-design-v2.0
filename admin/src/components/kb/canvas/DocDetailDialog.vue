@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { NModal, NTag, NSpin, NEmpty } from 'naive-ui'
-import { LinkOutline, TagOutline, DocumentOutline, TimeOutline } from '@vicons/ionicons5'
+import { LinkOutline, DocumentOutline, TimeOutline, PricetagOutline } from '@vicons/ionicons5'
 import { apiGetKbDocument } from '../../../api/kb'
 import type { KbDocumentDetail } from '../../../api/kb'
 
@@ -131,7 +131,7 @@ function docTypeLabel(s: string | null): string {
         <!-- Tags -->
         <div v-if="doc.tags && doc.tags.length > 0">
           <div class="flex items-center gap-1.5 text-xs text-base-content/50 mb-2">
-            <TagOutline class="w-3.5 h-3.5" />
+            <PricetagOutline class="w-3.5 h-3.5" />
             <span>标签</span>
           </div>
           <div class="flex flex-wrap gap-1.5">
