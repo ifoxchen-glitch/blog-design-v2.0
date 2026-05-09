@@ -352,7 +352,6 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     for (const node of nodes) {
       const meta = node.metadata || {}
       const id = `n-${node.id}`
-      _nodeSeq = Math.max(_nodeSeq, node.id + 1)
 
       if (meta.doc_id) {
         // KB doc card
