@@ -102,6 +102,13 @@ function filterNodes(): { nodes: KbGraphNode[]; edges: KbGraphEdge[] } {
 function renderGraph() {
   if (!graphContainer.value) return
 
+  // Wait for container to have pixel dimensions before init
+  const rect = graphContainer.value.getBoundingClientRect()
+  if (rect.width === 0 || rect.height === 0) {
+    requestAnimationFrame(() => renderGraph())
+    return
+  }
+
   if (cy) {
     cy.destroy()
     cy = null
@@ -162,10 +169,6 @@ function renderGraph() {
         style: { 'border-width': 4, 'border-color': '#f59e0b', 'border-opacity': 1 },
       },
       {
-        selector: 'node:hover',
-        style: { 'border-width': 3, 'border-color': '#f59e0b', 'border-opacity': 1 },
-      },
-      {
         selector: 'edge',
         style: {
           'width': 1.5,
@@ -208,6 +211,18 @@ function renderGraph() {
       excerpt: d.excerpt,
       color: d.color,
     }
+  })
+
+  // Hover effects via Cytoscape events (CSS :hover selector is invalid)
+  cy.on('mouseover', 'node', (evt) => {
+    evt.target.style('border-width', 3)
+    evt.target.style('border-color', '#f59e0b')
+    evt.target.style('border-opacity', 1)
+  })
+  cy.on('mouseout', 'node', (evt) => {
+    evt.target.style('border-width', 2)
+    evt.target.style('border-color', 'data(color)')
+    evt.target.style('border-opacity', 0.7)
   })
 
   cy.on('tap', (evt) => {
