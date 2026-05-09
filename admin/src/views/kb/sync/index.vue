@@ -9,6 +9,8 @@ import {
   NTag,
   NSpin,
   NEmpty,
+  NCollapse,
+  NCollapseItem,
   useMessage,
 } from 'naive-ui'
 import {
@@ -76,6 +78,7 @@ const logsTotal = ref(0)
 const logsPage = ref(1)
 const logsPageSize = ref(20)
 const logsFilter = ref<{ direction?: string; status?: string }>({})
+const configCollapsed = ref(true)
 
 // ---- live log polling ----
 const liveLogs = ref<SyncLogEntry[]>([])
@@ -402,68 +405,68 @@ onMounted(() => {
 
     <NSpin :show="loading">
       <!-- 同步配置 -->
-      <div class="bg-base-100 rounded-xl border border-base-content/5 p-5 mb-6">
-        <h3 class="font-medium mb-4">同步配置</h3>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-w-2xl">
-          <div>
-            <label class="text-xs text-base-content/50 block mb-1.5">仓库路径 (Vault Path)</label>
-            <NInput
-              v-model:value="config.vault_path"
-              placeholder="/path/to/obsidian/vault"
-              size="small"
-              :disabled="!hasSyncPerm"
-            />
-            <span class="text-[10px] text-base-content/30 mt-0.5 block">容器内路径或挂载卷路径</span>
-          </div>
-        </div>
-
-        <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-4">
-          <div>
-            <label class="text-xs text-base-content/50 block mb-1.5">冲突策略</label>
-            <NSelect
-              v-model:value="config.conflict_strategy"
-              :options="STRATEGY_OPTIONS"
-              size="small"
-              style="width: 220px"
-              :disabled="!hasSyncPerm"
-            />
-          </div>
-          <div class="flex items-center gap-4">
+      <NCollapse class="mb-6">
+        <NCollapseItem title="同步配置" :default-expanded="false">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 max-w-2xl">
             <div>
-              <label class="text-xs text-base-content/50 block mb-1.5">自动同步</label>
-              <NSwitch
-                :value="config.auto_sync_enabled"
-                :disabled="!hasSyncPerm"
-                @update:value="(val: boolean) => config.auto_sync_enabled = val"
-              />
-            </div>
-            <div>
-              <label class="text-xs text-base-content/50 block mb-1.5">同步间隔 (分钟)</label>
-              <NInputNumber
-                :value="config.sync_interval_minutes"
-                :min="5"
-                :max="1440"
+              <label class="text-xs text-base-content/50 block mb-1.5">仓库路径 (Vault Path)</label>
+              <NInput
+                v-model:value="config.vault_path"
+                placeholder="/path/to/obsidian/vault"
                 size="small"
-                style="width: 100px"
                 :disabled="!hasSyncPerm"
-                @update:value="(val: number | null) => { if (val !== null) config.sync_interval_minutes = val }"
               />
+              <span class="text-[10px] text-base-content/30 mt-0.5 block">容器内路径或挂载卷路径</span>
             </div>
           </div>
-        </div>
-        <div class="mt-4">
-          <NButton
-            type="primary"
-            size="small"
-            :loading="saving"
-            :disabled="!hasSyncPerm"
-            @click="handleSaveConfig"
-          >
-            保存配置
-          </NButton>
-        </div>
-      </div>
+
+          <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-4">
+            <div>
+              <label class="text-xs text-base-content/50 block mb-1.5">冲突策略</label>
+              <NSelect
+                v-model:value="config.conflict_strategy"
+                :options="STRATEGY_OPTIONS"
+                size="small"
+                style="width: 220px"
+                :disabled="!hasSyncPerm"
+              />
+            </div>
+            <div class="flex items-center gap-4">
+              <div>
+                <label class="text-xs text-base-content/50 block mb-1.5">自动同步</label>
+                <NSwitch
+                  :value="config.auto_sync_enabled"
+                  :disabled="!hasSyncPerm"
+                  @update:value="(val: boolean) => config.auto_sync_enabled = val"
+                />
+              </div>
+              <div>
+                <label class="text-xs text-base-content/50 block mb-1.5">同步间隔 (分钟)</label>
+                <NInputNumber
+                  :value="config.sync_interval_minutes"
+                  :min="5"
+                  :max="1440"
+                  size="small"
+                  style="width: 100px"
+                  :disabled="!hasSyncPerm"
+                  @update:value="(val: number | null) => { if (val !== null) config.sync_interval_minutes = val }"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="mt-4">
+            <NButton
+              type="primary"
+              size="small"
+              :loading="saving"
+              :disabled="!hasSyncPerm"
+              @click="handleSaveConfig"
+            >
+              保存配置
+            </NButton>
+          </div>
+        </NCollapseItem>
+      </NCollapse>
 
       <!-- 同步状态 -->
       <div class="bg-base-100 rounded-xl border border-base-content/5 p-5 mb-6">
@@ -533,10 +536,15 @@ onMounted(() => {
         <!-- 远程文件树 -->
         <div class="bg-base-100 rounded-xl border border-base-content/5 overflow-hidden">
           <div class="flex items-center justify-between px-4 py-2.5 bg-base-200/50 border-b border-base-content/5">
-            <h3 class="font-medium text-sm">
-              远程文件
-              <span class="text-xs text-base-content/40 font-normal ml-2">文件系统</span>
-            </h3>
+            <div class="flex items-center gap-3">
+              <h3 class="font-medium text-sm">远程文件</h3>
+              <div class="flex items-center gap-1.5 text-[10px]">
+                <span class="px-1 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">新</span>
+                <span class="px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">旧</span>
+                <span class="px-1 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30">已同步</span>
+                <span class="text-base-content/30 ml-1">对比状态</span>
+              </div>
+            </div>
             <span class="text-[10px] text-base-content/30">{{ remoteTree.fileCount }} 个文件</span>
           </div>
           <div class="max-h-80 overflow-y-auto p-2">
@@ -555,10 +563,15 @@ onMounted(() => {
         <!-- 本地文件树 -->
         <div class="bg-base-100 rounded-xl border border-base-content/5 overflow-hidden">
           <div class="flex items-center justify-between px-4 py-2.5 bg-base-200/50 border-b border-base-content/5">
-            <h3 class="font-medium text-sm">
-              本地文件
-              <span class="text-xs text-base-content/40 font-normal ml-2">KB 数据库</span>
-            </h3>
+            <div class="flex items-center gap-3">
+              <h3 class="font-medium text-sm">本地文件</h3>
+              <div class="flex items-center gap-1.5 text-[10px]">
+                <span class="px-1 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">新</span>
+                <span class="px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">旧</span>
+                <span class="px-1 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30">已同步</span>
+                <span class="text-base-content/30 ml-1">对比状态</span>
+              </div>
+            </div>
             <div class="flex items-center gap-2 text-[10px] text-base-content/30">
               <span v-if="syncedTree.stats" class="text-green-500">{{ syncedTree.stats.active }} 活跃</span>
               <span v-if="syncedTree.stats && syncedTree.stats.archived > 0">{{ syncedTree.stats.archived }} 归档</span>
@@ -579,108 +592,96 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 文件操作按钮 -->
-      <div class="flex items-center justify-center gap-4 mb-6">
-        <NButton size="small" type="primary" :loading="syncing" :disabled="!hasSyncPerm" @click="handleSyncNow">
-          <template #icon><CloudUploadOutline class="w-4 h-4" /></template>
-          拉取到本地
-        </NButton>
-        <NButton size="small" type="warning" secondary :loading="exporting" :disabled="!hasSyncPerm" @click="handleSyncExport">
-          <template #icon><RefreshOutline class="w-4 h-4" /></template>
-          发布到远程
-        </NButton>
-        <NButton size="small" type="primary" secondary :loading="syncing || exporting" :disabled="!hasSyncPerm" @click="handleSyncBoth">
-          <template #icon><RefreshOutline class="w-4 h-4" /></template>
-          双向同步
-        </NButton>
-      </div>
-
-      <!-- 同步日志 -->
-      <div class="bg-base-100 rounded-xl border border-base-content/5 p-5">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="font-medium">同步日志</h3>
-          <div class="flex items-center gap-2">
-            <NSelect
-              v-model:value="logsFilter.status"
-              :options="STATUS_OPTIONS"
-              size="tiny"
-              style="width: 100px"
-              placeholder="状态"
-              clearable
-              @update:value="handleLogFilterChange"
-            />
-          </div>
-        </div>
-
-        <NSpin :show="logsLoading">
-          <NEmpty v-if="logs.length === 0 && !logsLoading" description="暂无同步日志" class="py-8" />
-          <div v-else class="overflow-x-auto">
-            <table class="w-full text-xs">
-              <thead>
-                <tr class="text-left text-base-content/40 border-b border-base-content/5">
-                  <th class="py-2 pr-4 font-normal">时间</th>
-                  <th class="py-2 pr-4 font-normal">方向</th>
-                  <th class="py-2 pr-4 font-normal">文件</th>
-                  <th class="py-2 pr-4 font-normal">状态</th>
-                  <th class="py-2 pr-4 font-normal">详情</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="log in logs"
-                  :key="log.id"
-                  class="border-b border-base-content/5 hover:bg-base-200/30"
-                >
-                  <td class="py-2 pr-4 text-base-content/40 whitespace-nowrap">
-                    {{ new Date(log.created_at).toLocaleString() }}
-                  </td>
-                  <td class="py-2 pr-4">
-                    <NTag :type="log.direction === 'import' ? 'info' : 'success'" size="tiny">
-                      {{ log.direction === 'import' ? '导入' : '导出' }}
-                    </NTag>
-                  </td>
-                  <td class="py-2 pr-4 text-base-content/60 max-w-48 truncate">
-                    {{ log.file_path || '-' }}
-                  </td>
-                  <td class="py-2 pr-4">
-                    <NTag
-                      :type="log.status === 'success' ? 'success' : log.status === 'skipped' ? 'default' : log.status === 'conflict' ? 'warning' : 'error'"
-                      size="tiny"
-                    >
-                      {{ log.status === 'success' ? '成功' : log.status === 'skipped' ? '跳过' : log.status === 'conflict' ? '冲突' : '错误' }}
-                    </NTag>
-                  </td>
-                  <td class="py-2 pr-4 text-base-content/40 max-w-40 truncate">
-                    {{ log.detail || '-' }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div v-if="logsTotal > logsPageSize" class="mt-4 flex items-center justify-between text-xs text-base-content/40">
-            <span>共 {{ logsTotal }} 条</span>
+      
+      <NCollapse>
+        <NCollapseItem title="同步日志" :default-expanded="true">
+          <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-2">
-              <NButton
+              <span v-if="logsTotal > 0" class="text-xs text-base-content/40">共 {{ logsTotal }} 条</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <NSelect
+                v-model:value="logsFilter.status"
+                :options="STATUS_OPTIONS"
                 size="tiny"
-                quaternary
-                :disabled="logsPage <= 1"
-                @click="handleLogPageChange(logsPage - 1)"
-              >
-                上一页
-              </NButton>
-              <span>{{ logsPage }} / {{ Math.ceil(logsTotal / logsPageSize) }}</span>
-              <NButton
-                size="tiny"
-                quaternary
-                :disabled="logsPage >= Math.ceil(logsTotal / logsPageSize)"
-                @click="handleLogPageChange(logsPage + 1)"
-              >
-                下一页
-              </NButton>
+                style="width: 100px"
+                placeholder="状态"
+                clearable
+                @update:value="handleLogFilterChange"
+              />
             </div>
           </div>
-        </NSpin>
-      </div>
+
+          <NSpin :show="logsLoading">
+            <NEmpty v-if="logs.length === 0 && !logsLoading" description="暂无同步日志" class="py-8" />
+            <div v-else class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="text-left text-base-content/40 border-b border-base-content/5">
+                    <th class="py-2 pr-4 font-normal">时间</th>
+                    <th class="py-2 pr-4 font-normal">方向</th>
+                    <th class="py-2 pr-4 font-normal">文件</th>
+                    <th class="py-2 pr-4 font-normal">状态</th>
+                    <th class="py-2 pr-4 font-normal">详情</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="log in logs"
+                    :key="log.id"
+                    class="border-b border-base-content/5 hover:bg-base-200/30"
+                  >
+                    <td class="py-2 pr-4 text-base-content/40 whitespace-nowrap">
+                      {{ new Date(log.created_at).toLocaleString() }}
+                    </td>
+                    <td class="py-2 pr-4">
+                      <NTag :type="log.direction === 'import' ? 'info' : 'success'" size="tiny">
+                        {{ log.direction === 'import' ? '导入' : '导出' }}
+                      </NTag>
+                    </td>
+                    <td class="py-2 pr-4 text-base-content/60 max-w-48 truncate">
+                      {{ log.file_path || '-' }}
+                    </td>
+                    <td class="py-2 pr-4">
+                      <NTag
+                        :type="log.status === 'success' ? 'success' : log.status === 'skipped' ? 'default' : log.status === 'conflict' ? 'warning' : 'error'"
+                        size="tiny"
+                      >
+                        {{ log.status === 'success' ? '成功' : log.status === 'skipped' ? '跳过' : log.status === 'conflict' ? '冲突' : '错误' }}
+                      </NTag>
+                    </td>
+                    <td class="py-2 pr-4 text-base-content/40 max-w-40 truncate">
+                      {{ log.detail || '-' }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-if="logsTotal > logsPageSize" class="mt-4 flex items-center justify-between text-xs text-base-content/40">
+              <span>共 {{ logsTotal }} 条</span>
+              <div class="flex items-center gap-2">
+                <NButton
+                  size="tiny"
+                  quaternary
+                  :disabled="logsPage <= 1"
+                  @click="handleLogPageChange(logsPage - 1)"
+                >
+                  上一页
+                </NButton>
+                <span>{{ logsPage }} / {{ Math.ceil(logsTotal / logsPageSize) }}</span>
+                <NButton
+                  size="tiny"
+                  quaternary
+                  :disabled="logsPage >= Math.ceil(logsTotal / logsPageSize)"
+                  @click="handleLogPageChange(logsPage + 1)"
+                >
+                  下一页
+                </NButton>
+              </div>
+            </div>
+          </NSpin>
+        </NCollapseItem>
+      </NCollapse>
 
       <!-- 实时同步日志 (Live terminal) -->
       <div v-if="livePolling || liveLogs.length > 0" class="bg-[#0d1117] rounded-xl border border-gray-700 overflow-hidden mb-6">
