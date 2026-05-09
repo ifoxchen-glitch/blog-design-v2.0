@@ -85,7 +85,7 @@ onBeforeUnmount(() => {
     <NButton @click="handleBack">返回画布列表</NButton>
   </div>
 
-  <div v-else class="flex flex-col" style="height: calc(100vh - 180px); min-height: 600px">
+  <div v-else class="flex flex-col overflow-hidden" style="height: calc(100vh - 180px); min-height: 600px">
     <!-- Top bar -->
     <div class="flex items-center gap-2 px-3 py-1.5 bg-base-100 border-b border-base-content/10 shrink-0">
       <NButton size="tiny" quaternary @click="handleBack">
