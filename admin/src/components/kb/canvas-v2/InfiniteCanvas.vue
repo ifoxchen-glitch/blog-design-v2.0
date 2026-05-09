@@ -1,18 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, inject, watch, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, inject, watch } from 'vue'
 import { useMessage } from 'naive-ui'
-import { PencilOutline, LinkOutline, TrashOutline } from '@vicons/ionicons5'
 import type { UseInfiniteCanvasReturn, CanvasElementData } from '../../../composables/useInfiniteCanvas'
-import type { KbDocumentListItem } from '../../../api/kb'
 
 const emit = defineEmits<{
-  (e: 'ready'): void
   (e: 'element-selected', el: CanvasElementData): void
   (e: 'selection-cleared'): void
   (e: 'dirty-changed', dirty: boolean): void
 }>()
 
-const canvasEl = ref<HTMLCanvasElement>()
 const wrapper = ref<HTMLDivElement>()
 const message = useMessage()
 
@@ -35,23 +31,11 @@ function handleContextAction(action: string) {
   if (!elId) { hideCtxMenu(); return }
 
   if (action === 'edit-label') {
-    const fc = canvas.fabCanvas.value
-    const obj = fc?.getObjects().find(o => (o as any).fabricId === elId)
-    if (obj) {
-      // For groups, find the text child and enter editing mode
-      if (obj.type === 'group' || obj.type === 'activeSelection') {
-        const texts = (obj as any)._objects?.filter((c: any) => c.type === 'i-text' || c.type === 'text')
-        if (texts?.length > 0) {
-          fc?.setActiveObject(texts[0])
-          if (texts[0].enterEditing) {
-            texts[0].enterEditing()
-          } else {
-            fc?.setActiveObject(obj)
-          }
-        }
-      } else if ((obj as any).enterEditing) {
-        fc?.setActiveObject(obj)
-        ;(obj as any).enterEditing()
+    const el = canvas.elements.value.get(elId)
+    if (el) {
+      const newLabel = window.prompt('编辑标签', el.label)
+      if (newLabel !== null && newLabel !== el.label) {
+        canvas.updateElement(elId, { label: newLabel })
       }
     }
   } else if (action === 'connect') {
@@ -67,12 +51,12 @@ function handleContextAction(action: string) {
       message.info('已选择起点，请右键点击目标节点完成连线')
     }
   } else if (action === 'delete') {
-    const fc = canvas.fabCanvas.value
-    const obj = fc?.getObjects().find(o => (o as any).fabricId === elId)
-    if (obj) {
-      fc?.setActiveObject(obj)
-      canvas.removeSelectedElements()
+    const s = new Set(canvas.selectedIds.value)
+    if (!s.has(elId)) {
+      s.add(elId)
+      canvas.selectedIds.value = s
     }
+    canvas.removeSelected()
   }
   hideCtxMenu()
 }
@@ -82,94 +66,11 @@ function handleCanvasContextAction(action: string) {
   if (action === 'fit') {
     canvas.zoomToFit()
   } else if (action === 'grid') {
-    canvas.layoutGrid()
+    canvas.layoutGrid?.()
   } else if (action === 'circle') {
-    canvas.layoutCircle()
+    canvas.layoutCircle?.()
   }
   hideCtxMenu()
-}
-
-// Right-click on canvas objects
-function bindCanvasContextMenu() {
-  const fc = canvas.fabCanvas.value
-  if (!fc) return
-
-  // Use the Fabric canvas wrapper element for right-click detection
-  const upperCanvasEl = fc.upperCanvasEl || fc.getElement()
-  if (!upperCanvasEl) return
-
-  upperCanvasEl.addEventListener('contextmenu', (e: MouseEvent) => {
-    e.preventDefault()
-    const pointer = fc.getScenePoint(e)
-    // Find target at mouse position by checking all objects
-    let target: any = null
-    const objs = fc.getObjects()
-    for (let i = objs.length - 1; i >= 0; i--) {
-      const o = objs[i]
-      if ((o as any).customType === 'connection') continue
-      if (o.containsPoint(pointer)) {
-        target = o
-        break
-      }
-    }
-
-    if (target) {
-      // Find the topmost group/node
-      let obj = target
-      while ((obj as any).group) obj = (obj as any).group
-
-      const elId = (obj as any).fabricId
-      if (!elId) return
-
-      ctxMenu.value = {
-        visible: true,
-        x: e.clientX,
-        y: e.clientY,
-        type: 'node',
-        elementId: elId,
-      }
-    } else {
-      ctxMenu.value = {
-        visible: true,
-        x: e.clientX,
-        y: e.clientY,
-        type: 'canvas',
-      }
-    }
-  })
-}
-
-// Double-click to edit text
-function bindDblClickEdit() {
-  const fc = canvas.fabCanvas.value
-  if (!fc) return
-
-  fc.on('mouse:dblclick', (opt) => {
-    const target = opt.target
-    if (!target) return
-
-    // For groups, try to find editable text child
-    if ((target as any).type === 'group') {
-      const texts = (target as any)._objects?.filter((c: any) =>
-        c.type === 'i-text' || c.type === 'textbox'
-      )
-      if (texts?.length > 0) {
-        fc.setActiveObject(texts[0])
-        if (typeof texts[0].enterEditing === 'function') {
-          texts[0].enterEditing()
-          texts[0].selectAll()
-        }
-        return
-      }
-    }
-
-    // Direct editable text
-    if (typeof (target as any).enterEditing === 'function') {
-      fc.setActiveObject(target)
-      ;(target as any).enterEditing()
-      ;(target as any).selectAll?.()
-    }
-  })
 }
 
 // Drag-drop from doc panel
@@ -178,24 +79,32 @@ function handleDragOver(e: DragEvent) {
   e.dataTransfer!.dropEffect = 'copy'
 }
 
-function handleDrop(e: DragEvent) {
+async function handleDrop(e: DragEvent) {
   e.preventDefault()
   const json = e.dataTransfer?.getData('application/json')
-  if (!json || !canvas.fabCanvas.value) return
+  if (!json) return
   try {
     const doc = JSON.parse(json)
-    const pointer = canvas.fabCanvas.value.getScenePoint(e)
-    canvas.addKbDocElement(doc as unknown as KbDocumentListItem, pointer.x, pointer.y).then(result => {
-      if (result) message.success(`已添加「${doc.title}」`)
-      else message.error('添加失败')
-    })
+    const canvasRect = wrapper.value?.getBoundingClientRect()
+    if (!canvasRect) return
+    const z = canvas.zoom.value / 100
+    const x = (e.clientX - canvasRect.left - canvas.panX.value) / z
+    const y = (e.clientY - canvasRect.top - canvas.panY.value) / z
+    const id = await canvas.addKbDoc(doc, x, y)
+    if (id) message.success(`已添加「${doc.title}」`)
+    else message.error('添加失败')
   } catch { /* ignore */ }
 }
 
 // Watch selection changes
-watch(() => canvas.selectedElements.value, (els) => {
-  if (els.length > 0) emit('element-selected', els[0])
-  else emit('selection-cleared')
+watch(() => canvas.selectedIds.value, (ids) => {
+  if (ids.size > 0) {
+    const first = [...ids][0]
+    const el = canvas.elements.value.get(first)
+    if (el) emit('element-selected', el)
+  } else {
+    emit('selection-cleared')
+  }
 }, { deep: true })
 
 watch(() => canvas.isDirty.value, (dirty) => emit('dirty-changed', dirty))
@@ -204,13 +113,17 @@ watch(() => canvas.isDirty.value, (dirty) => emit('dirty-changed', dirty))
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Delete' || e.key === 'Backspace') {
     if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return
-    canvas.removeSelectedElements()
+    canvas.removeSelected()
   }
   if (e.key === 'Escape') {
-    canvas.cancelConnection()
-    canvas.fabCanvas.value?.discardActiveObject()
-    canvas.fabCanvas.value?.requestRenderAll()
+    canvas.startConnection('')
     hideCtxMenu()
+  }
+  // Tool shortcuts
+  if (!document.activeElement?.closest('input, textarea, [contenteditable]')) {
+    if (e.key === 'v' || e.key === 'V') canvas.currentTool.value = 'select'
+    if (e.key === 'h' || e.key === 'H') canvas.currentTool.value = 'pan'
+    if (e.key === 'n' || e.key === 'N') canvas.currentTool.value = 'note'
   }
 }
 
@@ -224,13 +137,9 @@ function handleDocClick(e: MouseEvent) {
   }
 }
 
-onMounted(async () => {
-  await nextTick()
-  if (canvasEl.value) {
-    canvas.init(canvasEl.value)
-    bindCanvasContextMenu()
-    bindDblClickEdit()
-    emit('ready')
+onMounted(() => {
+  if (wrapper.value) {
+    canvas.init(wrapper.value)
   }
   window.addEventListener('keydown', handleKeydown)
   document.addEventListener('click', handleDocClick)
@@ -253,8 +162,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="wrapper" class="w-full h-full relative">
-    <canvas ref="canvasEl" />
-
     <!-- Context Menu -->
     <Teleport to="body">
       <div
@@ -267,18 +174,15 @@ onBeforeUnmount(() => {
         <template v-if="ctxMenu.type === 'node'">
           <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left text-base-content"
             @click="handleContextAction('edit-label')">
-            <PencilOutline class="w-3.5 h-3.5" />
             编辑标签
           </button>
           <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left text-base-content"
             @click="handleContextAction('connect')">
-            <LinkOutline class="w-3.5 h-3.5" />
             {{ connectSourceLocal ? '完成连线' : '从此连线' }}
           </button>
           <div class="border-t border-base-content/5 my-0.5" />
           <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-red-50 text-red-600 text-left"
             @click="handleContextAction('delete')">
-            <TrashOutline class="w-3.5 h-3.5" />
             删除
           </button>
         </template>
@@ -298,11 +202,11 @@ onBeforeUnmount(() => {
       class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg text-xs z-50">
       连线模式: 点击第一个节点，再点击第二个节点创建连线
     </div>
+
+    <!-- Loading overlay -->
+    <div v-if="canvas.isLoading.value"
+      class="absolute inset-0 flex items-center justify-center bg-base-100/50 z-50">
+      <div class="text-base-content/50 text-sm">加载中...</div>
+    </div>
   </div>
 </template>
-
-<style scoped>
-canvas {
-  display: block;
-}
-</style>

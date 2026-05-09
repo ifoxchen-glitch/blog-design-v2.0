@@ -59,33 +59,29 @@ function handleDragStart(e: DragEvent, doc: KbDocumentListItem) {
 }
 
 async function handleClick(doc: KbDocumentListItem) {
-  if (!canvas.fabCanvas.value) return
-  const c = canvas.fabCanvas.value
-  const vpt = c.viewportTransform!
-  const cx = (c.width! / 2 - vpt[4]) / c.getZoom()
-  const cy_ = (c.height! / 2 - vpt[5]) / c.getZoom()
+  // Add at center of visible canvas area
+  const z = canvas.zoom.value / 100
+  const cx = (0 - canvas.panX.value) / z + 400
+  const cy = (0 - canvas.panY.value) / z + 300
   const jitter = (Math.random() - 0.5) * 80
 
-  const result = await canvas.addKbDocElement(doc, cx + jitter, cy_ + jitter)
-  if (result) {
+  const id = await canvas.addKbDoc(doc, cx + jitter, cy + jitter)
+  if (id) {
     message.success(`已添加「${doc.title}」`)
     // Auto-connect related docs
     try {
       const detail = await apiGetKbDocument(doc.id)
       const connectedTitles = [...(detail.connections || []), ...(detail.sources || [])]
       if (connectedTitles.length > 0) {
-        // Add connected docs if they exist in our list
         let added = 0
         for (const title of connectedTitles.slice(0, 5)) {
           const existing = allDocs.value.find(d => d.title === title && d.id !== doc.id)
           if (existing) {
             const rx = cx + (Math.random() - 0.5) * 400
-            const ry = cy_ + (Math.random() - 0.5) * 300 + 150
-            const connectedId = await canvas.addKbDocElement(existing, rx, ry)
+            const ry = cy + (Math.random() - 0.5) * 300 + 150
+            const connectedId = await canvas.addKbDoc(existing, rx, ry)
             if (connectedId) {
-              canvas.startConnection(result)
-              await canvas.completeConnection(connectedId)
-              canvas.cancelConnection()
+              await canvas.completeConnection(id)
               added++
             }
           }

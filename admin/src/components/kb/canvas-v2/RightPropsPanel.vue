@@ -6,9 +6,14 @@ import type { UseInfiniteCanvasReturn, CanvasElementData } from '../../../compos
 
 const canvas = inject<UseInfiniteCanvasReturn>('canvasV2')!
 
+const selectedId = computed<string | null>(() => {
+  const ids = canvas.selectedIds.value
+  return ids.size === 1 ? [...ids][0] : null
+})
+
 const el = computed<CanvasElementData | null>(() => {
-  const els = canvas.selectedElements.value
-  return els.length === 1 ? els[0] : null
+  if (!selectedId.value) return null
+  return canvas.elements.value.get(selectedId.value) ?? null
 })
 
 const isKbDoc = computed(() => el.value?.type === 'kb-doc')
@@ -26,7 +31,7 @@ const customLabels = computed(() => (meta.value.customLabels as string[]) || [])
 function addCustomLabel() {
   if (!newLabel.value.trim() || !el.value) return
   const updated = [...customLabels.value, newLabel.value.trim()]
-  canvas.updateElementMetadata(el.value.id, { ...meta.value, customLabels: updated })
+  canvas.updateElement(el.value.id, { metadata: { ...meta.value, customLabels: updated } })
   newLabel.value = ''
 }
 
@@ -34,7 +39,7 @@ function removeCustomLabel(idx: number) {
   if (!el.value) return
   const updated = [...customLabels.value]
   updated.splice(idx, 1)
-  canvas.updateElementMetadata(el.value.id, { ...meta.value, customLabels: updated })
+  canvas.updateElement(el.value.id, { metadata: { ...meta.value, customLabels: updated } })
 }
 
 function handleOpenDetail() {
@@ -47,12 +52,7 @@ const REVIEW_COLORS: Record<string, string> = { mature: 'success', developing: '
 
 function handleDelete() {
   if (!el.value) return
-  canvas.fabCanvas.value?.getObjects().forEach(o => {
-    if ((o as any).fabricId === el.value!.id) {
-      canvas.fabCanvas.value?.setActiveObject(o)
-    }
-  })
-  canvas.removeSelectedElements()
+  canvas.removeSelected()
 }
 </script>
 

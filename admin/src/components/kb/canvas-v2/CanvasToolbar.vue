@@ -103,16 +103,12 @@ function handleConnect() {
     <!-- Auto-layout -->
     <NPopover trigger="hover">
       <template #trigger>
-        <NButton size="tiny" quaternary title="自动布局">
+        <NButton size="tiny" quaternary title="自动布局" disabled>
           <ShapesOutline class="w-3.5 h-3.5" />
         </NButton>
       </template>
-      <div class="flex flex-col gap-1 p-1">
-        <NButton size="tiny" quaternary @click="canvas.layoutGrid()">网格排列</NButton>
-        <NButton size="tiny" quaternary @click="canvas.layoutCircle()">环形排列</NButton>
-        <NButton size="tiny" quaternary @click="canvas.layoutForce()">力导向排列</NButton>
-        <NButton size="tiny" quaternary @click="canvas.layoutHierarchical()">层级排列</NButton>
-        <NButton size="tiny" quaternary @click="canvas.zoomToFit()">适应画布</NButton>
+      <div class="flex flex-col gap-1 p-1 text-xs text-base-content/50">
+        <span>即将支持自动布局</span>
       </div>
     </NPopover>
 
