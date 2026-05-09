@@ -111,6 +111,7 @@ function handleConnect() {
         <NButton size="tiny" quaternary @click="canvas.layoutGrid()">网格排列</NButton>
         <NButton size="tiny" quaternary @click="canvas.layoutCircle()">环形排列</NButton>
         <NButton size="tiny" quaternary @click="canvas.layoutForce()">力导向排列</NButton>
+        <NButton size="tiny" quaternary @click="canvas.layoutHierarchical()">层级排列</NButton>
         <NButton size="tiny" quaternary @click="canvas.zoomToFit()">适应画布</NButton>
       </div>
     </NPopover>

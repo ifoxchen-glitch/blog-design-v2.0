@@ -6,6 +6,7 @@ import type { UseInfiniteCanvasReturn, CanvasElementData } from '../../../compos
 import type { KbDocumentListItem } from '../../../api/kb'
 
 const emit = defineEmits<{
+  (e: 'ready'): void
   (e: 'element-selected', el: CanvasElementData): void
   (e: 'selection-cleared'): void
   (e: 'dirty-changed', dirty: boolean): void
@@ -229,6 +230,7 @@ onMounted(async () => {
     canvas.init(canvasEl.value)
     bindCanvasContextMenu()
     bindDblClickEdit()
+    emit('ready')
   }
   window.addEventListener('keydown', handleKeydown)
   document.addEventListener('click', handleDocClick)

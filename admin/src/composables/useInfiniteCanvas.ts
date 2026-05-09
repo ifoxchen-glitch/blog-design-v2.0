@@ -74,11 +74,13 @@ export interface UseInfiniteCanvasReturn {
   layoutGrid: () => void
   layoutCircle: () => void
   layoutForce: () => void
+  layoutHierarchical: () => void
   resetZoom: () => void
   exportPng: () => void
 
   // Metadata update
   updateElementMetadata: (elId: string, metadata: Record<string, unknown>) => void
+  updateDbIds: (nodes: any[], edges: any[]) => void
 }
 
 // ---- Constants ----
@@ -960,6 +962,73 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     markDirty()
   }
 
+  function layoutHierarchical() {
+    const canvas = fabCanvas.value
+    if (!canvas) return
+    const objs = canvas.getObjects().filter(o => (o as any).customType && (o as any).customType !== 'connection')
+    if (objs.length === 0) return
+
+    // Find roots: elements with outgoing connections but no incoming
+    const incoming = new Set<string>()
+    canvas.getObjects().forEach(o => {
+      if ((o as any).customType === 'connection') {
+        incoming.add((o as any).toId)
+      }
+    })
+    const roots = objs.filter(o => !incoming.has((o as any).fabricId))
+    const placed = new Set<string>()
+    let y = 0
+
+    function placeLevel(items: FabricObject[], yPos: number) {
+      const spacing = 280
+      const startX = -(items.length - 1) * spacing / 2
+      items.forEach((obj, i) => {
+        const id = (obj as any).fabricId
+        if (placed.has(id)) return
+        placed.add(id)
+        obj.set({ left: startX + i * spacing, top: yPos })
+        obj.setCoords()
+      })
+    }
+
+    // Place roots first
+    placeLevel(roots as any[], y)
+    if (roots.length > 0) y += 180
+
+    // Place children level by level
+    while (placed.size < objs.length) {
+      const nextLevel: FabricObject[] = []
+      canvas.getObjects().forEach(o => {
+        if ((o as any).customType === 'connection') {
+          const fromIn = placed.has((o as any).fromId)
+          const toIn = placed.has((o as any).toId)
+          if (fromIn && !toIn) {
+            const child = objs.find(x => (x as any).fabricId === (o as any).toId)
+            if (child && !placed.has((child as any).fabricId)) {
+              nextLevel.push(child)
+            }
+          }
+        }
+      })
+      if (nextLevel.length === 0) {
+        // Place remaining unplaced
+        for (const obj of objs) {
+          if (!placed.has((obj as any).fabricId)) {
+            nextLevel.push(obj)
+          }
+        }
+      }
+      if (nextLevel.length === 0) break
+      placeLevel(nextLevel, y)
+      y += 180
+    }
+
+    canvas.requestRenderAll()
+    updateAllConnections()
+    zoomToFit()
+    markDirty()
+  }
+
   function resetZoom() {
     const canvas = fabCanvas.value
     if (!canvas) return
@@ -993,6 +1062,28 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     }
   }
 
+  // Update Fabric object dbIds after save creates new records
+  function updateDbIds(nodes: any[], edges: any[]) {
+    const canvas = fabCanvas.value
+    if (!canvas) return
+    for (const node of nodes) {
+      if (node.id > 0) {
+        const obj = canvas.getObjects().find(o => (o as any).fabricId === `n-${node.id}` || ((o as any).dbId === 0 && (o as any)._label === node.label))
+        if (obj) {
+          ;(obj as any).dbId = node.id
+        }
+      }
+    }
+    for (const edge of edges) {
+      if (edge.id > 0) {
+        const obj = canvas.getObjects().find(o => (o as any).customType === 'connection' && (o as any).dbId === 0 && (o as any).fromDbId === edge.source_node_id && (o as any).toDbId === edge.target_node_id)
+        if (obj) {
+          ;(obj as any).dbId = edge.id
+        }
+      }
+    }
+  }
+
   return {
     fabCanvas,
     isLoading,
@@ -1022,9 +1113,11 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     layoutGrid,
     layoutCircle,
     layoutForce,
+    layoutHierarchical,
     resetZoom,
     exportPng,
 
     updateElementMetadata,
+    updateDbIds,
   }
 }

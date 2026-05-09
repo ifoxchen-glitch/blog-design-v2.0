@@ -20,19 +20,17 @@ const canvasId = computed(() => {
   return Number.isFinite(id) && id > 0 ? id : 0
 })
 
-// Canvas composable
 const canvas = useInfiniteCanvas(canvasId)
 provide('canvasV2', canvas)
 
-// Persistence
 const { loadCanvas: loadData, saveCanvas: saveData } = useCanvasPersistence()
 
-// UI state
 const showBrowser = ref(true)
 const showDocDetail = ref(false)
 const docDetailId = ref<number | null>(null)
+const canvasReady = ref(false)
 
-// Load canvas data
+// Load canvas data (called after InfiniteCanvas emits 'ready')
 async function loadCanvasData() {
   if (canvasId.value <= 0) return
   canvas.isLoading.value = true
@@ -43,7 +41,7 @@ async function loadCanvasData() {
       panX: data.pan_x,
       panY: data.pan_y,
     })
-    canvas.zoomToFit()
+    setTimeout(() => canvas.zoomToFit(), 200)
   } catch {
     message.warning('加载画布数据失败')
   } finally {
@@ -51,12 +49,17 @@ async function loadCanvasData() {
   }
 }
 
-// Save (manual)
+function onCanvasReady() {
+  canvasReady.value = true
+  loadCanvasData()
+}
+
+// Save
 async function handleSave() {
   if (!canvas.fabCanvas.value) return
-  const data = canvas.extractData()
   try {
-    await saveData(canvasId.value, data)
+    const data = canvas.extractData()
+    await saveData(canvasId.value, data, canvas.updateDbIds)
     canvas.isDirty.value = false
     message.success('已保存')
   } catch {
@@ -71,7 +74,7 @@ function startAutoSave() {
     if (canvas.isDirty.value && canvas.fabCanvas.value) {
       try {
         const data = canvas.extractData()
-        await saveData(canvasId.value, data)
+        await saveData(canvasId.value, data, canvas.updateDbIds)
         canvas.isDirty.value = false
       } catch { /* silent */ }
     }
@@ -92,15 +95,13 @@ function handleClosePanel() {
   canvas.fabCanvas.value?.requestRenderAll()
 }
 
-// Mobile detection
 const isMobile = ref(false)
 function checkMobile() { isMobile.value = window.innerWidth < 768 }
 
-onMounted(async () => {
+onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
   startAutoSave()
-  await loadCanvasData()
 })
 
 onBeforeUnmount(() => {
@@ -118,47 +119,32 @@ onBeforeUnmount(() => {
   </div>
 
   <div v-else class="flex flex-col overflow-hidden" style="height: calc(100vh - 180px); min-height: 600px">
-    <!-- Top Bar -->
     <div class="flex items-center gap-2 px-3 py-1.5 bg-base-100 border-b border-base-content/10 shrink-0">
       <NButton size="tiny" quaternary @click="handleBack">
         <ArrowBackOutline class="w-4 h-4" />
       </NButton>
       <span class="text-sm font-medium text-base-content">画布编辑器</span>
       <span class="text-[11px] text-base-content/30">#{{ canvasId }}</span>
-
       <div class="flex-1" />
-
       <NButton size="tiny" quaternary @click="showBrowser = !showBrowser"
         :type="showBrowser ? 'primary' : 'default'">
         <BookOutline class="w-3.5 h-3.5" />
         文档库
       </NButton>
-
       <span class="text-[11px] text-base-content/30 tabular-nums">
         {{ canvas.nodeCount.value }}E / {{ canvas.edgeCount.value }}C
       </span>
-
       <span v-if="canvas.isDirty.value" class="text-[10px] text-warning">未保存</span>
     </div>
 
-    <!-- Toolbar -->
     <CanvasToolbar class="shrink-0" @save="handleSave" />
-    <div class="flex items-center gap-2 px-2 py-1 bg-base-100 border-b border-base-content/5 shrink-0">
-      <span class="text-[10px] text-base-content/30">提示: 中键拖动平移 · 滚轮缩放 · 从左侧拖入文档 · 选中后连线下划线创建关联</span>
-    </div>
 
-    <!-- Three-column main area -->
     <div class="flex flex-1 min-h-0 overflow-hidden">
       <LeftDocPanel v-if="showBrowser" class="w-60 shrink-0" />
-
       <div class="flex-1 relative min-w-0">
-        <InfiniteCanvas @dirty-changed="canvas.isDirty.value = $event" />
+        <InfiniteCanvas @ready="onCanvasReady" @dirty-changed="canvas.isDirty.value = $event" />
       </div>
-
-      <RightPropsPanel
-        @open-doc-detail="handleOpenDocDetail"
-        @close="handleClosePanel"
-      />
+      <RightPropsPanel @open-doc-detail="handleOpenDocDetail" @close="handleClosePanel" />
     </div>
   </div>
 
