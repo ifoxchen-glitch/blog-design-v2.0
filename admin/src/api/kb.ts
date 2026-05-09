@@ -425,7 +425,15 @@ export interface SyncConfig {
 export interface SyncStatus {
   running: boolean
   last_sync_at: string | null
-  last_result: { imported: number; skipped: number; conflicted: number; errors: number } | null
+  last_result: {
+    imported: number
+    skipped: number
+    conflicted: number
+    errors: number
+    exported: number
+    export_skipped: number
+    export_failed: number
+  } | null
 }
 
 export interface SyncLogEntry {

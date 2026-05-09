@@ -185,10 +185,27 @@ function getSyncStatus(_req, res) {
       .prepare("SELECT direction, status, COUNT(*) AS c FROM kb_sync_logs WHERE created_at = ? GROUP BY direction, status")
       .all(config.last_sync_at);
     if (logs.length > 0) {
-      lastResult = { imported: 0, skipped: 0, conflicted: 0, errors: 0, exported: 0 };
+      lastResult = {
+        imported: 0,
+        skipped: 0,
+        conflicted: 0,
+        errors: 0,
+        exported: 0,
+        export_skipped: 0,
+        export_failed: 0,
+      };
       for (const row of logs) {
-        const key = row.direction === "export" ? "exported" : row.status === "success" ? "imported" : row.status;
-        if (lastResult[key] !== undefined) lastResult[key] += row.c;
+        if (row.direction === "export") {
+          if (row.status === "success") lastResult.exported += row.c;
+          else if (row.status === "skipped") lastResult.export_skipped += row.c;
+          else if (row.status === "error") lastResult.export_failed += row.c;
+          else if (row.status === "conflict") lastResult.export_skipped += row.c;
+        } else {
+          if (row.status === "success") lastResult.imported += row.c;
+          else if (row.status === "skipped") lastResult.skipped += row.c;
+          else if (row.status === "conflict") lastResult.conflicted += row.c;
+          else if (row.status === "error") lastResult.errors += row.c;
+        }
       }
     }
   }

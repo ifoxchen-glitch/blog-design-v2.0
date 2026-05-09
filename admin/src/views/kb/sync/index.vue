@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import {
   NButton,
   NInput,
@@ -8,7 +8,6 @@ import {
   NSwitch,
   NTag,
   NSpin,
-  NEmpty,
   NProgress,
   NDrawer,
   NDrawerContent,
@@ -20,7 +19,6 @@ import {
   DownloadOutline,
   SwapHorizontalOutline,
   SettingsOutline,
-  StopOutline,
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import SyncFileTree from '../../../components/kb/SyncFileTree.vue'
@@ -36,12 +34,28 @@ import {
   apiGetRemoteFiles,
   apiGetSyncedFiles,
   type SyncConfig,
-  type SyncStatus,
   type SyncLogEntry,
   type FileTreeData,
   type FileTreeNode,
 } from '../../../api/kb'
 import { usePermissionStore } from '../../../stores/permission'
+
+// ---- Sync status type with export stats ----
+interface SyncStatusResult {
+  imported: number
+  skipped: number
+  conflicted: number
+  errors: number
+  exported: number
+  export_skipped: number
+  export_failed: number
+}
+
+interface SyncStatus {
+  running: boolean
+  last_sync_at: string | null
+  last_result: SyncStatusResult | null
+}
 
 const message = useMessage()
 const permissionStore = usePermissionStore()
@@ -71,45 +85,6 @@ const status = ref<SyncStatus>({
   last_result: null,
 })
 
-// ---- live log polling ----
-const liveLogs = ref<SyncLogEntry[]>([])
-const livePolling = ref(false)
-let _pollTimer: ReturnType<typeof setInterval> | null = null
-
-function startLivePolling() {
-  stopLivePolling()
-  liveLogs.value = []
-  livePolling.value = true
-  const since = new Date().toISOString()
-
-  _pollTimer = setInterval(async () => {
-    try {
-      const s = await apiGetSyncStatus()
-      status.value = s
-      const res = await apiListSyncLogs({ page: 1, pageSize: 200, since })
-      const fresh = res.items.reverse()
-      if (fresh.length > liveLogs.value.length) {
-        liveLogs.value = fresh
-      }
-      if (!s.running) {
-        stopLivePolling()
-      }
-    } catch {
-      /* poll error — ignore */
-    }
-  }, 1500)
-}
-
-function stopLivePolling() {
-  if (_pollTimer) {
-    clearInterval(_pollTimer)
-    _pollTimer = null
-  }
-  livePolling.value = false
-}
-
-onBeforeUnmount(() => stopLivePolling())
-
 // ---- loading states ----
 const loading = ref(false)
 const syncing = ref(false)
@@ -133,16 +108,34 @@ const LOG_STATUS_OPTIONS = [
 ]
 
 // ---- derived progress ----
-const totalResult = computed(() => {
-  if (!status.value.last_result) return null
-  const r = status.value.last_result
-  return {
-    imported: r.imported,
-    skipped: r.skipped,
-    conflicted: r.conflicted,
-    errors: r.errors,
-    total: r.imported + r.skipped + r.conflicted + r.errors,
-  }
+const totalResult = computed(() => status.value.last_result)
+
+// Import progress
+const importDone = computed(() => {
+  if (!totalResult.value) return 0
+  return totalResult.value.imported + totalResult.value.skipped + totalResult.value.conflicted + totalResult.value.errors
+})
+const importTotal = computed(() => {
+  if (!totalResult.value) return 0
+  return totalResult.value.imported + totalResult.value.skipped + totalResult.value.conflicted + totalResult.value.errors || 0
+})
+const importPct = computed(() => {
+  if (!importTotal.value) return 0
+  return Math.min(100, Math.round((importDone.value / importTotal.value) * 100))
+})
+
+// Export progress
+const exportDone = computed(() => {
+  if (!totalResult.value) return 0
+  return totalResult.value.exported + totalResult.value.export_skipped + totalResult.value.export_failed
+})
+const exportTotal = computed(() => {
+  if (!totalResult.value) return 0
+  return totalResult.value.exported + totalResult.value.export_skipped + totalResult.value.export_failed || 0
+})
+const exportPct = computed(() => {
+  if (!exportTotal.value) return 0
+  return Math.min(100, Math.round((exportDone.value / exportTotal.value) * 100))
 })
 
 async function loadConfig() {
@@ -159,7 +152,13 @@ async function loadConfig() {
 
 async function loadStatus() {
   try {
-    status.value = await apiGetSyncStatus()
+    const res = await apiGetSyncStatus()
+    // Cast to our extended type
+    status.value = {
+      running: res.running,
+      last_sync_at: res.last_sync_at,
+      last_result: res.last_result as SyncStatusResult | null,
+    }
   } catch { /* ignore */ }
 }
 
@@ -202,7 +201,7 @@ async function handleSyncImport() {
     const res = await apiTriggerSyncImport()
     if ((res as unknown as { status: string }).status) {
       message.info('导入已启动')
-      startLivePolling()
+      startPolling()
     }
   } catch {
     message.error('启动同步失败')
@@ -217,7 +216,7 @@ async function handleSyncExport() {
     const res = await apiTriggerSyncExport()
     if ((res as unknown as { status: string }).status) {
       message.info('导出已启动')
-      startLivePolling()
+      startPolling()
     }
   } catch {
     message.error('启动导出失败')
@@ -232,8 +231,7 @@ async function handleSyncBoth() {
   try {
     await apiTriggerSyncImport()
     message.info('导入已启动')
-    startLivePolling()
-    // poll until import done
+    startPolling()
     const pollImport = () => new Promise<void>((resolve) => {
       const check = setInterval(async () => {
         try {
@@ -245,7 +243,7 @@ async function handleSyncBoth() {
     await pollImport()
     await apiTriggerSyncExport()
     message.info('导出已启动')
-    startLivePolling()
+    startPolling()
   } catch {
     message.error('双向同步启动失败')
   } finally {
@@ -268,6 +266,38 @@ async function handleClearData() {
   }
 }
 
+// ---- polling ----
+let _pollTimer: ReturnType<typeof setInterval> | null = null
+
+function startPolling() {
+  stopPolling()
+  _pollTimer = setInterval(async () => {
+    try {
+      const s = await apiGetSyncStatus()
+      status.value = {
+        running: s.running,
+        last_sync_at: s.last_sync_at,
+        last_result: s.last_result as SyncStatusResult | null,
+      }
+      if (!s.running) {
+        stopPolling()
+        loadLogs()
+        loadFileTrees()
+      }
+    } catch { /* ignore */ }
+  }, 1500)
+}
+
+function stopPolling() {
+  if (_pollTimer) {
+    clearInterval(_pollTimer)
+    _pollTimer = null
+  }
+}
+
+import { onBeforeUnmount } from 'vue'
+onBeforeUnmount(stopPolling)
+
 /**
  * Flatten a file tree into a map of path → { checksum, documentId } for files only.
  */
@@ -280,25 +310,25 @@ function flattenFiles(nodes: FileTreeNode[], map: Record<string, { checksum?: st
 }
 
 /**
- * Compute diff status map between remote and local file trees.
+ * Compute diff status for all nodes (files + folders) in a tree.
  */
-function computeDiffStatus(
+function computeTreeDiff(
+  nodes: FileTreeNode[],
+  diffMap: Record<string, 'new' | 'old' | 'synced'>,
   remoteFiles: Record<string, { checksum?: string | null }>,
   localFiles: Record<string, { checksum?: string | null }>,
-): { remote: Record<string, 'new' | 'old' | 'synced'>; local: Record<string, 'new' | 'old' | 'synced'> } {
-  const remote: Record<string, 'new' | 'old' | 'synced'> = {}
-  const local: Record<string, 'new' | 'old' | 'synced'> = {}
-  for (const path of Object.keys(remoteFiles)) {
-    const lf = localFiles[path]
-    if (!lf) { remote[path] = 'new' }
-    else if (remoteFiles[path].checksum && lf.checksum && remoteFiles[path].checksum !== lf.checksum) {
-      remote[path] = 'old'; local[path] = 'old'
-    } else { remote[path] = 'synced'; local[path] = 'synced' }
+) {
+  for (const node of nodes) {
+    if (node.type === 'file') {
+      const rf = remoteFiles[node.path]
+      const lf = localFiles[node.path]
+      if (!rf) { diffMap[node.path] = 'new' }
+      else if (!lf) { diffMap[node.path] = 'new' }
+      else if (rf.checksum && lf.checksum && rf.checksum !== lf.checksum) { diffMap[node.path] = 'old' }
+      else { diffMap[node.path] = 'synced' }
+    }
+    if (node.children) computeTreeDiff(node.children, diffMap, remoteFiles, localFiles)
   }
-  for (const path of Object.keys(localFiles)) {
-    if (!remoteFiles[path]) local[path] = 'new'
-  }
-  return { remote, local }
 }
 
 async function loadFileTrees() {
@@ -312,9 +342,16 @@ async function loadFileTrees() {
     syncedTree.value = synced
     const remoteFlat = flattenFiles(remote.tree)
     const localFlat = flattenFiles(synced.tree)
-    const diff = computeDiffStatus(remoteFlat, localFlat)
-    remoteDiffMap.value = diff.remote
-    localDiffMap.value = diff.local
+
+    // Diff for remote tree
+    const rMap: Record<string, 'new' | 'old' | 'synced'> = {}
+    computeTreeDiff(remote.tree, rMap, remoteFlat, localFlat)
+    remoteDiffMap.value = rMap
+
+    // Diff for local tree
+    const lMap: Record<string, 'new' | 'old' | 'synced'> = {}
+    computeTreeDiff(synced.tree, lMap, remoteFlat, localFlat)
+    localDiffMap.value = lMap
   } catch { /* ignore */ } finally {
     treeLoading.value = false
   }
@@ -373,7 +410,6 @@ function logDirTagType(d: string): 'info' | 'success' {
   return d === 'import' ? 'info' : 'success'
 }
 
-
 onMounted(() => {
   loadConfig()
   loadStatus()
@@ -404,7 +440,7 @@ onMounted(() => {
             </NTag>
             <NTag v-else type="success" size="small">空闲</NTag>
           </div>
-          <!-- 4 action buttons in a row -->
+          <!-- 4 action buttons -->
           <div class="flex items-center gap-2">
             <NButton
               size="small"
@@ -451,34 +487,51 @@ onMounted(() => {
           上次同步: <span class="text-base-content font-medium">{{ status.last_sync_at ? new Date(status.last_sync_at).toLocaleString() : '从未' }}</span>
         </div>
 
-        <!-- Import progress -->
-        <div v-if="status.running || totalResult" class="mb-3">
+        <!-- Import section -->
+        <div class="mb-4">
           <div class="flex items-center justify-between text-xs mb-1">
-            <span class="text-base-content/50">导入进度</span>
-            <span v-if="totalResult" class="text-base-content/40">
-              {{ totalResult.imported + totalResult.skipped + totalResult.conflicted + totalResult.errors }} / {{ totalResult.total || '-' }}
-            </span>
+            <span class="text-base-content/60 font-medium">导入</span>
+            <span class="text-base-content/40">{{ importDone }} / {{ importTotal }}</span>
           </div>
           <NProgress
-            v-if="totalResult"
             type="line"
-            :percentage="totalResult.total ? Math.round(((totalResult.imported + totalResult.skipped + totalResult.conflicted + totalResult.errors) / totalResult.total) * 100) : 0"
-            :height="8"
-            :border-radius="4"
-            :fill-border-radius="4"
-            status="default"
+            :percentage="importPct"
+            :height="6"
+            :border-radius="3"
+            :fill-border-radius="3"
+            :show-indicator="false"
+            status="success"
           />
+          <div v-if="totalResult && !status.running" class="flex flex-wrap gap-4 text-xs mt-1.5">
+            <span class="text-green-500">成功 {{ totalResult.imported }}</span>
+            <span class="text-base-content/30">跳过 {{ totalResult.skipped }}</span>
+            <span class="text-amber-500">冲突 {{ totalResult.conflicted }}</span>
+            <span class="text-red-500">错误 {{ totalResult.errors }}</span>
+          </div>
         </div>
 
-        <!-- Import stats row -->
-        <div v-if="totalResult && !status.running" class="flex flex-wrap gap-4 text-xs mb-2">
-          <span class="text-green-500">导入成功 {{ totalResult.imported }}</span>
-          <span class="text-base-content/30">跳过 {{ totalResult.skipped }}</span>
-          <span class="text-amber-500">冲突 {{ totalResult.conflicted }}</span>
-          <span class="text-red-500">错误 {{ totalResult.errors }}</span>
+        <!-- Export section -->
+        <div>
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="text-base-content/60 font-medium">导出</span>
+            <span class="text-base-content/40">{{ exportDone }} / {{ exportTotal }}</span>
+          </div>
+          <NProgress
+            type="line"
+            :percentage="exportPct"
+            :height="6"
+            :border-radius="3"
+            :fill-border-radius="3"
+            :show-indicator="false"
+            status="warning"
+          />
+          <div v-if="totalResult && !status.running" class="flex flex-wrap gap-4 text-xs mt-1.5">
+            <span class="text-green-500">成功 {{ totalResult.exported }}</span>
+            <span class="text-base-content/30">跳过 {{ totalResult.export_skipped }}</span>
+            <span class="text-red-500">失败 {{ totalResult.export_failed }}</span>
+          </div>
         </div>
-
-              </div>
+      </div>
 
       <!-- File tree comparison -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -491,7 +544,6 @@ onMounted(() => {
                 <span class="px-1 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">新</span>
                 <span class="px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">旧</span>
                 <span class="px-1 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30">已同步</span>
-                <span class="text-base-content/30">对比</span>
               </div>
             </div>
             <span class="text-[10px] text-base-content/30">{{ remoteTree.fileCount }} 个文件</span>
@@ -518,7 +570,6 @@ onMounted(() => {
                 <span class="px-1 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">新</span>
                 <span class="px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">旧</span>
                 <span class="px-1 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30">已同步</span>
-                <span class="text-base-content/30">对比</span>
               </div>
             </div>
             <div class="flex items-center gap-2 text-[10px] text-base-content/30">
@@ -541,71 +592,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Live log section -->
-      <div v-if="livePolling || liveLogs.length > 0" class="bg-base-100 rounded-xl border border-base-content/5 overflow-hidden mb-6">
-        <div class="flex items-center justify-between px-4 py-2.5 bg-base-200/50 border-b border-base-content/5">
-          <div class="flex items-center gap-2 text-xs">
-            <span class="font-medium text-base-content">实时日志</span>
-            <span v-if="livePolling" class="flex items-center gap-1 text-green-500">
-              <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              同步中
-            </span>
-            <span v-else class="text-base-content/40">已完成</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="text-[10px] text-base-content/30">{{ liveLogs.length }} 条</span>
-            <NButton v-if="livePolling" size="tiny" quaternary @click="stopLivePolling">
-              <template #icon><StopOutline class="w-3 h-3" /></template>
-              停止
-            </NButton>
-          </div>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs">
-            <thead>
-              <tr class="text-left text-base-content/40 border-b border-base-content/5">
-                <th class="py-2 pr-4 font-normal">时间</th>
-                <th class="py-2 pr-4 font-normal">方向</th>
-                <th class="py-2 pr-4 font-normal">文件</th>
-                <th class="py-2 pr-4 font-normal">状态</th>
-                <th class="py-2 pr-4 font-normal">详情</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(log, i) in liveLogs"
-                :key="log.id || i"
-                class="border-b border-base-content/5 hover:bg-base-200/30"
-              >
-                <td class="py-2 pr-4 text-base-content/40 whitespace-nowrap">
-                  {{ new Date(log.created_at).toLocaleTimeString() }}
-                </td>
-                <td class="py-2 pr-4">
-                  <NTag :type="logDirTagType(log.direction)" size="tiny">
-                    {{ log.direction === 'import' ? '导入' : '导出' }}
-                  </NTag>
-                </td>
-                <td class="py-2 pr-4 text-base-content/60 max-w-48 truncate">
-                  {{ log.file_path || '-' }}
-                </td>
-                <td class="py-2 pr-4">
-                  <NTag :type="logStatusTagType(log.status)" size="tiny">
-                    {{ log.status === 'success' ? '成功' : log.status === 'skipped' ? '跳过' : log.status === 'conflict' ? '冲突' : log.status === 'error' ? '错误' : log.status }}
-                  </NTag>
-                </td>
-                <td class="py-2 pr-4 text-base-content/40 max-w-40 truncate">
-                  {{ log.detail || '-' }}
-                </td>
-              </tr>
-              <tr v-if="liveLogs.length === 0 && livePolling">
-                <td colspan="5" class="py-4 text-center text-base-content/30 italic">等待同步开始...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Sync records (historical log) - collapsed by default -->
+      <!-- Sync records (historical log) -->
       <div class="bg-base-100 rounded-xl border border-base-content/5">
         <div
           class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-base-200/30"
@@ -637,7 +624,7 @@ onMounted(() => {
             />
           </div>
           <NSpin :show="logsLoading">
-            <NEmpty v-if="logs.length === 0" description="暂无同步记录" class="py-6" />
+            <div v-if="logs.length === 0" class="py-6 text-center text-xs text-base-content/30">暂无同步记录</div>
             <div v-else class="overflow-x-auto">
               <table class="w-full text-xs">
                 <thead>
@@ -689,7 +676,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Clear data (minor action) -->
+      <!-- Clear data -->
       <div class="mt-4 text-right">
         <NButton
           size="tiny"
