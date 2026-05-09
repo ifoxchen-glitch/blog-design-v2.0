@@ -189,7 +189,7 @@ function renderGraph() {
         style: { 'line-color': '#f59e0b', 'width': 2.5, 'opacity': 1 },
       },
     ],
-    layout: { name: 'cose', animate: false, nodeRepulsion: 8000, idealEdgeLength: 120 },
+    layout: { name: 'circle', animate: false },
     wheelSensitivity: 0.3,
     minZoom: 0.1,
     maxZoom: 4,
@@ -214,6 +214,8 @@ function renderGraph() {
   cy.on('tap', (evt) => {
     if (evt.target === cy) selectedNode.value = null
   })
+
+  cy.fit(undefined, 40)
 }
 
 function handleFit() {
@@ -240,13 +242,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-[calc(100vh-4rem)]">
-    <PageHeader title="知识图谱" subtitle="文档关系可视化">
-      <NButton quaternary size="small" @click="loadGraph">
-        <template #icon><RefreshOutline class="w-4 h-4" /></template>
-        刷新
-      </NButton>
-    </PageHeader>
+  <div class="flex flex-col" style="height: calc(100vh - 4rem)">
+    <div>
+      <PageHeader title="知识图谱" subtitle="文档关系可视化">
+        <NButton quaternary size="small" @click="loadGraph">
+          <template #icon><RefreshOutline class="w-4 h-4" /></template>
+          刷新
+        </NButton>
+      </PageHeader>
+    </div>
 
     <!-- Filter bar -->
     <div class="flex items-center gap-3 px-4 py-2 bg-base-100 border-b border-base-content/5">
@@ -281,9 +285,9 @@ onBeforeUnmount(() => {
     <!-- Graph + info panel -->
     <div class="flex flex-1 min-h-0">
       <!-- Graph area -->
-      <div class="flex-1 relative">
+      <div class="flex-1 relative overflow-hidden" style="min-height: 500px">
         <NSpin :show="loading" class="absolute inset-0 z-0">
-          <div ref="graphContainer" class="w-full h-full bg-[#0f172a]" />
+          <div ref="graphContainer" class="w-full h-full bg-[#0f172a]" style="height: 100%;" />
         </NSpin>
         <NEmpty
           v-if="!loading && graphData.nodes.length === 0"
