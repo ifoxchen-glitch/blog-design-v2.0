@@ -4,12 +4,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { NButton, useMessage } from 'naive-ui'
 import { ArrowBackOutline, BookOutline } from '@vicons/ionicons5'
 import { useInfiniteCanvas } from '../../../composables/useInfiniteCanvas'
-import { useCanvasPersistence } from '../../../composables/useCanvasPersistence'
 import InfiniteCanvas from '../../../components/kb/canvas-v2/InfiniteCanvas.vue'
 import CanvasToolbar from '../../../components/kb/canvas-v2/CanvasToolbar.vue'
 import LeftDocPanel from '../../../components/kb/canvas-v2/LeftDocPanel.vue'
 import RightPropsPanel from '../../../components/kb/canvas-v2/RightPropsPanel.vue'
 import DocDetailDialog from '../../../components/kb/canvas/DocDetailDialog.vue'
+import { request } from '../../../api/request'
+import type { ApiResponse } from '../../../api/request'
+import type { CanvasData } from '../../../composables/useInfiniteCanvas'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,23 +25,21 @@ const canvasId = computed(() => {
 const canvas = useInfiniteCanvas(canvasId)
 provide('canvasV2', canvas)
 
-const { loadCanvas: loadData, saveCanvas: saveData } = useCanvasPersistence()
-
 const showBrowser = ref(true)
 const showDocDetail = ref(false)
 const docDetailId = ref<number | null>(null)
-const canvasReady = ref(false)
 
-// Load canvas data (called after InfiniteCanvas emits 'ready')
+// Load canvas data
 async function loadCanvasData() {
   if (canvasId.value <= 0) return
   canvas.isLoading.value = true
   try {
-    const data = await loadData(canvasId.value)
-    canvas.loadFromData(data.nodes, data.edges, {
-      zoom: data.zoom,
-      panX: data.pan_x,
-      panY: data.pan_y,
+    const res = await request.get<ApiResponse<CanvasData>>(`/api/v2/admin/kb/canvases/${canvasId.value}`)
+    const data = res.data.data
+    canvas.loadFromData(data.nodes || [], data.edges || [], {
+      zoom: data.zoom || 1,
+      panX: data.pan_x || 0,
+      panY: data.pan_y || 0,
     })
     setTimeout(() => canvas.zoomToFit(), 200)
   } catch {
@@ -49,18 +49,10 @@ async function loadCanvasData() {
   }
 }
 
-function onCanvasReady() {
-  canvasReady.value = true
-  loadCanvasData()
-}
-
 // Save
 async function handleSave() {
-  if (!canvas.fabCanvas.value) return
   try {
-    const data = canvas.extractData()
-    await saveData(canvasId.value, data, canvas.updateDbIds)
-    canvas.isDirty.value = false
+    await canvas.save()
     message.success('已保存')
   } catch {
     message.error('保存失败')
@@ -71,11 +63,9 @@ async function handleSave() {
 let autoSaveTimer: ReturnType<typeof setInterval> | null = null
 function startAutoSave() {
   autoSaveTimer = setInterval(async () => {
-    if (canvas.isDirty.value && canvas.fabCanvas.value) {
+    if (canvas.isDirty.value) {
       try {
-        const data = canvas.extractData()
-        await saveData(canvasId.value, data, canvas.updateDbIds)
-        canvas.isDirty.value = false
+        await canvas.save()
       } catch { /* silent */ }
     }
   }, 15000)
@@ -91,8 +81,7 @@ function handleOpenDocDetail(docId: number) {
 }
 
 function handleClosePanel() {
-  canvas.fabCanvas.value?.discardActiveObject()
-  canvas.fabCanvas.value?.requestRenderAll()
+  canvas.selectedIds.value = new Set()
 }
 
 const isMobile = ref(false)
@@ -102,15 +91,15 @@ onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
   startAutoSave()
+  loadCanvasData()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', checkMobile)
   if (autoSaveTimer) clearInterval(autoSaveTimer)
-  // Save before destroy so unsaved new nodes are persisted
-  if (canvas.isDirty.value && canvas.fabCanvas.value) {
-    const data = canvas.extractData()
-    saveData(canvasId.value, data, canvas.updateDbIds).catch(() => {})
+  // Save before destroy
+  if (canvas.isDirty.value) {
+    canvas.save().catch(() => {})
   }
 })
 </script>
@@ -147,7 +136,7 @@ onBeforeUnmount(() => {
     <div class="flex flex-1 min-h-0 overflow-hidden">
       <LeftDocPanel v-if="showBrowser" class="w-60 shrink-0" />
       <div class="flex-1 relative min-w-0">
-        <InfiniteCanvas @ready="onCanvasReady" @dirty-changed="canvas.isDirty.value = $event" />
+        <InfiniteCanvas @dirty-changed="canvas.isDirty.value = $event" />
       </div>
       <RightPropsPanel @open-doc-detail="handleOpenDocDetail" @close="handleClosePanel" />
     </div>
