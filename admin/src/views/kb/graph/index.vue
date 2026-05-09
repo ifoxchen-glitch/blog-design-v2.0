@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import cytoscape, { type Core } from 'cytoscape'
 import {
@@ -8,14 +8,12 @@ import {
   NSelect,
   NTag,
   NEmpty,
-  NInput,
   useMessage,
 } from 'naive-ui'
 import {
   RefreshOutline,
   ExpandOutline,
   OpenOutline,
-  ArrowBackOutline,
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import {
@@ -220,12 +218,6 @@ function renderGraph() {
 
 function handleFit() {
   if (cy) cy.fit(undefined, 40)
-}
-
-function handleRefresh() {
-  selectedCategory.value = ''
-  selectedDocType.value = ''
-  renderGraph()
 }
 
 function handleOpenDoc() {
