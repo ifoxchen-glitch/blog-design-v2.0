@@ -27,7 +27,6 @@ const message = useMessage()
 
 // ---- State ----
 const loading = ref(false)
-const graphRoot = ref<HTMLDivElement>()
 const graphContainer = ref<HTMLDivElement>()
 let cy: Core | null = null
 
@@ -242,18 +241,6 @@ function renderGraph() {
   cy.fit(undefined, 40)
 }
 
-function calcLayout() {
-  if (!graphRoot.value) return
-  // Vue's <Transition> wraps us, so go up 2 levels to reach AdminLayout's content container
-  const container = graphRoot.value.parentElement?.parentElement
-  if (!container) return
-  const pr = container.getBoundingClientRect()
-  // Use container height since 100vh overflows inside AdminLayout header/padding
-  if (pr.height > 0) {
-    graphRoot.value.style.height = pr.height + 'px'
-  }
-}
-
 function handleFit() {
   if (cy) cy.fit(undefined, 40)
 }
@@ -269,21 +256,18 @@ function handleCategoryChange() { renderGraph() }
 
 onMounted(async () => {
   await nextTick()
-  calcLayout()
-  window.addEventListener('resize', calcLayout)
   loadCategories()
   loadGraph()
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', calcLayout)
   if (cy) { cy.destroy(); cy = null }
 })
 </script>
 
 <template>
   <!-- Full viewport height, flex column layout -->
-  <div ref="graphRoot" style="display: flex; flex-direction: column; overflow: hidden; background: var(--color-base-200); min-height: 400px">
+  <div class="flex flex-col" style="height: calc(100vh - 180px); min-height: 600px; overflow: hidden; background: var(--color-base-200)">
     <!-- Header row -->
     <div style="padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--color-base-border); flex-shrink: 0; background: var(--color-base-100)">
       <div style="display: flex; align-items: center; justify-content: space-between">
