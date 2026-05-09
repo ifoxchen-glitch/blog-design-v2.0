@@ -155,6 +155,12 @@ const router = createRouter({
           meta: { permission: 'kb:sync' },
         },
         {
+          path: '/cms/kb/graph',
+          name: 'kb-graph',
+          component: () => import('../views/kb/graph/index.vue'),
+          meta: { permission: 'kb:list' },
+        },
+        {
           path: '/cms/backup',
           name: 'cms-backup',
           component: () => import('../views/cms/backup/index.vue'),

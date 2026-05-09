@@ -299,6 +299,60 @@ function listCategories(req, res) {
   return res.status(200).json({ code: 200, message: "success", data: categories });
 }
 
+/**
+ * Get all KB documents and their connections as graph data for Cytoscape.
+ * Nodes = documents, Edges = connections between documents.
+ */
+function getKbGraph(req, res) {
+  const db = openDb()
+
+  const rows = db
+    .prepare(`
+      SELECT id, title, slug, excerpt, source, tags, status, category, doc_type, review_status, connections, sources, word_count, created_at, updated_at
+        FROM kb_documents
+       WHERE status = 'active'
+       ORDER BY updated_at DESC
+    `)
+    .all()
+
+  // Build title→id map for edge creation
+  const titleToId = {}
+  rows.forEach(row => { titleToId[row.title] = row.id })
+
+  const colors = { entity: '#8b5cf6', concept: '#6366f1', source: '#0ea5e9', synthesis: '#f59e0b' }
+
+  const nodes = rows.map(row => ({
+    id: String(row.id),
+    title: row.title,
+    slug: row.slug,
+    category: row.category || null,
+    doc_type: row.doc_type || null,
+    review_status: row.review_status || null,
+    tags: parseTags(row.tags),
+    excerpt: row.excerpt || null,
+    color: colors[row.doc_type] || '#6366f1',
+  }))
+
+  const edgeSet = new Set()
+  const edges = []
+  rows.forEach(row => {
+    const conns = parseTags(row.connections)
+    for (const conn of conns) {
+      const targetId = titleToId[conn]
+      if (targetId && targetId !== row.id) {
+        const key = `${row.id}-${targetId}`
+        const revKey = `${targetId}-${row.id}`
+        if (!edgeSet.has(key) && !edgeSet.has(revKey)) {
+          edgeSet.add(key)
+          edges.push({ source: String(row.id), target: String(targetId), label: conn })
+        }
+      }
+    }
+  })
+
+  res.json({ code: 200, data: { nodes, edges } })
+}
+
 module.exports = {
   listDocuments,
   getDocument,
@@ -306,4 +360,5 @@ module.exports = {
   updateDocument,
   deleteDocument,
   listCategories,
+  getKbGraph,
 };

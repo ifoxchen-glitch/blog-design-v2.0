@@ -69,6 +69,34 @@ export async function apiGetKbDocument(
   return res.data.data
 }
 
+export interface KbGraphNode {
+  id: string
+  title: string
+  slug: string
+  category: string | null
+  doc_type: string | null
+  review_status: string | null
+  tags: string[]
+  excerpt: string | null
+  color: string
+}
+
+export interface KbGraphEdge {
+  source: string
+  target: string
+  label: string
+}
+
+export interface KbGraphData {
+  nodes: KbGraphNode[]
+  edges: KbGraphEdge[]
+}
+
+export async function apiGetKbGraph(client: AxiosInstance = request): Promise<KbGraphData> {
+  const res = await client.get<ApiResponse<KbGraphData>>('/api/v2/admin/kb/documents/graph')
+  return res.data.data
+}
+
 export interface CreateKbDocumentPayload {
   title: string
   slug?: string
