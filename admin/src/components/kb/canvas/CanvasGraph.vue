@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, inject, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, inject, watch, nextTick } from 'vue'
 import { NButton, useMessage } from 'naive-ui'
 import { TrashOutline, LinkOutline, PencilOutline } from '@vicons/ionicons5'
 import type { UseCanvasReturn } from '../../../composables/useCanvas'
@@ -256,12 +256,13 @@ watch(() => canvas.connectMode.value, (active) => {
   }
 })
 
-onMounted(() => {
-  if (container.value) {
+onMounted(async () => {
+  await nextTick()
+  // Ensure container has pixel dimensions before init
+  if (container.value && container.value.getBoundingClientRect().width > 0) {
     canvas.init(container.value)
-    canvas.loadCanvas(canvas.canvasId.value).then(() => {
-      bindEvents()
-    })
+    await canvas.loadCanvas(canvas.canvasId.value)
+    bindEvents()
   }
   document.addEventListener('click', handleDocumentClick)
 })

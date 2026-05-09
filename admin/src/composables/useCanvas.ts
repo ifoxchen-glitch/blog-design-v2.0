@@ -95,6 +95,29 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
           },
         },
         {
+          selector: 'node[nodeType="kb-doc"]',
+          style: {
+            'shape': 'rectangle',
+            'background-color': 'data(color)',
+            'background-opacity': 0.12,
+            'label': 'data(label)',
+            'width': 220,
+            'height': 72,
+            'font-size': '12px',
+            'color': '#e2e8f0',
+            'text-valign': 'top',
+            'text-halign': 'left',
+            'text-wrap': 'wrap',
+            'text-max-width': '200px',
+            'border-width': 3,
+            'border-color': 'data(color)',
+            'border-opacity': 0.8,
+            'padding': '10px',
+            'text-margin-y': 4,
+            'min-zoomed-font-size': 7,
+          },
+        },
+        {
           selector: 'node:selected',
           style: { 'border-color': '#f59e0b', 'border-width': 3 },
         },
@@ -121,7 +144,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
         },
       ],
       layout: { name: 'preset' },
-      wheelSensitivity: 0.3,
+      // Use default wheel sensitivity to avoid console warning
       minZoom: 0.1,
       maxZoom: 4,
       boxSelectionEnabled: true,
@@ -220,15 +243,30 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
 
     // Add nodes
     for (const node of data.nodes) {
+      const meta = node.metadata as Record<string, unknown> | undefined
+      const isDocNode = Boolean(meta?.doc_id)
+
+      // Rebuild card-style label for KB doc nodes
+      let label = node.label
+      if (isDocNode) {
+        const docType = (meta?.doc_type as string) || ''
+        const reviewStatus = (meta?.review_status as string) || ''
+        const typeLabel = docType ? `[${docType}]` : ''
+        const reviewLabel = reviewStatus ? `[${REVIEW_LABELS[reviewStatus] || reviewStatus}]` : ''
+        const metaLine = [typeLabel, reviewLabel].filter(Boolean).join(' ')
+        label = metaLine ? `${node.label}\n${metaLine}` : node.label
+      }
+
       cy.value.add({
         group: 'nodes',
         data: {
           id: `n-${node.id}`,
-          label: node.label,
+          label,
+          nodeType: isDocNode ? 'kb-doc' : undefined,
           type: node.type,
           content: node.content,
-          width: node.width,
-          height: node.height,
+          width: isDocNode ? 220 : node.width,
+          height: isDocNode ? 72 : node.height,
           color: node.color,
           metadata: node.metadata,
           sort_order: node.sort_order,
@@ -373,11 +411,19 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     }
   }
 
+  const REVIEW_LABELS: Record<string, string> = { mature: '成熟', developing: '完善中', seed: '草稿' }
+
   async function addDocNode(doc: KbDocumentListItem, x: number, y: number): Promise<string | null> {
     if (!cy.value || !canvasId.value) return null
 
     const colors: Record<string, string> = { entity: '#8b5cf6', concept: '#6366f1', source: '#0ea5e9', synthesis: '#f59e0b' }
     const color = colors[doc.doc_type ?? ''] ?? '#6366f1'
+
+    // Build rich label: title + metadata line
+    const typeLabel = doc.doc_type ? `[${doc.doc_type}]` : ''
+    const reviewLabel = doc.review_status ? `[${REVIEW_LABELS[doc.review_status] || doc.review_status}]` : ''
+    const metaLine = [typeLabel, reviewLabel].filter(Boolean).join(' ')
+    const label = metaLine ? `${doc.title}\n${metaLine}` : doc.title
 
     const metadata = {
       doc_id: doc.id,
@@ -404,11 +450,12 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
         group: 'nodes',
         data: {
           id: `n-${created.id}`,
-          label: doc.title,
+          label,
+          nodeType: 'kb-doc',
           type: doc.doc_type ?? 'concept',
           content: '',
-          width: 160,
-          height: 60,
+          width: 220,
+          height: 72,
           color,
           metadata,
           sort_order: created.sort_order,

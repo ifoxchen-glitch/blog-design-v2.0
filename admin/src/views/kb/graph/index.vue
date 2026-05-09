@@ -184,7 +184,7 @@ function renderGraph() {
       },
     ],
     layout: { name: 'grid', fit: true, rows: undefined, animate: false },
-    wheelSensitivity: 0.3,
+    // Use default wheel sensitivity
     minZoom: 0.1,
     maxZoom: 4,
   })
