@@ -105,6 +105,7 @@ function renderGraph() {
 
   // Wait for container to have pixel dimensions before init
   const rect = graphContainer.value.getBoundingClientRect()
+  console.log('[kb-graph] container rect:', rect.width, 'x', rect.height)
   if (rect.width === 0 || rect.height === 0) {
     requestAnimationFrame(() => renderGraph())
     return
@@ -116,6 +117,8 @@ function renderGraph() {
   }
 
   const { nodes, edges } = filterNodes()
+  console.log('[kb-graph] rendering', nodes.length, 'nodes,', edges.length, 'edges')
+  console.log('[kb-graph] node colors:', nodes.map(n => n.color))
 
   cy = cytoscape({
     container: graphContainer.value,
@@ -196,6 +199,11 @@ function renderGraph() {
     wheelSensitivity: 0.3,
     minZoom: 0.1,
     maxZoom: 4,
+  })
+
+  cy.ready(() => {
+    console.log('[kb-graph] cytoscape ready, nodes:', cy!.nodes().length, 'edges:', cy!.edges().length)
+    console.log('[kb-graph] cy.extent():', cy!.extent())
   })
 
   cy.on('tap', 'node', (evt) => {
