@@ -194,15 +194,18 @@ function renderGraph() {
         style: { 'line-color': '#f59e0b', 'width': 2.5, 'opacity': 1 },
       },
     ],
-    layout: { name: 'circle', animate: false },
+    layout: { name: 'grid', fit: true, rows: undefined, animate: false },
     wheelSensitivity: 0.3,
     minZoom: 0.1,
     maxZoom: 4,
   })
 
   cy.ready(() => {
-    console.log('[kb-graph] cytoscape ready, nodes:', cy!.nodes().length, 'edges:', cy!.edges().length)
-    console.log('[kb-graph] cy.extent():', cy!.extent())
+    console.log('[kb-graph] cy ready, nodes:', cy!.nodes().length, 'edges:', cy!.edges().length)
+    console.log('[kb-graph] extent:', cy!.extent())
+    console.log('[kb-graph] container size:', cy!.container()?.clientWidth, cy!.container()?.clientHeight)
+    // Defer fit to ensure layout completes
+    setTimeout(() => { cy!.fit(undefined, 40); console.log('[kb-graph] deferred fit done') }, 300)
   })
 
   cy.on('tap', 'node', (evt) => {
