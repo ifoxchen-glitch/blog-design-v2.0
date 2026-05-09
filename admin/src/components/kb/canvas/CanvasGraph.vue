@@ -256,18 +256,54 @@ watch(() => canvas.connectMode.value, (active) => {
   }
 })
 
+// Drag-and-drop from KB doc browser
+function handleDragOver(e: DragEvent) {
+  e.preventDefault()
+  e.dataTransfer!.dropEffect = 'copy'
+}
+
+function handleDrop(e: DragEvent) {
+  e.preventDefault()
+  const json = e.dataTransfer?.getData('application/json')
+  if (!json || !canvas.cy.value) return
+  try {
+    const doc = JSON.parse(json) as { id: number; title: string; category: string | null; doc_type: string | null; review_status: string | null; excerpt: string | null; tags: string[]; slug: string }
+    // Convert screen coordinates to model position
+    const rect = container.value!.getBoundingClientRect()
+    const modelPos = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    }
+    // Convert rendered position to model position
+    const pan = canvas.cy.value.pan()
+    const zoom = canvas.cy.value.zoom()
+    const x = (modelPos.x - pan.x) / zoom
+    const y = (modelPos.y - pan.y) / zoom
+    canvas.addDocNodeWithConnections(doc as any, x, y).then((result) => {
+      if (result) message.success(`已添加「${doc.title}」`)
+    })
+  } catch { /* ignore invalid drop data */ }
+}
+
 onMounted(async () => {
   await nextTick()
   if (container.value) {
     canvas.init(container.value)
     await canvas.loadCanvas(canvas.canvasId.value)
     bindEvents()
+    // Set up drag-drop
+    container.value.addEventListener('dragover', handleDragOver)
+    container.value.addEventListener('drop', handleDrop)
   }
   document.addEventListener('click', handleDocumentClick)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
+  if (container.value) {
+    container.value.removeEventListener('dragover', handleDragOver)
+    container.value.removeEventListener('drop', handleDrop)
+  }
   canvas.destroy()
 })
 </script>

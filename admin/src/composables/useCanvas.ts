@@ -49,6 +49,7 @@ export interface UseCanvasReturn {
   addEdge: (sourceId: string, targetId: string) => Promise<boolean>
   updateNodeLabel: (nodeId: string, label: string) => Promise<void>
   updateNodeColor: (nodeId: string, color: string) => Promise<void>
+  updateNodeMetadata: (nodeId: string, metadata: Record<string, unknown>) => Promise<void>
   runLayout: (name: 'cose-bilkent' | 'circle' | 'concentric' | 'grid' | 'preset') => Promise<void>
   fitToScreen: () => void
   exportPng: () => void
@@ -661,6 +662,18 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     } catch { /* ignore */ }
   }
 
+  async function updateNodeMetadata(nodeId: string, metadata: Record<string, unknown>): Promise<void> {
+    if (!cy.value || !canvasId.value) return
+    const cyNode = cy.value.getElementById(nodeId)
+    if (!cyNode.length) return
+
+    try {
+      await apiUpdateCanvasNode(canvasId.value, dbNodeId(nodeId), { metadata } as any)
+      cyNode.data('metadata', metadata)
+      isDirty.value = true
+    } catch { /* ignore */ }
+  }
+
   async function runLayout(name: 'cose-bilkent' | 'circle' | 'concentric' | 'grid' | 'preset'): Promise<void> {
     if (!cy.value) return
 
@@ -719,6 +732,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     addEdge,
     updateNodeLabel,
     updateNodeColor,
+    updateNodeMetadata,
     runLayout,
     fitToScreen,
     exportPng,
