@@ -100,6 +100,23 @@ function handleConnect() {
 
     <div class="w-px h-4 bg-base-content/10 mx-1" />
 
+    <!-- Auto-layout -->
+    <NPopover trigger="hover">
+      <template #trigger>
+        <NButton size="tiny" quaternary title="自动布局">
+          <ShapesOutline class="w-3.5 h-3.5" />
+        </NButton>
+      </template>
+      <div class="flex flex-col gap-1 p-1">
+        <NButton size="tiny" quaternary @click="canvas.layoutGrid()">网格排列</NButton>
+        <NButton size="tiny" quaternary @click="canvas.layoutCircle()">环形排列</NButton>
+        <NButton size="tiny" quaternary @click="canvas.layoutForce()">力导向排列</NButton>
+        <NButton size="tiny" quaternary @click="canvas.zoomToFit()">适应画布</NButton>
+      </div>
+    </NPopover>
+
+    <div class="w-px h-4 bg-base-content/10 mx-1" />
+
     <!-- Zoom controls -->
     <NButton size="tiny" quaternary @click="() => {
       const c = canvas.fabCanvas.value

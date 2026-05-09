@@ -83,10 +83,9 @@ async function handleClick(doc: KbDocumentListItem) {
             const ry = cy_ + (Math.random() - 0.5) * 300 + 150
             const connectedId = await canvas.addKbDocElement(existing, rx, ry)
             if (connectedId) {
-              canvas.completeConnection(connectedId)
-              // CompleteConnection uses the stored connectSource, we need to explicitly connect
               canvas.startConnection(result)
               await canvas.completeConnection(connectedId)
+              canvas.cancelConnection()
               added++
             }
           }

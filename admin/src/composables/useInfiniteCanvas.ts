@@ -71,6 +71,9 @@ export interface UseInfiniteCanvasReturn {
   updateConnectionsForElement: (elId: string) => void
 
   zoomToFit: () => void
+  layoutGrid: () => void
+  layoutCircle: () => void
+  layoutForce: () => void
   resetZoom: () => void
   exportPng: () => void
 
@@ -254,8 +257,15 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
 
       if (target && tool === 'connect') {
         const targetId = (target as any).fabricId
-        if (targetId && targetId !== connectSource.value) {
-          completeConnection(targetId)
+        if (!targetId) return
+        if (connectSource.value) {
+          // Second click: complete the connection
+          if (targetId !== connectSource.value) {
+            completeConnection(targetId)
+          }
+        } else {
+          // First click: set the source element
+          startConnection(targetId)
         }
         return
       }
@@ -830,6 +840,102 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     canvas.requestRenderAll()
   }
 
+  // ---- Auto-layout ----
+
+  function layoutGrid() {
+    const canvas = fabCanvas.value
+    if (!canvas) return
+    const objs = canvas.getObjects().filter(o => (o as any).customType && (o as any).customType !== 'connection')
+    if (objs.length === 0) return
+    const cols = Math.ceil(Math.sqrt(objs.length))
+    const spacing = 260
+    let row = 0, col = 0
+    objs.forEach(obj => {
+      obj.set({ left: col * spacing, top: row * spacing })
+      obj.setCoords()
+      col++
+      if (col >= cols) { col = 0; row++ }
+    })
+    canvas.requestRenderAll()
+    zoomToFit()
+    markDirty()
+  }
+
+  function layoutCircle() {
+    const canvas = fabCanvas.value
+    if (!canvas) return
+    const objs = canvas.getObjects().filter(o => (o as any).customType && (o as any).customType !== 'connection')
+    if (objs.length === 0) return
+    const radius = Math.max(200, objs.length * 30)
+    const cx = canvas.width! / 2
+    const cy_ = canvas.height! / 2
+    objs.forEach((obj, i) => {
+      const angle = (2 * Math.PI * i) / objs.length
+      obj.set({
+        left: cx + radius * Math.cos(angle) - (obj.width || 100) / 2,
+        top: cy_ + radius * Math.sin(angle) - (obj.height || 60) / 2,
+      })
+      obj.setCoords()
+    })
+    canvas.requestRenderAll()
+    zoomToFit()
+    markDirty()
+  }
+
+  function layoutForce() {
+    const canvas = fabCanvas.value
+    if (!canvas) return
+    const objs = canvas.getObjects().filter(o => (o as any).customType && (o as any).customType !== 'connection')
+    if (objs.length === 0) return
+    // Simple force simulation: spread nodes apart
+    const iterations = 50
+    const repulsion = 5000
+    for (let iter = 0; iter < iterations; iter++) {
+      for (let i = 0; i < objs.length; i++) {
+        let fx = 0, fy = 0
+        const oi = objs[i]
+        const ci = oi.getCenterPoint()
+        for (let j = 0; j < objs.length; j++) {
+          if (i === j) continue
+          const oj = objs[j]
+          const cj = oj.getCenterPoint()
+          const dx = ci.x - cj.x
+          const dy = ci.y - cj.y
+          const dist = Math.max(10, Math.sqrt(dx * dx + dy * dy))
+          const force = repulsion / (dist * dist)
+          fx += (dx / dist) * force
+          fy += (dy / dist) * force
+        }
+        // Edge attraction
+        canvas.getObjects().forEach(eo => {
+          const ed = (eo as any)
+          if (ed.customType !== 'connection') return
+          if (ed.fromId === (oi as any).fabricId) {
+            const target = objs.find(o => (o as any).fabricId === ed.toId)
+            if (target) {
+              const tc = target.getCenterPoint()
+              fx += (tc.x - ci.x) * 0.01
+              fy += (tc.y - ci.y) * 0.01
+            }
+          }
+          if (ed.toId === (oi as any).fabricId) {
+            const target = objs.find(o => (o as any).fabricId === ed.fromId)
+            if (target) {
+              const tc = target.getCenterPoint()
+              fx += (tc.x - ci.x) * 0.01
+              fy += (tc.y - ci.y) * 0.01
+            }
+          }
+        })
+        oi.set({ left: oi.left! + fx * 0.01, top: oi.top! + fy * 0.01 })
+      }
+    }
+    objs.forEach(o => o.setCoords())
+    canvas.requestRenderAll()
+    zoomToFit()
+    markDirty()
+  }
+
   function resetZoom() {
     const canvas = fabCanvas.value
     if (!canvas) return
@@ -889,6 +995,9 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     updateConnectionsForElement,
 
     zoomToFit,
+    layoutGrid,
+    layoutCircle,
+    layoutForce,
     resetZoom,
     exportPng,
 
