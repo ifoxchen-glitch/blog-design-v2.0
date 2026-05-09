@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import {
   NButton,
   NInput,
@@ -18,7 +18,7 @@ import {
   RefreshOutline,
   CloudUploadOutline,
   DownloadOutline,
-  SwapOutline,
+  SwapHorizontalOutline,
   SettingsOutline,
   StopOutline,
 } from '@vicons/ionicons5'
@@ -142,10 +142,6 @@ const totalResult = computed(() => {
     conflicted: r.conflicted,
     errors: r.errors,
     total: r.imported + r.skipped + r.conflicted + r.errors,
-    exportTotal: (r.export_total ?? 0),
-    exportSuccess: (r.export_success ?? 0),
-    exportSkipped: (r.export_skipped ?? 0),
-    exportFailed: (r.export_failed ?? 0),
   }
 })
 
@@ -377,14 +373,6 @@ function logDirTagType(d: string): 'info' | 'success' {
   return d === 'import' ? 'info' : 'success'
 }
 
-function logClass(s: string): string {
-  switch (s) {
-    case 'success': return 'text-green-500'
-    case 'conflict': return 'text-amber-500'
-    case 'error': return 'text-red-500'
-    default: return 'text-base-content/30'
-  }
-}
 
 onMounted(() => {
   loadConfig()
@@ -444,7 +432,7 @@ onMounted(() => {
               :disabled="!hasSyncPerm || syncing || exporting"
               @click="handleSyncBoth"
             >
-              <template #icon><SwapOutline class="w-4 h-4" /></template>
+              <template #icon><SwapHorizontalOutline class="w-4 h-4" /></template>
               双向同步
             </NButton>
             <NButton
@@ -490,30 +478,7 @@ onMounted(() => {
           <span class="text-red-500">错误 {{ totalResult.errors }}</span>
         </div>
 
-        <!-- Export status -->
-        <div v-if="totalResult && (totalResult.exportTotal > 0 || status.running)" class="mt-3 pt-3 border-t border-base-content/5">
-          <div class="flex items-center justify-between text-xs mb-1">
-            <span class="text-base-content/50">导出进度</span>
-            <span class="text-base-content/40">
-              {{ totalResult.exportSuccess + totalResult.exportSkipped + totalResult.exportFailed }} / {{ totalResult.exportTotal }}
-            </span>
-          </div>
-          <NProgress
-            v-if="totalResult.exportTotal > 0"
-            type="line"
-            :percentage="totalResult.exportTotal ? Math.round(((totalResult.exportSuccess + totalResult.exportSkipped + totalResult.exportFailed) / totalResult.exportTotal) * 100) : 0"
-            :height="8"
-            :border-radius="4"
-            :fill-border-radius="4"
-            status="warning"
-          />
-        </div>
-        <div v-if="totalResult && totalResult.exportTotal > 0 && !status.running" class="flex flex-wrap gap-4 text-xs mt-1">
-          <span class="text-green-500">导出成功 {{ totalResult.exportSuccess }}</span>
-          <span class="text-base-content/30">跳过 {{ totalResult.exportSkipped }}</span>
-          <span class="text-red-500">失败 {{ totalResult.exportFailed }}</span>
-        </div>
-      </div>
+              </div>
 
       <!-- File tree comparison -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
