@@ -259,13 +259,13 @@ onBeforeUnmount(() => {
 
 <template>
   <!-- Full viewport height, flex column layout -->
-  <div style="height: 100vh; display: flex; flex-direction: column; overflow: hidden">
+  <div style="height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--color-base-200)">
     <!-- Header row -->
-    <div style="padding: 0.75rem 1.5rem; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; background: #fff">
+    <div style="padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--color-base-border); flex-shrink: 0; background: var(--color-base-100)">
       <div style="display: flex; align-items: center; justify-content: space-between">
         <div>
-          <div style="font-size: 1.125rem; font-weight: 600; color: #1e293b">知识图谱</div>
-          <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px">文档关系可视化</div>
+          <div style="font-size: 1.125rem; font-weight: 600; color: var(--color-base-content)">知识图谱</div>
+          <div style="font-size: 0.75rem; color: var(--color-base-content); opacity: 0.5; margin-top: 2px">文档关系可视化</div>
         </div>
         <NButton size="small" @click="loadGraph">
           <template #icon><RefreshOutline class="w-4 h-4" /></template>
@@ -275,7 +275,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Filter bar -->
-    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 1rem; border-bottom: 1px solid #e5e7eb; background: #fff; flex-shrink: 0">
+    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 1rem; border-bottom: 1px solid var(--color-base-border); background: var(--color-base-100); flex-shrink: 0">
       <NSelect
         v-model:value="selectedCategory"
         :options="categoryOptions"
@@ -295,7 +295,7 @@ onBeforeUnmount(() => {
         @update:value="handleDocTypeChange"
       />
       <div style="flex: 1" />
-      <span style="font-size: 11px; color: #94a3b8">
+      <span style="font-size: 11px; color: var(--color-base-content); opacity: 0.5">
         {{ graphData.nodes.length }} 节点 / {{ graphData.edges.length }} 条关系
       </span>
       <NButton size="tiny" @click="handleFit">
@@ -318,16 +318,16 @@ onBeforeUnmount(() => {
         />
 
         <!-- Legend -->
-        <div style="position: absolute; bottom: 1rem; left: 1rem; background: rgba(255,255,255,0.95); border-radius: 0.5rem; padding: 0.75rem; border: 1px solid #e5e7eb; font-size: 11px; z-index: 10">
-          <div style="font-weight: 500; margin-bottom: 0.5rem; color: #64748b">类型图例</div>
+        <div style="position: absolute; bottom: 1rem; left: 1rem; background: rgba(30,41,59,0.95); border-radius: 0.5rem; padding: 0.75rem; border: 1px solid rgba(100,116,139,0.2); font-size: 11px; z-index: 10">
+          <div style="font-weight: 500; margin-bottom: 0.5rem; color: #94a3b8">类型图例</div>
           <div v-for="(color, type) in TYPE_COLORS" :key="type" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem">
             <div style="width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0" :style="{ background: color }" />
-            <span style="color: #64748b">{{ type }}</span>
+            <span style="color: #94a3b8">{{ type }}</span>
           </div>
         </div>
 
         <!-- Hint -->
-        <div style="position: absolute; top: 1rem; right: 1rem; font-size: 11px; color: #94a3b8; background: rgba(255,255,255,0.9); border-radius: 0.25rem; padding: 0.25rem 0.5rem; z-index: 10">
+        <div style="position: absolute; top: 1rem; right: 1rem; font-size: 11px; color: #64748b; background: rgba(30,41,59,0.9); border-radius: 0.25rem; padding: 0.25rem 0.5rem; z-index: 10">
           点击节点查看详情 · 滚轮缩放 · 拖拽平移
         </div>
       </div>
@@ -335,23 +335,23 @@ onBeforeUnmount(() => {
       <!-- Info panel -->
       <div
         v-if="selectedNode"
-        style="width: 18rem; flex-shrink: 0; border-left: 1px solid #e5e7eb; background: #fff; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem"
+        style="width: 18rem; flex-shrink: 0; border-left: 1px solid var(--color-base-border); background: var(--color-base-100); overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem"
       >
         <div style="display: flex; align-items: center; justify-content: space-between">
-          <span style="font-weight: 600; font-size: 0.875rem; color: #1e293b">文档详情</span>
+          <span style="font-weight: 600; font-size: 0.875rem; color: var(--color-base-content)">文档详情</span>
           <NButton size="tiny" quaternary @click="selectedNode = null">×</NButton>
         </div>
 
         <!-- Title -->
         <div>
-          <div style="font-size: 11px; color: #94a3b8; margin-bottom: 4px">标题</div>
-          <div style="font-size: 0.875rem; font-weight: 600; color: #1e293b; line-height: 1.4">{{ selectedNode.title }}</div>
+          <div style="font-size: 11px; color: var(--color-base-content); opacity: 0.5; margin-bottom: 4px">标题</div>
+          <div style="font-size: 0.875rem; font-weight: 600; color: var(--color-base-content); line-height: 1.4">{{ selectedNode.title }}</div>
         </div>
 
         <!-- Slug -->
         <div>
-          <div style="font-size: 11px; color: #94a3b8; margin-bottom: 4px">Slug</div>
-          <div style="font-size: 11px; font-family: monospace; color: #64748b">{{ selectedNode.slug }}</div>
+          <div style="font-size: 11px; color: var(--color-base-content); opacity: 0.5; margin-bottom: 4px">Slug</div>
+          <div style="font-size: 11px; font-family: monospace; color: var(--color-base-content); opacity: 0.6">{{ selectedNode.slug }}</div>
         </div>
 
         <!-- Tags row -->
@@ -364,20 +364,20 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Excerpt -->
-        <div v-if="selectedNode.excerpt" style="font-size: 11px; color: #64748b; background: #f8fafc; padding: 0.5rem; border-left: 2px solid #3b82f6; border-radius: 2px; line-height: 1.6">
+        <div v-if="selectedNode.excerpt" style="font-size: 11px; color: var(--color-base-content); opacity: 0.6; background: var(--color-base-200); padding: 0.5rem; border-left: 2px solid var(--color-primary); border-radius: 2px; line-height: 1.6">
           {{ selectedNode.excerpt }}
         </div>
 
         <!-- Tags -->
         <div v-if="selectedNode.tags && selectedNode.tags.length > 0">
-          <div style="font-size: 11px; color: #94a3b8; margin-bottom: 0.5rem">标签</div>
+          <div style="font-size: 11px; color: var(--color-base-content); opacity: 0.5; margin-bottom: 0.5rem">标签</div>
           <div style="display: flex; flex-wrap: wrap; gap: 4px">
             <NTag
               v-for="tag in selectedNode.tags"
               :key="tag"
               size="tiny"
               :bordered="false"
-              style="background: #eff6ff; color: #3b82f6"
+              style="background: var(--color-neutral); color: var(--color-primary)"
             >
               {{ tag }}
             </NTag>
@@ -385,9 +385,9 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Edges -->
-        <div style="border-top: 1px solid #f1f5f9; padding-top: 0.75rem">
-          <div style="font-size: 11px; color: #94a3b8; margin-bottom: 4px">关联节点</div>
-          <div style="font-size: 12px; color: #64748b">
+        <div style="border-top: 1px solid var(--color-base-border); padding-top: 0.75rem">
+          <div style="font-size: 11px; color: var(--color-base-content); opacity: 0.5; margin-bottom: 4px">关联节点</div>
+          <div style="font-size: 12px; color: var(--color-base-content); opacity: 0.6">
             {{ graphData.edges.filter(e => e.source === selectedNode!.id || e.target === selectedNode!.id).length }} 条关系
           </div>
         </div>
