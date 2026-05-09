@@ -102,7 +102,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
             'background-opacity': 0.12,
             'label': 'data(label)',
             'width': 220,
-            'height': 72,
+            'height': 76,
             'font-size': '12px',
             'color': '#e2e8f0',
             'text-valign': 'top',
@@ -249,12 +249,18 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       // Rebuild card-style label for KB doc nodes
       let label = node.label
       if (isDocNode) {
+        const catLabel = (meta?.doc_category as string) || ''
         const docType = (meta?.doc_type as string) || ''
         const reviewStatus = (meta?.review_status as string) || ''
-        const typeLabel = docType ? `[${docType}]` : ''
-        const reviewLabel = reviewStatus ? `[${REVIEW_LABELS[reviewStatus] || reviewStatus}]` : ''
-        const metaLine = [typeLabel, reviewLabel].filter(Boolean).join(' ')
-        label = metaLine ? `${node.label}\n${metaLine}` : node.label
+        const typeLabel = docType || ''
+        const reviewLabel = reviewStatus ? REVIEW_LABELS[reviewStatus] || reviewStatus : ''
+        const metaLine = [typeLabel, reviewLabel].filter(Boolean).join(' · ')
+        const catBadge = catLabel ? `[${catLabel}]` : ''
+        if (catBadge) {
+          label = metaLine ? `${catBadge}\n${node.label}\n${metaLine}` : `${catBadge}\n${node.label}`
+        } else if (metaLine) {
+          label = `${node.label}\n${metaLine}`
+        }
       }
 
       cy.value.add({
@@ -266,8 +272,8 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
           type: node.type,
           content: node.content,
           width: isDocNode ? 220 : node.width,
-          height: isDocNode ? 72 : node.height,
-          color: node.color,
+          height: isDocNode ? 76 : node.height,
+          color: isDocNode ? getCategoryColor((meta?.doc_category as string) || null) : node.color,
           metadata: node.metadata,
           sort_order: node.sort_order,
           created_at: node.created_at,
@@ -413,17 +419,35 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
 
   const REVIEW_LABELS: Record<string, string> = { mature: '成熟', developing: '完善中', seed: '草稿' }
 
+  const CATEGORY_PALETTE = [
+    '#6366f1', '#8b5cf6', '#0ea5e9', '#f59e0b', '#10b981',
+    '#ef4444', '#f97316', '#ec4899', '#14b8a6', '#a855f7',
+  ]
+
+  function getCategoryColor(category: string | null): string {
+    if (!category) return '#6366f1'
+    // Hash the category name for consistent color assignment
+    let hash = 0
+    for (let i = 0; i < category.length; i++) {
+      hash = category.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    return CATEGORY_PALETTE[Math.abs(hash) % CATEGORY_PALETTE.length]
+  }
+
   async function addDocNode(doc: KbDocumentListItem, x: number, y: number): Promise<string | null> {
     if (!cy.value || !canvasId.value) return null
 
-    const colors: Record<string, string> = { entity: '#8b5cf6', concept: '#6366f1', source: '#0ea5e9', synthesis: '#f59e0b' }
-    const color = colors[doc.doc_type ?? ''] ?? '#6366f1'
+    // Color by category (分组), not doc_type
+    const color = getCategoryColor(doc.category)
 
-    // Build rich label: title + metadata line
-    const typeLabel = doc.doc_type ? `[${doc.doc_type}]` : ''
-    const reviewLabel = doc.review_status ? `[${REVIEW_LABELS[doc.review_status] || doc.review_status}]` : ''
-    const metaLine = [typeLabel, reviewLabel].filter(Boolean).join(' ')
-    const label = metaLine ? `${doc.title}\n${metaLine}` : doc.title
+    // Build label: category badge top-right, title, then type + status
+    const catBadge = doc.category ? `[${doc.category}]` : ''
+    const typeLabel = doc.doc_type || ''
+    const reviewLabel = doc.review_status ? REVIEW_LABELS[doc.review_status] || doc.review_status : ''
+    const metaLine = [typeLabel, reviewLabel].filter(Boolean).join(' · ')
+    const label = catBadge
+      ? `${catBadge}\n${doc.title}${metaLine ? '\n' + metaLine : ''}`
+      : `${doc.title}${metaLine ? '\n' + metaLine : ''}`
 
     const metadata = {
       doc_id: doc.id,
@@ -455,7 +479,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
           type: doc.doc_type ?? 'concept',
           content: '',
           width: 220,
-          height: 72,
+          height: 76,
           color,
           metadata,
           sort_order: created.sort_order,

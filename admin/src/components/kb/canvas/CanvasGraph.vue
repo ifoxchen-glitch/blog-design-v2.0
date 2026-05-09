@@ -256,14 +256,28 @@ watch(() => canvas.connectMode.value, (active) => {
   }
 })
 
-onMounted(async () => {
-  await nextTick()
-  // Ensure container has pixel dimensions before init
-  if (container.value && container.value.getBoundingClientRect().width > 0) {
+async function tryInitCanvas(retries = 0) {
+  if (!container.value) return
+  const rect = container.value.getBoundingClientRect()
+  if (rect.width > 0 && rect.height > 0) {
     canvas.init(container.value)
     await canvas.loadCanvas(canvas.canvasId.value)
     bindEvents()
+    return
   }
+  // Container not ready yet — retry with backoff
+  if (retries < 10) {
+    const delay = 50 + retries * 50
+    setTimeout(() => tryInitCanvas(retries + 1), delay)
+  }
+}
+
+onMounted(async () => {
+  await nextTick()
+  // Give Transition and layout time to settle before init
+  requestAnimationFrame(() => {
+    tryInitCanvas()
+  })
   document.addEventListener('click', handleDocumentClick)
 })
 
