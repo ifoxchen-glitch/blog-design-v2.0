@@ -329,30 +329,27 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     const canvas = fabCanvas.value
     if (!canvas) return
 
-    canvas.clear()
-    // Reset sequences to max known IDs + buffer to avoid collisions
-    _nodeSeq = 1000
-    _edgeSeq = 1000
-    for (const node of nodes) {
-      const idNum = parseInt(String(node.id).replace(/[^0-9]/g, '')) || 0
-      _nodeSeq = Math.max(_nodeSeq, idNum + 1)
-    }
-    for (const edge of edges) {
-      const idNum = parseInt(String(edge.id).replace(/[^0-9]/g, '')) || 0
-      _edgeSeq = Math.max(_edgeSeq, idNum + 1)
-    }
+    try {
+      canvas.clear()
+      _nodeSeq = 1000
+      _edgeSeq = 1000
+      for (const node of nodes) {
+        const idNum = parseInt(String(node.id).replace(/[^0-9]/g, '')) || 0
+        _nodeSeq = Math.max(_nodeSeq, idNum + 1)
+      }
+      for (const edge of edges) {
+        const idNum = parseInt(String(edge.id).replace(/[^0-9]/g, '')) || 0
+        _edgeSeq = Math.max(_edgeSeq, idNum + 1)
+      }
 
-    // Restore viewport
-    canvas.setZoom(viewport.zoom || 1)
-    const vpt = canvas.viewportTransform!
-    vpt[4] = viewport.panX || 0
-    vpt[5] = viewport.panY || 0
+      canvas.setZoom(viewport.zoom || 1)
+      const vpt = canvas.viewportTransform!
+      vpt[4] = viewport.panX || 0
+      vpt[5] = viewport.panY || 0
 
-    // Add nodes
-    for (const node of nodes) {
-      const meta = node.metadata || {}
-      const id = `n-${node.id}`
-      _nodeSeq = Math.max(_nodeSeq, node.id + 1)
+      for (const node of nodes) {
+        const meta = node.metadata || {}
+        const id = `n-${node.id}`
 
       if (meta.doc_id) {
         // KB doc card
@@ -437,6 +434,11 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     canvas.requestRenderAll()
     zoom.value = Math.round((viewport.zoom || 1) * 100)
     isDirty.value = false
+    } catch (err) {
+      console.error('[canvas-v2] loadFromData error:', err)
+      try { canvas.clear() } catch { /* ignore */ }
+      canvas.requestRenderAll()
+    }
   }
 
   function extractData(): {

@@ -107,6 +107,11 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', checkMobile)
   if (autoSaveTimer) clearInterval(autoSaveTimer)
+  // Save before destroy so unsaved new nodes are persisted
+  if (canvas.isDirty.value && canvas.fabCanvas.value) {
+    const data = canvas.extractData()
+    saveData(canvasId.value, data, canvas.updateDbIds).catch(() => {})
+  }
 })
 </script>
 
