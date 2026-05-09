@@ -78,7 +78,6 @@ const logsTotal = ref(0)
 const logsPage = ref(1)
 const logsPageSize = ref(20)
 const logsFilter = ref<{ direction?: string; status?: string }>({})
-const configCollapsed = ref(true)
 
 // ---- live log polling ----
 const liveLogs = ref<SyncLogEntry[]>([])
