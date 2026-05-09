@@ -7,6 +7,7 @@ import { useCanvas, type UseCanvasReturn } from '../../../composables/useCanvas'
 import CanvasGraph from '../../../components/kb/canvas/CanvasGraph.vue'
 import CanvasToolbar from '../../../components/kb/canvas/CanvasToolbar.vue'
 import CanvasNodePanel from '../../../components/kb/canvas/CanvasNodePanel.vue'
+import DocDetailDialog from '../../../components/kb/canvas/DocDetailDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -39,6 +40,15 @@ function handleDirtyChange(dirty: boolean) {
 
 function handleBack() {
   router.push({ name: 'kb-canvases' })
+}
+
+// Doc detail dialog state
+const showDocDetail = ref(false)
+const docDetailId = ref<number | null>(null)
+
+function handleOpenDocDetail(docId: number) {
+  docDetailId.value = docId
+  showDocDetail.value = true
 }
 
 startAutoSave()
@@ -96,7 +106,14 @@ onBeforeUnmount(() => {
           @dirty-changed="handleDirtyChange"
         />
       </div>
-      <CanvasNodePanel />
+      <CanvasNodePanel @open-doc-detail="handleOpenDocDetail" />
     </div>
   </div>
+
+  <!-- KB Document detail dialog -->
+  <DocDetailDialog
+    :show="showDocDetail"
+    :doc-id="docDetailId"
+    @update:show="(v: boolean) => showDocDetail = v"
+  />
 </template>

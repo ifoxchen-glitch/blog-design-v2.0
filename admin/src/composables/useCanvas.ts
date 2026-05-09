@@ -11,6 +11,7 @@ import {
   type CanvasData,
   type CanvasNode,
   type CanvasEdge,
+  type KbDocumentListItem,
 } from '../api/kb'
 
 function dbNodeId(cyId: string): number {
@@ -39,6 +40,7 @@ export interface UseCanvasReturn {
   fromJson: (data: CanvasData) => void
   toJson: () => CanvasData | null
   addNode: (type: string, x: number, y: number) => Promise<string | null>
+  addDocNode: (doc: KbDocumentListItem, x: number, y: number) => Promise<string | null>
   removeSelected: () => Promise<void>
   addEdge: (sourceId: string, targetId: string) => Promise<boolean>
   updateNodeLabel: (nodeId: string, label: string) => Promise<void>
@@ -367,6 +369,60 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     }
   }
 
+  async function addDocNode(doc: KbDocumentListItem, x: number, y: number): Promise<string | null> {
+    if (!cy.value || !canvasId.value) return null
+
+    const colors: Record<string, string> = { entity: '#8b5cf6', concept: '#6366f1', source: '#0ea5e9', synthesis: '#f59e0b' }
+    const color = colors[doc.doc_type ?? ''] ?? '#6366f1'
+
+    const metadata = {
+      doc_id: doc.id,
+      doc_title: doc.title,
+      doc_category: doc.category,
+      doc_type: doc.doc_type,
+      review_status: doc.review_status,
+      tags: doc.tags,
+      connections: doc.connections,
+      sources: doc.sources,
+      excerpt: doc.excerpt,
+    }
+
+    try {
+      const created = await apiAddCanvasNode(canvasId.value, {
+        type: doc.doc_type ?? 'concept',
+        label: doc.title,
+        x,
+        y,
+        color,
+        content: '',
+        metadata,
+      })
+
+      cy.value.add({
+        group: 'nodes',
+        data: {
+          id: `n-${created.id}`,
+          label: doc.title,
+          type: doc.doc_type ?? 'concept',
+          content: '',
+          width: 160,
+          height: 60,
+          color,
+          metadata,
+          sort_order: created.sort_order,
+          created_at: created.created_at,
+          updated_at: created.updated_at,
+        },
+        position: { x, y },
+      })
+
+      isDirty.value = true
+      return `n-${created.id}`
+    } catch {
+      return null
+    }
+  }
+
   async function removeSelected(): Promise<void> {
     if (!cy.value || !canvasId.value) return
     const sel = cy.value.$(':selected')
@@ -506,6 +562,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     fromJson,
     toJson,
     addNode,
+    addDocNode,
     removeSelected,
     addEdge,
     updateNodeLabel,

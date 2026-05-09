@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject } from 'vue'
+import { inject, ref } from 'vue'
 import { NButton, NPopover, useMessage } from 'naive-ui'
 import {
   TrashOutline,
@@ -7,11 +7,16 @@ import {
   SaveOutline,
   DownloadOutline,
   LinkOutline,
+  BookOutline,
 } from '@vicons/ionicons5'
 import type { UseCanvasReturn } from '../../../composables/useCanvas'
+import AddDocDialog from './AddDocDialog.vue'
+import type { KbDocumentListItem } from '../../../api/kb'
 
 const canvas = inject<UseCanvasReturn>('canvas')!
 const message = useMessage()
+
+const showDocDialog = ref(false)
 
 async function handleAddNode(type: string) {
   if (!canvas.cy.value) return
@@ -21,6 +26,20 @@ async function handleAddNode(type: string) {
   const jitter = (Math.random() - 0.5) * 100
   const result = await canvas.addNode(type, cx + jitter, cy_ + jitter)
   if (result) message.success('已添加节点')
+}
+
+async function handleAddFromDoc(doc: KbDocumentListItem) {
+  if (!canvas.cy.value) return
+  const extent = canvas.cy.value.extent()
+  const cx = (extent.x1 + extent.x2) / 2
+  const cy_ = (extent.y1 + extent.y2) / 2
+  const jitter = (Math.random() - 0.5) * 100
+  const result = await canvas.addDocNode(doc, cx + jitter, cy_ + jitter)
+  if (result) {
+    message.success(`已添加「${doc.title}」`)
+  } else {
+    message.error('添加失败')
+  }
 }
 
 async function handleRemove() {
@@ -80,6 +99,11 @@ const LAYOUT_OPTIONS = [
 
     <div class="w-px h-5 bg-base-content/10" />
 
+    <NButton size="tiny" quaternary type="primary" @click="showDocDialog = true" title="从知识库添加">
+      <BookOutline class="w-4 h-4" />
+      知识库
+    </NButton>
+
     <NPopover trigger="hover">
       <template #trigger>
         <NButton size="tiny" quaternary>布局</NButton>
@@ -137,4 +161,11 @@ const LAYOUT_OPTIONS = [
       <SaveOutline class="w-4 h-4" />
     </NButton>
   </div>
+
+  <!-- Add from KB dialog -->
+  <AddDocDialog
+    :show="showDocDialog"
+    @update:show="(v: boolean) => showDocDialog = v"
+    @select="handleAddFromDoc"
+  />
 </template>
