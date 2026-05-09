@@ -250,17 +250,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       let label = node.label
       if (isDocNode) {
         const catLabel = (meta?.doc_category as string) || ''
-        const docType = (meta?.doc_type as string) || ''
-        const reviewStatus = (meta?.review_status as string) || ''
-        const typeLabel = docType || ''
-        const reviewLabel = reviewStatus ? REVIEW_LABELS[reviewStatus] || reviewStatus : ''
-        const metaLine = [typeLabel, reviewLabel].filter(Boolean).join(' · ')
-        const catBadge = catLabel ? `[${catLabel}]` : ''
-        if (catBadge) {
-          label = metaLine ? `${catBadge}\n${node.label}\n${metaLine}` : `${catBadge}\n${node.label}`
-        } else if (metaLine) {
-          label = `${node.label}\n${metaLine}`
-        }
+        label = catLabel ? `[${catLabel}]\n${node.label}` : node.label
       }
 
       cy.value.add({
@@ -417,8 +407,6 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     }
   }
 
-  const REVIEW_LABELS: Record<string, string> = { mature: '成熟', developing: '完善中', seed: '草稿' }
-
   const CATEGORY_PALETTE = [
     '#6366f1', '#8b5cf6', '#0ea5e9', '#f59e0b', '#10b981',
     '#ef4444', '#f97316', '#ec4899', '#14b8a6', '#a855f7',
@@ -437,17 +425,13 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
   async function addDocNode(doc: KbDocumentListItem, x: number, y: number): Promise<string | null> {
     if (!cy.value || !canvasId.value) return null
 
-    // Color by category (分组), not doc_type
+    // Color by category (分组)
     const color = getCategoryColor(doc.category)
 
-    // Build label: category badge top-right, title, then type + status
-    const catBadge = doc.category ? `[${doc.category}]` : ''
-    const typeLabel = doc.doc_type || ''
-    const reviewLabel = doc.review_status ? REVIEW_LABELS[doc.review_status] || doc.review_status : ''
-    const metaLine = [typeLabel, reviewLabel].filter(Boolean).join(' · ')
-    const label = catBadge
-      ? `${catBadge}\n${doc.title}${metaLine ? '\n' + metaLine : ''}`
-      : `${doc.title}${metaLine ? '\n' + metaLine : ''}`
+    // Label: category badge + title (two lines, matching card style)
+    const label = doc.category
+      ? `[${doc.category}]\n${doc.title}`
+      : doc.title
 
     const metadata = {
       doc_id: doc.id,
