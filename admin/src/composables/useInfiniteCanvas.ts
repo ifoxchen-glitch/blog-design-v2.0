@@ -329,113 +329,113 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     const canvas = fabCanvas.value
     if (!canvas) return
 
-    canvas.clear()
-    // Reset sequences to max known IDs + buffer to avoid collisions
-    _nodeSeq = 1000
-    _edgeSeq = 1000
-    for (const node of nodes) {
-      const idNum = parseInt(String(node.id).replace(/[^0-9]/g, '')) || 0
-      _nodeSeq = Math.max(_nodeSeq, idNum + 1)
-    }
-    for (const edge of edges) {
-      const idNum = parseInt(String(edge.id).replace(/[^0-9]/g, '')) || 0
-      _edgeSeq = Math.max(_edgeSeq, idNum + 1)
-    }
-
-    // Restore viewport
-    canvas.setZoom(viewport.zoom || 1)
-    const vpt = canvas.viewportTransform!
-    vpt[4] = viewport.panX || 0
-    vpt[5] = viewport.panY || 0
-
-    // Add nodes
-    for (const node of nodes) {
-      const meta = node.metadata || {}
-      const id = `n-${node.id}`
-
-      if (meta.doc_id) {
-        // KB doc card
-        const color = getCategoryColor((meta.doc_category as string) || null)
-        const group = createDocCardGroup(
-          (meta.doc_title as string) || node.label,
-          (meta.doc_category as string) || '',
-          color,
-        )
-        group.set({
-          left: node.x,
-          top: node.y,
-          angle: meta.angle as number || 0,
-          scaleX: meta.scaleX as number || 1,
-          scaleY: meta.scaleY as number || 1,
-        })
-        ;(group as any).fabricId = id
-        ;(group as any).dbId = node.id
-        ;(group as any).customType = 'kb-doc'
-        ;(group as any)._label = node.label
-        ;(group as any)._color = color
-        ;(group as any)._metadata = meta
-        canvas.add(group)
-      } else {
-        // Generic node
-        const color = node.color || '#6366f1'
-        const rect = new Rect({
-          width: node.width || 180,
-          height: node.height || 80,
-          rx: 6, ry: 6,
-          fill: color + '20',
-          stroke: color,
-          strokeWidth: 2,
-        })
-        const text = new IText(node.label || 'Node', {
-          fontSize: 13,
-          fill: '#e2e8f0',
-          fontFamily: 'system-ui, sans-serif',
-          left: 10,
-          top: 10,
-          width: (node.width || 180) - 20,
-        })
-        const group = new Group([rect, text], {
-          left: node.x,
-          top: node.y,
-          angle: node.angle || 0,
-          scaleX: node.scaleX || 1,
-          scaleY: node.scaleY || 1,
-          subTargetCheck: true,
-        })
-        ;(group as any).fabricId = id
-        ;(group as any).dbId = node.id
-        ;(group as any).customType = node.type || 'note'
-        ;(group as any)._label = node.label
-        ;(group as any)._color = color
-        ;(group as any)._metadata = meta
-        canvas.add(group)
+    try {
+      canvas.clear()
+      _nodeSeq = 1000
+      _edgeSeq = 1000
+      for (const node of nodes) {
+        const idNum = parseInt(String(node.id).replace(/[^0-9]/g, '')) || 0
+        _nodeSeq = Math.max(_nodeSeq, idNum + 1)
       }
-    }
-
-    // Add edges
-    for (const edge of edges) {
-      _edgeSeq = Math.max(_edgeSeq, edge.id + 1)
-
-      const fromObj = canvas.getObjects().find(o => (o as any).fabricId === `n-${edge.source_node_id}`)
-      const toObj = canvas.getObjects().find(o => (o as any).fabricId === `n-${edge.target_node_id}`)
-      if (fromObj && toObj) {
-        const path = createConnectionPath(fromObj, toObj)
-        ;(path as any).fabricId = `e-${edge.id}`
-        ;(path as any).dbId = edge.id
-        ;(path as any).customType = 'connection'
-        ;(path as any).fromId = `n-${edge.source_node_id}`
-        ;(path as any).toId = `n-${edge.target_node_id}`
-        ;(path as any).fromDbId = edge.source_node_id
-        ;(path as any).toDbId = edge.target_node_id
-        ;(path as any)._label = edge.label || ''
-        canvas.add(path as unknown as FabricObject)
-        canvas.sendObjectToBack(path as unknown as FabricObject)
+      for (const edge of edges) {
+        const idNum = parseInt(String(edge.id).replace(/[^0-9]/g, '')) || 0
+        _edgeSeq = Math.max(_edgeSeq, idNum + 1)
       }
-    }
 
-    canvas.requestRenderAll()
-    zoom.value = Math.round((viewport.zoom || 1) * 100)
-    isDirty.value = false
+      canvas.setZoom(viewport.zoom || 1)
+      const vpt = canvas.viewportTransform!
+      vpt[4] = viewport.panX || 0
+      vpt[5] = viewport.panY || 0
+
+      for (const node of nodes) {
+        const meta = node.metadata || {}
+        const id = `n-${node.id}`
+
+        if (meta.doc_id) {
+          const color = getCategoryColor((meta.doc_category as string) || null)
+          const group = createDocCardGroup(
+            (meta.doc_title as string) || node.label,
+            (meta.doc_category as string) || '',
+            color,
+          )
+          group.set({
+            left: node.x,
+            top: node.y,
+            angle: meta.angle as number || 0,
+            scaleX: meta.scaleX as number || 1,
+            scaleY: meta.scaleY as number || 1,
+          })
+          ;(group as any).fabricId = id
+          ;(group as any).dbId = node.id
+          ;(group as any).customType = 'kb-doc'
+          ;(group as any)._label = node.label
+          ;(group as any)._color = color
+          ;(group as any)._metadata = meta
+          canvas.add(group)
+        } else {
+          const color = node.color || '#6366f1'
+          const rect = new Rect({
+            width: node.width || 180,
+            height: node.height || 80,
+            rx: 6, ry: 6,
+            fill: color + '20',
+            stroke: color,
+            strokeWidth: 2,
+          })
+          const text = new IText(node.label || 'Node', {
+            fontSize: 13,
+            fill: '#e2e8f0',
+            fontFamily: 'system-ui, sans-serif',
+            left: 10,
+            top: 10,
+            width: (node.width || 180) - 20,
+          })
+          const group = new Group([rect, text], {
+            left: node.x,
+            top: node.y,
+            angle: node.angle || 0,
+            scaleX: node.scaleX || 1,
+            scaleY: node.scaleY || 1,
+            subTargetCheck: true,
+          })
+          ;(group as any).fabricId = id
+          ;(group as any).dbId = node.id
+          ;(group as any).customType = node.type || 'note'
+          ;(group as any)._label = node.label
+          ;(group as any)._color = color
+          ;(group as any)._metadata = meta
+          canvas.add(group)
+        }
+      }
+
+      for (const edge of edges) {
+        _edgeSeq = Math.max(_edgeSeq, edge.id + 1)
+
+        const fromObj = canvas.getObjects().find(o => (o as any).fabricId === `n-${edge.source_node_id}`)
+        const toObj = canvas.getObjects().find(o => (o as any).fabricId === `n-${edge.target_node_id}`)
+        if (fromObj && toObj) {
+          const path = createConnectionPath(fromObj, toObj)
+          ;(path as any).fabricId = `e-${edge.id}`
+          ;(path as any).dbId = edge.id
+          ;(path as any).customType = 'connection'
+          ;(path as any).fromId = `n-${edge.source_node_id}`
+          ;(path as any).toId = `n-${edge.target_node_id}`
+          ;(path as any).fromDbId = edge.source_node_id
+          ;(path as any).toDbId = edge.target_node_id
+          ;(path as any)._label = edge.label || ''
+          canvas.add(path as unknown as FabricObject)
+          canvas.sendObjectToBack(path as unknown as FabricObject)
+        }
+      }
+
+      canvas.requestRenderAll()
+      zoom.value = Math.round((viewport.zoom || 1) * 100)
+      isDirty.value = false
+    } catch (err) {
+      console.error('[canvas-v2] loadFromData error:', err)
+      try { canvas.clear() } catch { /* ignore */ }
+      canvas.requestRenderAll()
+    }
   }
 
   function extractData(): {
