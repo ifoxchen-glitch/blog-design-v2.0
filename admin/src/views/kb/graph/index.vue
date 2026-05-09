@@ -236,10 +236,11 @@ function renderGraph() {
 
 function calcLayout() {
   if (!graphRoot.value) return
-  const parent = graphRoot.value.parentElement
-  if (!parent) return
-  const pr = parent.getBoundingClientRect()
-  // Use parent height since 100vh doesn't account for AdminLayout header/padding
+  // Vue's <Transition> wraps us, so go up 2 levels to reach AdminLayout's content container
+  const container = graphRoot.value.parentElement?.parentElement
+  if (!container) return
+  const pr = container.getBoundingClientRect()
+  // Use container height since 100vh overflows inside AdminLayout header/padding
   if (pr.height > 0) {
     graphRoot.value.style.height = pr.height + 'px'
   }
@@ -323,9 +324,8 @@ onBeforeUnmount(() => {
     <div style="display: flex; flex: 1; min-height: 0; overflow: hidden">
       <!-- Graph area -->
       <div style="flex: 1; position: relative; background: #0f172a; overflow: hidden">
-        <NSpin :show="loading" style="position: absolute; inset: 0; z-index: 1">
-          <div ref="graphContainer" style="width: 100%; height: 100%; background: #0f172a" />
-        </NSpin>
+        <div ref="graphContainer" style="position: absolute; inset: 0; background: #0f172a" />
+        <NSpin v-if="loading" style="position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; background: rgba(15,23,42,0.7)" />
         <NEmpty
           v-if="!loading && graphData.nodes.length === 0"
           description="暂无文档数据"
