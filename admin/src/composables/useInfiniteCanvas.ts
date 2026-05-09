@@ -74,9 +74,9 @@ export interface CanvasData {
 }
 
 export interface UseInfiniteCanvasReturn {
-  elements: Readonly<ShallowRef<Map<string, CanvasElementData>>>
-  connections: Readonly<ShallowRef<Map<string, ConnectionData>>>
-  selectedIds: Readonly<ShallowRef<Set<string>>>
+  elements: ShallowRef<Map<string, CanvasElementData>>
+  connections: ShallowRef<Map<string, ConnectionData>>
+  selectedIds: ShallowRef<Set<string>>
   isLoading: Ref<boolean>
   isDirty: Ref<boolean>
   currentTool: Ref<CanvasTool>
@@ -106,6 +106,12 @@ export interface UseInfiniteCanvasReturn {
   zoomOut(): void
   zoomToFit(): void
   resetZoom(): void
+
+  // Layout (no-ops for now)
+  layoutGrid?(): void
+  layoutCircle?(): void
+  layoutForce?(): void
+  layoutHierarchical?(): void
 
   // Persistence
   extractData(): { nodes: CanvasNode[]; edges: CanvasEdge[]; viewport: { zoom: number; panX: number; panY: number } }
@@ -249,8 +255,6 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
   // ---- Mouse handlers ----
 
   let isDragging = false
-  let dragStartX = 0
-  let dragStartY = 0
   let dragTarget: string | null = null
   let dragOffsetX = 0
   let dragOffsetY = 0
@@ -332,7 +336,7 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     }
   }
 
-  function handleMouseUp(e: MouseEvent) {
+  function handleMouseUp(_e: MouseEvent) {
     if (isPanning) {
       isPanning = false
       return
@@ -466,7 +470,7 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     el.style.color = isKbDoc ? '#e2e8f0' : '#e2e8f0'
     el.style.display = 'flex'
     el.style.flexDirection = 'column'
-    el.style.alignItems = data.isKbDoc ? 'flex-start' : 'center'
+    el.style.alignItems = isKbDoc ? 'flex-start' : 'center'
     el.style.justifyContent = 'center'
     el.style.padding = isKbDoc ? '8px 12px' : '4px 8px'
     el.style.pointerEvents = 'auto'
@@ -878,14 +882,7 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
             metadata: node.metadata,
           })
           const created: CanvasNode = res.data.data
-          // Update dbId on the element
-          const map = new Map(elements.value)
-          for (const [id, el] of map) {
-            if (el.id === node.id && node.id === `n-${node.id}`.replace('n-', '')) {
-              // Match by label position
-            }
-          }
-          // Map: find element with same label and dbId=0
+          // Find element with same label and dbId=0, update its dbId
           const elMap = new Map(elements.value)
           for (const [id, el] of elMap) {
             if (el.dbId === 0 && el.label === node.label) {
