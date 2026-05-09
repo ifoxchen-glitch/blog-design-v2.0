@@ -9,6 +9,11 @@ function loadConfig() {
   return db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
 }
 
+function parseJsonArray(raw) {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
 function startSchedule() {
   const config = loadConfig();
   if (!config || !config.auto_sync_enabled) return;
@@ -18,6 +23,10 @@ function startSchedule() {
   const minutes = Math.max(1, Math.min(config.sync_interval_minutes || 30, 1440));
   const cronExpr = `*/${minutes} * * * *`;
 
+  // Parse selected paths once at registration time
+  const selectedPaths = parseJsonArray(config.selected_paths);
+  const pathsFilter = selectedPaths.length > 0 ? selectedPaths : null;
+
   if (_task) _task.stop();
   _task = cron.schedule(
     cronExpr,
@@ -26,7 +35,7 @@ function startSchedule() {
 
       console.log(`[cron] kbSync: starting — vault_path=${config.vault_path}`);
 
-      fullImport(config.vault_path, strategy)
+      fullImport(config.vault_path, strategy, pathsFilter)
         .then((summary) => {
           console.log(
             `[cron] kbSync: done — imported=${summary.imported} updated=${summary.updated} skipped=${summary.skipped} conflicted=${summary.conflicted} errors=${summary.errors}`,

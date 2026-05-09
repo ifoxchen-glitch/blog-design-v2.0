@@ -141,7 +141,8 @@ async function triggerExport(req, res) {
   res.status(202).json({ code: 202, message: "导出已启动", data: { status: "started" } });
 
   try {
-    await syncEngine.fullExport(config.vault_path);
+    const selected = parseJsonArray(config.selected_paths);
+    await syncEngine.fullExport(config.vault_path, selected.length > 0 ? selected : null);
   } catch (err) {
     console.error("[kb-sync] export failed:", err.message);
     try {

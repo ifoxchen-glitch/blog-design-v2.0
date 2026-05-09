@@ -402,7 +402,7 @@ function parseTags(raw) {
  * Full export: write all obsidian-sourced documents back to the vault as .md files.
  * Builds YAML front matter from DB fields + body from content_markdown.
  */
-async function fullExport(vaultPath) {
+async function fullExport(vaultPath, selectedPaths) {
   if (!acquireLock()) throw new Error("同步正在进行中，请稍后重试");
   const db = openDb();
   const now = new Date().toISOString();
@@ -428,6 +428,12 @@ async function fullExport(vaultPath) {
       if (!targetPath) {
         summary.errors++;
         logStmt.run("export", `doc-${doc.id}`, doc.id, "error", null, "missing original_path", now);
+        continue;
+      }
+
+      if (!matchSelectedPaths(targetPath, selectedPaths)) {
+        summary.skipped++;
+        logStmt.run("export", targetPath, doc.id, "skipped", null, "not in selected paths", now);
         continue;
       }
 
