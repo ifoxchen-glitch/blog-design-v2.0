@@ -51,6 +51,7 @@ function diffLabel(s: string | null | undefined): string {
     default: return ''
   }
 }
+
 function diffType(s: string | null | undefined): 'info' | 'warning' | 'success' {
   switch (s) {
     case 'new': return 'info'
@@ -90,7 +91,7 @@ function formatSize(bytes: number): string {
       <!-- Name -->
       <span class="truncate" :style="{ color: isFolder ? '#e2e8f0' : '#cbd5e1' }">{{ node.name }}</span>
 
-      <!-- Diff status badge (对比标记) -->
+      <!-- Diff status badge (all nodes including folders) -->
       <NTag v-if="diffStatus" :type="diffType(diffStatus)" size="tiny" style="margin-left:4px">
         {{ diffLabel(diffStatus) }}
       </NTag>
