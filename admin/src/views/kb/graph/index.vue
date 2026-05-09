@@ -220,8 +220,9 @@ function renderGraph() {
     evt.target.style('border-opacity', 1)
   })
   cy.on('mouseout', 'node', (evt) => {
+    const origColor = evt.target.data('color')
     evt.target.style('border-width', 2)
-    evt.target.style('border-color', 'data(color)')
+    evt.target.style('border-color', origColor)
     evt.target.style('border-opacity', 0.7)
   })
 
