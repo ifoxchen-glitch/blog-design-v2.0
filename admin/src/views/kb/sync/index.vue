@@ -78,7 +78,6 @@ const logsTotal = ref(0)
 const logsPage = ref(1)
 const logsPageSize = ref(20)
 const logsFilter = ref<{ direction?: string; status?: string }>({})
-const configCollapsed = ref(true)
 
 // ---- live log polling ----
 const liveLogs = ref<SyncLogEntry[]>([])
@@ -335,37 +334,6 @@ async function loadFileTrees() {
     /* ignore */
   } finally {
     treeLoading.value = false
-  }
-}
-
-async function handleSyncBoth() {
-  syncing.value = true
-  exporting.value = true
-  try {
-    const imp = await apiTriggerSyncImport()
-    if ((imp as unknown as { status: string }).status) {
-      message.info('导入已启动')
-      startLivePolling()
-      const pollUntilDone = () => new Promise<void>((resolve) => {
-        const check = setInterval(async () => {
-          try {
-            const s = await apiGetSyncStatus()
-            if (!s.running) { clearInterval(check); resolve() }
-          } catch { /* ignore */ }
-        }, 1000)
-      })
-      await pollUntilDone()
-    }
-    const exp = await apiTriggerSyncExport()
-    if ((exp as unknown as { status: string }).status) {
-      message.info('导出已启动')
-      startLivePolling()
-    }
-  } catch {
-    message.error('双向同步启动失败')
-  } finally {
-    syncing.value = false
-    exporting.value = false
   }
 }
 
