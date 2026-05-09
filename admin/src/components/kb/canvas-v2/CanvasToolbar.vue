@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { inject } from 'vue'
-import { NButton, NPopover, NSpace } from 'naive-ui'
+import { NButton, NSpace } from 'naive-ui'
 import {
   MoveOutline, ResizeOutline, DocumentTextOutline,
   LinkOutline, TrashOutline, ExpandOutline,
