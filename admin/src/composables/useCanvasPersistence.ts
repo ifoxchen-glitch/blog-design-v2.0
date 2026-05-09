@@ -2,6 +2,10 @@ import { ref } from 'vue'
 import {
   apiGetCanvas,
   apiUpdateCanvas,
+  apiAddCanvasNode,
+  apiUpdateCanvasNode,
+  apiAddCanvasEdge,
+  apiUpdateCanvasEdge,
   apiCreateCanvas,
   apiListCanvases,
   apiDeleteCanvas,
@@ -29,8 +33,42 @@ export function useCanvasPersistence() {
         pan_x: data.viewport.panX,
         pan_y: data.viewport.panY,
       })
-      // Note: individual node positions are saved via addNode/updateNode during element creation/modification.
-      // The extract/save cycle here just ensures viewport is persisted.
+
+      // Save node positions
+      for (const node of data.nodes) {
+        const payload: any = { x: node.x, y: node.y }
+        if (node.metadata) payload.metadata = node.metadata
+        if (node.id > 0) {
+          await apiUpdateCanvasNode(id, node.id, payload).catch(() => {})
+        } else {
+          // New unsaved node: create it
+          const created = await apiAddCanvasNode(id, {
+            type: node.type,
+            label: node.label,
+            x: node.x,
+            y: node.y,
+            width: node.width,
+            height: node.height,
+            color: node.color,
+            metadata: node.metadata,
+          }).catch(() => null)
+          if (created) node.id = created.id
+        }
+      }
+
+      // Save edges
+      for (const edge of data.edges) {
+        if (edge.id > 0) {
+          await apiUpdateCanvasEdge(id, edge.id, { label: edge.label, style: edge.style }).catch(() => {})
+        } else if (edge.source_node_id > 0 && edge.target_node_id > 0) {
+          await apiAddCanvasEdge(id, {
+            source_node_id: edge.source_node_id,
+            target_node_id: edge.target_node_id,
+            label: edge.label,
+          }).catch(() => {})
+        }
+      }
+
       lastSaved.value = new Date()
     } finally {
       isSaving.value = false

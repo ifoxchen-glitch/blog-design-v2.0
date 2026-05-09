@@ -689,8 +689,12 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
       stroke: '#94a3b8',
       strokeWidth: 2,
       objectCaching: false,
-      selectable: true,
-      evented: true,
+      selectable: false,
+      evented: false,
+      lockMovementX: true,
+      lockMovementY: true,
+      hasControls: false,
+      hasBorders: false,
     })
   }
 
@@ -808,6 +812,23 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     })
   }
 
+  function updateAllConnections() {
+    const canvas = fabCanvas.value
+    if (!canvas) return
+    canvas.getObjects().forEach(o => {
+      const d = (o as any)
+      if (d.customType !== 'connection') return
+      const fromObj = canvas.getObjects().find(x => (x as any).fabricId === d.fromId)
+      const toObj = canvas.getObjects().find(x => (x as any).fabricId === d.toId)
+      if (fromObj && toObj) {
+        const newPath = createConnectionPath(fromObj, toObj)
+        o.set({ path: newPath.path })
+        o.setCoords()
+      }
+    })
+    canvas.requestRenderAll()
+  }
+
   // ---- Viewport ----
 
   function zoomToFit() {
@@ -857,6 +878,7 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
       if (col >= cols) { col = 0; row++ }
     })
     canvas.requestRenderAll()
+    updateAllConnections()
     zoomToFit()
     markDirty()
   }
@@ -878,6 +900,7 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
       obj.setCoords()
     })
     canvas.requestRenderAll()
+    updateAllConnections()
     zoomToFit()
     markDirty()
   }
@@ -932,6 +955,7 @@ export function useInfiniteCanvas(canvasId: Ref<number>): UseInfiniteCanvasRetur
     }
     objs.forEach(o => o.setCoords())
     canvas.requestRenderAll()
+    updateAllConnections()
     zoomToFit()
     markDirty()
   }
