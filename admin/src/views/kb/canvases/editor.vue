@@ -49,13 +49,16 @@ function handleBack() {
 }
 
 function handleBrowserClick(doc: KbDocumentListItem) {
-  // Click to quickly add doc at center of viewport
-  if (!canvas.cy.value) return
+  if (!canvas.cy.value) {
+    message.warning('画布未初始化')
+    return
+  }
   const extent = canvas.cy.value.extent()
   const cx = (extent.x1 + extent.x2) / 2
   const cy_ = (extent.y1 + extent.y2) / 2
   canvas.addDocNodeWithConnections(doc, cx, cy_).then((result) => {
     if (result) message.success(`已添加「${doc.title}」`)
+    else message.error(`添加「${doc.title}」失败`)
   })
 }
 

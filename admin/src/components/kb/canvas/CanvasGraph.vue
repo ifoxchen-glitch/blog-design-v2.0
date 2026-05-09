@@ -281,6 +281,7 @@ function handleDrop(e: DragEvent) {
     const y = (modelPos.y - pan.y) / zoom
     canvas.addDocNodeWithConnections(doc as any, x, y).then((result) => {
       if (result) message.success(`已添加「${doc.title}」`)
+      else message.error(`添加「${doc.title}」失败`)
     })
   } catch { /* ignore invalid drop data */ }
 }

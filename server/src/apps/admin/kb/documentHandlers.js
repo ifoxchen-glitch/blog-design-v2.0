@@ -65,7 +65,7 @@ function pickDocumentPublic(row) {
 function listDocuments(req, res) {
   const db = openDb();
   const page = Math.max(1, toInt(req.query.page, 1));
-  const pageSize = Math.min(100, Math.max(1, toInt(req.query.pageSize, 20)));
+  const pageSize = Math.min(500, Math.max(1, toInt(req.query.pageSize, 20)));
   const search = String(req.query.search || "").trim() || null;
   const contentSearch = req.query.contentSearch === "true" || req.query.contentSearch === "1";
   const source = String(req.query.source || "").trim() || null;

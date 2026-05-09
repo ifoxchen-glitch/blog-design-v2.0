@@ -74,7 +74,7 @@ async function loadAll() {
   try {
     const [cats, res] = await Promise.all([
       apiListKbDocumentCategories(),
-      apiListKbDocuments({ page: 1, pageSize: 500 }, undefined as any),
+      apiListKbDocuments({ page: 1, pageSize: 200 }),
     ])
     categories.value = cats
     allDocs.value = res.items.filter(d => d.status === 'active')
