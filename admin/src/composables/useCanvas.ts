@@ -465,17 +465,13 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
 
       const color: string = data.color || '#6366f1'
       const meta = (data.metadata || {}) as Record<string, unknown>
-      const category = String(meta.doc_category || meta.doc_type || '')
+      const cat = String(meta.doc_category || meta.doc_type || '未分组')
       const title = String(data.label || '').replace(/\[.*?\]\n?/g, '')
-      const DOC_TYPE_COLORS: Record<string, string> = {
-        entity: '#8b5cf6', concept: '#6366f1', source: '#0ea5e9', synthesis: '#f59e0b',
-      }
-      const dotColor = DOC_TYPE_COLORS[String(meta.doc_type || '')] || color
 
       const zoomed = Math.max(zoom, 0.25)
-      const titleSize = Math.round(12 * zoomed)
+      const titleSize = Math.round(13 * zoomed)
       const tagSize = Math.round(10 * zoomed)
-      const dotSz = Math.round(6 * zoomed)
+      const dotSz = Math.round(7 * zoomed)
       const gap = Math.round(6 * zoomed)
       const br = Math.round(8 * zoomed)
       const pd = Math.round(8 * zoomed)
@@ -483,12 +479,12 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       el.style.cssText = `position:absolute;pointer-events:none;box-sizing:border-box;overflow:hidden;font-family:system-ui,sans-serif;left:${sx}px;top:${sy}px;width:${w}px;height:${h}px;border-radius:${br}px;background:${color}12;padding:${pd}px`
 
       el.innerHTML = `
-        <div style="display:flex;align-items:flex-start;gap:${gap}px;height:100%">
-          <div style="width:${dotSz}px;height:${dotSz}px;border-radius:50%;background:${dotColor};flex-shrink:0;margin-top:${Math.round(3 * zoomed)}px"></div>
-          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:${Math.round(2 * zoomed)}px">
-            <span style="font-size:${titleSize}px;font-weight:500;color:#e2e8f0;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(title)}</span>
-            ${category ? `<span style="display:inline-flex;align-items:center;font-size:${tagSize}px;color:${dotColor};background:${dotColor}18;border-radius:${Math.round(4 * zoomed)}px;padding:0 ${Math.round(6 * zoomed)}px;line-height:${Math.round(18 * zoomed)}px;align-self:flex-start">${escapeHtml(category)}</span>` : ''}
+        <div style="display:flex;flex-direction:column;height:100%;padding:${Math.round(2 * zoomed)}px 0">
+          <div style="display:flex;align-items:center;gap:${gap}px;flex:1;min-height:0">
+            <div style="width:${dotSz}px;height:${dotSz}px;border-radius:50%;background:${color};flex-shrink:0"></div>
+            <span style="font-size:${titleSize}px;font-weight:600;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(title)}</span>
           </div>
+          <span style="font-size:${tagSize}px;color:${color};opacity:0.65;margin-left:${gap + dotSz}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">[${escapeHtml(cat)}]</span>
         </div>
       `
     })
