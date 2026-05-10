@@ -103,7 +103,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
             'shape': 'round-rectangle',
             'background-color': 'data(color)',
             'background-opacity': 0.12,
-            'label': 'data(label)',
+            'label': '', // hidden — rendered via HTML overlay
             'width': 220,
             'height': 76,
             'font-size': '11px',
@@ -153,6 +153,9 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       autoungrabify: false,
       autounselectify: false,
     })
+
+    // Init HTML overlay for rich node rendering
+    initOverlay()
 
     // Event bridge
     cy.value.on('tap', 'node', (evt) => {
@@ -211,6 +214,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
   }
 
   function destroy(): void {
+    destroyOverlay()
     if (cy.value) {
       cy.value.destroy()
       cy.value = null
@@ -291,6 +295,9 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
         },
       })
     }
+
+    // Update overlay for KB doc nodes after loading
+    setTimeout(updateNodeOverlays, 50)
   }
 
   function toJson(): CanvasData | null {
@@ -411,6 +418,94 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     }
   }
 
+  // ---- HTML node overlay for KB doc nodes ----
+  let overlayContainer: HTMLElement | null = null
+  const RENDERED_OVERLAYS = new Map<string, HTMLElement>()
+
+  function initOverlay() {
+    if (!cy.value) return
+    const cyContainer = cy.value.container()
+    if (!cyContainer) return
+    overlayContainer = cyContainer.querySelector('.cy-overlay') as HTMLElement
+    if (!overlayContainer) {
+      overlayContainer = document.createElement('div')
+      overlayContainer.className = 'cy-overlay'
+      overlayContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;overflow:hidden'
+      cyContainer.appendChild(overlayContainer)
+    }
+    cy.value.on('render', updateNodeOverlays)
+    cy.value.on('add remove', () => setTimeout(updateNodeOverlays, 50))
+    updateNodeOverlays()
+  }
+
+  function destroyOverlay() {
+    RENDERED_OVERLAYS.forEach(el => el.remove())
+    RENDERED_OVERLAYS.clear()
+    if (overlayContainer) { overlayContainer.remove(); overlayContainer = null }
+  }
+
+  function updateNodeOverlays() {
+    if (!cy.value || !overlayContainer) return
+    const zoom = cy.value.zoom()
+    const pan = cy.value.pan()
+    const rendered = new Set<string>()
+
+    cy.value.nodes().forEach(node => {
+      const data = node.data()
+      const id = node.id()
+      const isKbDoc = data.nodeType === 'kb-doc'
+      if (!isKbDoc) return
+      rendered.add(id)
+
+      const p = node.position()
+      const sx = p.x * zoom + pan.x
+      const sy = p.y * zoom + pan.y
+      const w = (data.width || 220) * zoom
+      const h = (data.height || 76) * zoom
+
+      let el = RENDERED_OVERLAYS.get(id)
+      if (!el) {
+        el = document.createElement('div')
+        el.style.cssText = 'position:absolute;pointer-events:none;box-sizing:border-box;overflow:hidden;font-family:system-ui,sans-serif'
+        overlayContainer!.appendChild(el)
+        RENDERED_OVERLAYS.set(id, el)
+      }
+
+      const color: string = data.color || '#6366f1'
+      const meta = (data.metadata || {}) as Record<string, unknown>
+      const category = String(meta.doc_category || meta.doc_type || '')
+      const title = String(data.label || '').replace(/\[.*?\]\n?/g, '')
+      const DOC_TYPE_COLORS: Record<string, string> = {
+        entity: '#8b5cf6', concept: '#6366f1', source: '#0ea5e9', synthesis: '#f59e0b',
+      }
+      const dotColor = DOC_TYPE_COLORS[String(meta.doc_type || '')] || color
+
+      const zoomed = Math.max(zoom, 0.3)
+      const fontSize = Math.round(11 * zoomed)
+      const smallSize = Math.round(9 * zoomed)
+      const dotSz = Math.round(6 * zoomed)
+      const gap = Math.round(4 * zoomed)
+      const mt = Math.round(3 * zoomed)
+      const br = Math.round(6 * zoomed)
+      const bw = Math.max(1, Math.round(3 * zoomed))
+      const pd = Math.round(4 * zoomed)
+
+      el.style.cssText = `position:absolute;pointer-events:none;box-sizing:border-box;overflow:hidden;font-family:system-ui,sans-serif;left:${sx}px;top:${sy}px;width:${w}px;height:${h}px;border-radius:${br}px;background:${color}1a;border:${bw}px solid ${color};padding:${pd}px`
+
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:${gap}px">
+          <div style="width:${dotSz}px;height:${dotSz}px;border-radius:50%;background:${dotColor};flex-shrink:0"></div>
+          <span style="font-size:${fontSize}px;font-weight:600;color:${dotColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(title)}</span>
+        </div>
+        ${category ? `<div style="font-size:${smallSize}px;color:${color};margin-top:${mt}px;opacity:0.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:${gap + dotSz}px">${escapeHtml(category)}</div>` : ''}
+      `
+    })
+
+    for (const [id, el] of RENDERED_OVERLAYS) {
+      if (!rendered.has(id)) { el.remove(); RENDERED_OVERLAYS.delete(id) }
+    }
+  }
+
   const CATEGORY_PALETTE = [
     '#6366f1', '#8b5cf6', '#0ea5e9', '#f59e0b', '#10b981',
     '#ef4444', '#f97316', '#ec4899', '#14b8a6', '#a855f7',
@@ -483,6 +578,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     })
 
     bumpRev()
+    setTimeout(() => updateNodeOverlays(), 30)
     isDirty.value = true
     return `n-${created.id}`
   }
