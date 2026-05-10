@@ -156,6 +156,11 @@ onBeforeUnmount(() => {
         <BookOutline class="w-3.5 h-3.5" />
       </NButton>
 
+      <!-- Saving progress -->
+      <div v-if="canvas.isSaving.value" class="w-16 h-1.5 rounded-full bg-base-content/10 overflow-hidden">
+        <div class="h-full rounded-full bg-primary transition-all duration-300" style="width:60%"></div>
+      </div>
+
       <!-- Node/edge count -->
       <span class="text-[11px] text-base-content/50">
         {{ canvas.nodeCount.value }} · {{ canvas.edgeCount.value }}

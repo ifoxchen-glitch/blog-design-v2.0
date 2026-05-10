@@ -28,6 +28,7 @@ function dbEdgeId(cyId: string): number {
 export interface UseCanvasReturn {
   cy: Readonly<ShallowRef<Core | null>>
   isLoading: Ref<boolean>
+  isSaving: Ref<boolean>
   isDirty: Ref<boolean>
   selectedNode: Ref<CanvasNode | null>
   selectedEdge: Ref<CanvasEdge | null>
@@ -58,6 +59,7 @@ export interface UseCanvasReturn {
 export function useCanvas(initialCanvasId: number): UseCanvasReturn {
   const cy: ShallowRef<Core | null> = shallowRef(null)
   const isLoading = ref(false)
+  const isSaving = ref(false)
   const isDirty = ref(false)
   const selectedNode = ref<CanvasNode | null>(null)
   const selectedEdge = ref<CanvasEdge | null>(null)
@@ -253,8 +255,12 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       // Rebuild card-style label for KB doc nodes
       let label = node.label
       if (isDocNode) {
-        const catLabel = (meta?.doc_category as string) || (meta?.doc_type as string) || '未分组'
-        label = `● ${node.label}\n[${catLabel}]`
+        const dt = (meta?.doc_type as string) || ''
+        const rs = (meta?.review_status as string) || ''
+        const cat = (meta?.doc_category as string) || ''
+        const tagParts = [dt, rs].filter(Boolean)
+        const tagStr = tagParts.length > 0 ? tagParts.map(t => `[${t}]`).join(' ') : cat ? `[${cat}]` : ''
+        label = tagStr ? `● ${node.label}\n${tagStr}` : `● ${node.label}`
       }
 
       cy.value.add({
@@ -345,6 +351,8 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
 
   async function saveCanvas(): Promise<void> {
     if (!cy.value || !canvasId.value)return
+    if (isSaving.value) return
+    isSaving.value = true
 
     // Save viewport
     await apiUpdateCanvas(canvasId.value, {
@@ -368,6 +376,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     }
 
     isDirty.value = false
+    isSaving.value = false
   }
 
   // ---- node operations ----
@@ -439,9 +448,12 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     }
     const color = DOC_TYPE_COLORS[doc.doc_type ?? ''] || '#6366f1'
 
-    // Label: ● title on first line, [category] tag on second line
-    const catLabel = doc.category || doc.doc_type || '未分组'
-    const label = `● ${doc.title}\n[${catLabel}]`
+    // Label: ● title on first line, tags on second (doc_type + review_status)
+    const tagParts: string[] = []
+    if (doc.doc_type) tagParts.push(doc.doc_type)
+    if (doc.review_status) tagParts.push(doc.review_status)
+    const tagStr = tagParts.length > 0 ? tagParts.map(t => `[${t}]`).join(' ') : doc.category ? `[${doc.category}]` : ''
+    const label = tagStr ? `● ${doc.title}\n${tagStr}` : `● ${doc.title}`
 
     const metadata: Record<string, unknown> = {
       doc_id: doc.id,
@@ -726,6 +738,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
   return {
     cy,
     isLoading,
+    isSaving,
     isDirty,
     selectedNode,
     selectedEdge,
