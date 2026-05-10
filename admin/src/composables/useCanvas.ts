@@ -506,6 +506,10 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     }
   }
 
+  function escapeHtml(str: string): string {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  }
+
   const CATEGORY_PALETTE = [
     '#6366f1', '#8b5cf6', '#0ea5e9', '#f59e0b', '#10b981',
     '#ef4444', '#f97316', '#ec4899', '#14b8a6', '#a855f7',
