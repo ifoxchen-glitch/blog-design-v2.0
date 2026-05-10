@@ -288,14 +288,22 @@ function handleDrop(e: DragEvent) {
 
 onMounted(async () => {
   await nextTick()
-  if (container.value) {
+  if (!container.value) return
+  try {
     canvas.init(container.value)
-    await canvas.loadCanvas(canvas.canvasId.value)
-    bindEvents()
-    // Set up drag-drop
-    container.value.addEventListener('dragover', handleDragOver)
-    container.value.addEventListener('drop', handleDrop)
+  } catch (e) {
+    console.error('canvas init failed:', e)
+    return
   }
+  try {
+    await canvas.loadCanvas(canvas.canvasId.value)
+  } catch (e) {
+    console.error('canvas load failed:', e)
+  }
+  bindEvents()
+  // Set up drag-drop
+  container.value.addEventListener('dragover', handleDragOver)
+  container.value.addEventListener('drop', handleDrop)
   document.addEventListener('click', handleDocumentClick)
 })
 
@@ -305,7 +313,11 @@ onBeforeUnmount(() => {
     container.value.removeEventListener('dragover', handleDragOver)
     container.value.removeEventListener('drop', handleDrop)
   }
-  canvas.destroy()
+  try {
+    canvas.destroy()
+  } catch (e) {
+    console.error('canvas destroy failed:', e)
+  }
 })
 </script>
 

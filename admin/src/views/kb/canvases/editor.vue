@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, provide, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { NButton, useMessage } from 'naive-ui'
 import { ArrowBackOutline } from '@vicons/ionicons5'
 import { useCanvas, type UseCanvasReturn } from '../../../composables/useCanvas'
@@ -40,9 +40,22 @@ function startAutoSave() {
   }, 10000)
 }
 
-function handleDirtyChange(dirty: boolean) {
+function onCanvasDirty(dirty: boolean) {
   canvas.isDirty.value = dirty
 }
+
+// Save before leaving — never blocks navigation
+onBeforeRouteLeave(async (_to, _from, next) => {
+  if (canvas.isDirty.value && canvas.cy.value) {
+    try {
+      await canvas.saveCanvas()
+      canvas.isDirty.value = false
+    } catch {
+      console.warn('save before leave failed')
+    }
+  }
+  next()
+})
 
 function handleBack() {
   router.push({ name: 'kb-canvases' })
@@ -71,8 +84,6 @@ function handleOpenDocDetail(docId: number) {
   showDocDetail.value = true
 }
 
-startAutoSave()
-
 // Mobile detection
 const isMobile = ref(false)
 function checkMobile() {
@@ -81,13 +92,11 @@ function checkMobile() {
 onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
+  startAutoSave()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', checkMobile)
   if (autoSaveTimer) clearInterval(autoSaveTimer)
-  if (canvas.isDirty.value) {
-    canvas.saveCanvas().catch(() => {})
-  }
 })
 </script>
 
@@ -141,7 +150,7 @@ onBeforeUnmount(() => {
       <div class="flex-1 relative min-w-0">
         <CanvasGraph
           :canvas-id="canvasId"
-          @dirty-changed="handleDirtyChange"
+          @dirty-changed="onCanvasDirty"
         />
       </div>
 
