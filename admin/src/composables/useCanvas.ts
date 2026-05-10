@@ -65,8 +65,10 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
   const canvasId = ref(initialCanvasId)
   const connectMode = ref(false)
 
-  const nodeCount = computed(() => cy.value ? cy.value.nodes().size() : 0)
-  const edgeCount = computed(() => cy.value ? cy.value.edges().size() : 0)
+  const _rev = ref(0)
+  function bumpRev() { _rev.value++ }
+  const nodeCount = computed(() => { void _rev.value; return cy.value ? cy.value.nodes().size() : 0 })
+  const edgeCount = computed(() => { void _rev.value; return cy.value ? cy.value.edges().size() : 0 })
 
   function init(container: HTMLElement): void {
     if (cy.value) destroy()
@@ -105,17 +107,15 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
             'width': 220,
             'height': 76,
             'font-size': '11px',
-            'color': '#ffffff',
-            'text-valign': 'top',
-            'text-halign': 'right',
+            'color': 'data(color)',
+            'text-valign': 'center',
+            'text-halign': 'center',
             'text-wrap': 'wrap',
             'text-max-width': '196px',
             'border-width': 3,
             'border-color': 'data(color)',
             'border-opacity': 0.8,
             'padding': '4px',
-            'text-margin-y': 3,
-            'text-margin-x': 4,
             'min-zoomed-font-size': 7,
           },
         },
@@ -242,6 +242,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
 
     // Remove all existing elements
     cy.value.elements().remove()
+    bumpRev()
 
     // Add nodes
     for (const node of data.nodes) {
@@ -402,6 +403,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
         },
         position: { x, y },
       })
+      bumpRev()
 
       return `n-${created.id}`
     } catch {
@@ -613,6 +615,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       try { await apiDeleteCanvasEdge(canvasId.value, eid) } catch { /* ignore */ }
     }
     sel.remove()
+    bumpRev()
     selectedNode.value = null
     selectedEdge.value = null
   }
