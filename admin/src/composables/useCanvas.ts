@@ -101,14 +101,23 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
           selector: 'node[nodeType="kb-doc"]',
           style: {
             'shape': 'round-rectangle',
-            'background-color': 'transparent',
-            'background-opacity': 0,
-            'label': '',
+            'background-color': 'data(color)',
+            'background-opacity': 0.1,
+            'label': 'data(label)',
             'width': 220,
             'height': 76,
-            'border-width': '0',
-            'border-opacity': 0,
-            'padding': '0',
+            'font-size': '12px',
+            'color': 'data(color)',
+            'font-weight': 600,
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'text-wrap': 'wrap',
+            'text-max-width': '200px',
+            'border-width': 2,
+            'border-color': 'data(color)',
+            'border-opacity': 0.7,
+            'padding': '6px',
+            'min-zoomed-font-size': 7,
           },
         },
         {
@@ -145,9 +154,6 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       autoungrabify: false,
       autounselectify: false,
     })
-
-    // Init HTML overlay for rich node rendering
-    initOverlay()
 
     // Event bridge
     cy.value.on('tap', 'node', (evt) => {
@@ -206,7 +212,6 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
   }
 
   function destroy(): void {
-    destroyOverlay()
     if (cy.value) {
       cy.value.destroy()
       cy.value = null
@@ -248,8 +253,8 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       // Rebuild card-style label for KB doc nodes
       let label = node.label
       if (isDocNode) {
-        const catLabel = (meta?.doc_category as string) || ''
-        label = catLabel ? `[${catLabel}]\n${node.label}` : node.label
+        const catLabel = (meta?.doc_category as string) || (meta?.doc_type as string) || '未分组'
+        label = `● ${node.label}\n[${catLabel}]`
       }
 
       cy.value.add({
@@ -288,8 +293,6 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       })
     }
 
-    // Update overlay for KB doc nodes after loading
-    setTimeout(updateNodeOverlays, 50)
   }
 
   function toJson(): CanvasData | null {
@@ -410,94 +413,6 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     }
   }
 
-  // ---- HTML node overlay for KB doc nodes ----
-  let overlayContainer: HTMLElement | null = null
-  const RENDERED_OVERLAYS = new Map<string, HTMLElement>()
-
-  function initOverlay() {
-    if (!cy.value) return
-    const cyContainer = cy.value.container()
-    if (!cyContainer) return
-    overlayContainer = cyContainer.querySelector('.cy-overlay') as HTMLElement
-    if (!overlayContainer) {
-      overlayContainer = document.createElement('div')
-      overlayContainer.className = 'cy-overlay'
-      overlayContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;overflow:hidden'
-      cyContainer.appendChild(overlayContainer)
-    }
-    cy.value.on('render', updateNodeOverlays)
-    cy.value.on('add remove', () => setTimeout(updateNodeOverlays, 50))
-    updateNodeOverlays()
-  }
-
-  function destroyOverlay() {
-    RENDERED_OVERLAYS.forEach(el => el.remove())
-    RENDERED_OVERLAYS.clear()
-    if (overlayContainer) { overlayContainer.remove(); overlayContainer = null }
-  }
-
-  function updateNodeOverlays() {
-    if (!cy.value || !overlayContainer) return
-    const zoom = cy.value.zoom()
-    const pan = cy.value.pan()
-    const rendered = new Set<string>()
-
-    cy.value.nodes().forEach(node => {
-      const data = node.data()
-      const id = node.id()
-      const isKbDoc = data.nodeType === 'kb-doc'
-      if (!isKbDoc) return
-      rendered.add(id)
-
-      const p = node.position()
-      const sx = p.x * zoom + pan.x
-      const sy = p.y * zoom + pan.y
-      const w = (data.width || 220) * zoom
-      const h = (data.height || 76) * zoom
-
-      let el = RENDERED_OVERLAYS.get(id)
-      if (!el) {
-        el = document.createElement('div')
-        el.style.cssText = 'position:absolute;pointer-events:none;box-sizing:border-box;overflow:hidden;font-family:system-ui,sans-serif'
-        overlayContainer!.appendChild(el)
-        RENDERED_OVERLAYS.set(id, el)
-      }
-
-      const color: string = data.color || '#6366f1'
-      const meta = (data.metadata || {}) as Record<string, unknown>
-      const cat = String(meta.doc_category || meta.doc_type || '未分组')
-      const title = String(data.label || '').replace(/\[.*?\]\n?/g, '')
-
-      const zoomed = Math.max(zoom, 0.25)
-      const titleSize = Math.round(13 * zoomed)
-      const tagSize = Math.round(10 * zoomed)
-      const dotSz = Math.round(7 * zoomed)
-      const gap = Math.round(6 * zoomed)
-      const br = Math.round(8 * zoomed)
-      const pd = Math.round(8 * zoomed)
-
-      el.style.cssText = `position:absolute;pointer-events:none;box-sizing:border-box;overflow:hidden;font-family:system-ui,sans-serif;left:${sx}px;top:${sy}px;width:${w}px;height:${h}px;border-radius:${br}px;background:${color}12;padding:${pd}px`
-
-      el.innerHTML = `
-        <div style="display:flex;flex-direction:column;height:100%;padding:${Math.round(2 * zoomed)}px 0">
-          <div style="display:flex;align-items:center;gap:${gap}px;flex:1;min-height:0">
-            <div style="width:${dotSz}px;height:${dotSz}px;border-radius:50%;background:${color};flex-shrink:0"></div>
-            <span style="font-size:${titleSize}px;font-weight:600;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(title)}</span>
-          </div>
-          <span style="font-size:${tagSize}px;color:${color};opacity:0.65;margin-left:${gap + dotSz}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">[${escapeHtml(cat)}]</span>
-        </div>
-      `
-    })
-
-    for (const [id, el] of RENDERED_OVERLAYS) {
-      if (!rendered.has(id)) { el.remove(); RENDERED_OVERLAYS.delete(id) }
-    }
-  }
-
-  function escapeHtml(str: string): string {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-  }
-
   const CATEGORY_PALETTE = [
     '#6366f1', '#8b5cf6', '#0ea5e9', '#f59e0b', '#10b981',
     '#ef4444', '#f97316', '#ec4899', '#14b8a6', '#a855f7',
@@ -524,11 +439,9 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     }
     const color = DOC_TYPE_COLORS[doc.doc_type ?? ''] || '#6366f1'
 
-    // Label: [category] at top-right, title centered below
-    // Cytoscape uses single alignment: text-halign:right puts both lines to right
-    const label = doc.category
-      ? `[${doc.category}]\n${doc.title}`
-      : doc.title
+    // Label: ● title on first line, [category] tag on second line
+    const catLabel = doc.category || doc.doc_type || '未分组'
+    const label = `● ${doc.title}\n[${catLabel}]`
 
     const metadata: Record<string, unknown> = {
       doc_id: doc.id,
@@ -570,7 +483,6 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     })
 
     bumpRev()
-    setTimeout(() => updateNodeOverlays(), 30)
     isDirty.value = true
     return `n-${created.id}`
   }
