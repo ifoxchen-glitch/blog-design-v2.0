@@ -56,6 +56,13 @@ const NODE_TYPES = [
   { type: 'reference', label: '引用', color: '#3b82f6' },
 ]
 
+const SHAPE_TYPES = [
+  { type: 'text', label: '文本', color: '#64748b' },
+  { type: 'rect', label: '矩形', color: '#ef4444' },
+  { type: 'circle', label: '圆形', color: '#8b5cf6' },
+  { type: 'triangle', label: '三角形', color: '#f59e0b' },
+]
+
 const LAYOUT_OPTIONS = [
   { name: 'cose-bilkent' as const, label: '力导向' },
   { name: 'circle' as const, label: '环形' },
@@ -80,18 +87,24 @@ const LAYOUT_OPTIONS = [
 
     <div class="w-px h-5 bg-base-content/10" />
 
-    <NPopover trigger="hover">
+    <!-- Shape tools -->
+    <NPopover trigger="hover" :delay="200">
+      <template #trigger>
+        <NButton size="tiny" quaternary>形状</NButton>
+      </template>
+      <div class="flex flex-col gap-1 p-1">
+        <NButton v-for="st in SHAPE_TYPES" :key="st.type" size="tiny" quaternary @click="handleAddNode(st.type)">
+          +{{ st.label }}
+        </NButton>
+      </div>
+    </NPopover>
+
+    <NPopover trigger="hover" :delay="200">
       <template #trigger>
         <NButton size="tiny" quaternary>布局</NButton>
       </template>
       <div class="flex flex-col gap-1 p-1">
-        <NButton
-          v-for="lo in LAYOUT_OPTIONS"
-          :key="lo.name"
-          size="tiny"
-          quaternary
-          @click="handleLayout(lo.name)"
-        >
+        <NButton v-for="lo in LAYOUT_OPTIONS" :key="lo.name" size="tiny" quaternary @click="handleLayout(lo.name)">
           {{ lo.label }}
         </NButton>
       </div>

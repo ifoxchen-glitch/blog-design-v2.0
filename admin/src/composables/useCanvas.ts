@@ -123,6 +123,88 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
           },
         },
         {
+          selector: 'node[nodeType="text"]',
+          style: {
+            'shape': 'round-rectangle',
+            'background-color': '#f8fafc',
+            'background-opacity': 1,
+            'label': 'data(label)',
+            'width': 160,
+            'height': 60,
+            'font-size': '13px',
+            'color': '#1e293b',
+            'font-weight': 400,
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'text-wrap': 'wrap',
+            'text-max-width': '140px',
+            'border-width': 1,
+            'border-color': '#cbd5e1',
+            'border-opacity': 1,
+            'padding': '8px',
+          },
+        },
+        {
+          selector: 'node[nodeType="rect"]',
+          style: {
+            'shape': 'rectangle',
+            'background-color': 'data(color)',
+            'background-opacity': 0.25,
+            'label': 'data(label)',
+            'width': 100,
+            'height': 100,
+            'font-size': '11px',
+            'color': 'data(color)',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'text-wrap': 'wrap',
+            'text-max-width': '80px',
+            'border-width': 2,
+            'border-color': 'data(color)',
+            'border-opacity': 0.8,
+          },
+        },
+        {
+          selector: 'node[nodeType="circle"]',
+          style: {
+            'shape': 'ellipse',
+            'background-color': 'data(color)',
+            'background-opacity': 0.25,
+            'label': 'data(label)',
+            'width': 100,
+            'height': 100,
+            'font-size': '11px',
+            'color': 'data(color)',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'text-wrap': 'wrap',
+            'text-max-width': '80px',
+            'border-width': 2,
+            'border-color': 'data(color)',
+            'border-opacity': 0.8,
+          },
+        },
+        {
+          selector: 'node[nodeType="triangle"]',
+          style: {
+            'shape': 'triangle',
+            'background-color': 'data(color)',
+            'background-opacity': 0.25,
+            'label': 'data(label)',
+            'width': 100,
+            'height': 100,
+            'font-size': '11px',
+            'color': 'data(color)',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'text-wrap': 'wrap',
+            'text-max-width': '80px',
+            'border-width': 2,
+            'border-color': 'data(color)',
+            'border-opacity': 0.8,
+          },
+        },
+        {
           selector: 'node:selected',
           style: { 'border-color': '#f59e0b', 'border-width': 3 },
         },
@@ -384,9 +466,10 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
   async function addNode(type: string, x: number, y: number): Promise<string | null> {
     if (!cy.value || !canvasId.value)return null
 
-    const label = type === 'concept' ? '新概念' : type === 'note' ? '新笔记' : type === 'term' ? '新术语' : type === 'reference' ? '新引用' : '新节点'
-    const colors: Record<string, string> = { concept: '#6366f1', note: '#f59e0b', term: '#10b981', reference: '#3b82f6' }
-    const color = colors[type] ?? '#6366f1'
+    const LABELS: Record<string, string> = { concept: '新概念', note: '新笔记', term: '新术语', reference: '新引用', text: '文本框', rect: '矩形', circle: '圆形', triangle: '三角形' }
+    const COLORS: Record<string, string> = { concept: '#6366f1', note: '#f59e0b', term: '#10b981', reference: '#3b82f6', rect: '#ef4444', circle: '#8b5cf6', triangle: '#f59e0b' }
+    const label = LABELS[type] ?? '新节点'
+    const color = COLORS[type] ?? '#6366f1'
 
     try {
       const created = await apiAddCanvasNode(canvasId.value, {
