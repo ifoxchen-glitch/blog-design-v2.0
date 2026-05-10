@@ -376,7 +376,7 @@ onBeforeUnmount(() => {
       <!-- Canvas background context menu -->
       <template v-if="ctxMenu.targetType === 'canvas'">
         <button
-          v-for="nt in [{ type: 'concept', label: '概念', icon: '◆' }, { type: 'note', label: '笔记', icon: '◼' }, { type: 'term', label: '术语', icon: '▲' }, { type: 'reference', label: '引用', icon: '●' }]"
+          v-for="nt in [{ type: 'concept', label: '概念', icon: '◆' }, { type: 'note', label: '笔记', icon: '◼' }, { type: 'term', label: '术语', icon: '▲' }, { type: 'reference', label: '引用', icon: '●' }, { type: 'text', label: '文本', icon: '▬' }, { type: 'rect', label: '矩形', icon: '▭' }, { type: 'circle', label: '圆形', icon: '○' }, { type: 'triangle', label: '三角形', icon: '△' }]"
           :key="nt.type"
           class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left"
           @click="handleAddNodeAtCtx(nt.type)"
@@ -384,13 +384,23 @@ onBeforeUnmount(() => {
           <span class="w-3.5 h-3.5 inline-flex items-center justify-center text-[10px]">{{ nt.icon }}</span>
           添加{{ nt.label }}
         </button>
+
+        <!-- Alignment tools (visible when 2+ nodes selected) -->
+        <div v-if="canvas.cy.value && canvas.cy.value.nodes(':selected').length >= 2" class="border-t border-base-content/5 my-0.5" />
+        <template v-if="canvas.cy.value && canvas.cy.value.nodes(':selected').length >= 2">
+          <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left" @click="canvas.alignLeft(); hideCtxMenu()">左对齐</button>
+          <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left" @click="canvas.alignRight(); hideCtxMenu()">右对齐</button>
+          <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left" @click="canvas.alignTop(); hideCtxMenu()">上对齐</button>
+          <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left" @click="canvas.alignBottom(); hideCtxMenu()">下对齐</button>
+          <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left" @click="canvas.alignCenter(); hideCtxMenu()">垂直居中</button>
+          <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left" @click="canvas.alignMiddle(); hideCtxMenu()">水平居中</button>
+          <div class="border-t border-base-content/5 my-0.5" />
+          <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left" @click="canvas.distributeHorizontally(); hideCtxMenu()">横向分布</button>
+          <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left" @click="canvas.distributeVertically(); hideCtxMenu()">纵向分布</button>
+        </template>
+
         <div class="border-t border-base-content/5 my-0.5" />
-        <button
-          class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left"
-          @click="handleFitAndClose()"
-        >
-          适应屏幕
-        </button>
+        <button class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-base-200/50 text-left" @click="handleFitAndClose()">适应屏幕</button>
       </template>
     </div>
   </Teleport>

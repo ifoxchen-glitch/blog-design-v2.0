@@ -54,6 +54,14 @@ export interface UseCanvasReturn {
   runLayout: (name: 'cose-bilkent' | 'circle' | 'concentric' | 'grid' | 'preset') => Promise<void>
   fitToScreen: () => void
   exportPng: () => void
+  alignLeft: () => void
+  alignRight: () => void
+  alignTop: () => void
+  alignBottom: () => void
+  alignCenter: () => void
+  alignMiddle: () => void
+  distributeHorizontally: () => void
+  distributeVertically: () => void
 }
 
 export function useCanvas(initialCanvasId: number): UseCanvasReturn {
@@ -818,6 +826,92 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     link.click()
   }
 
+  // ---- Alignment tools ----
+
+  function getSelectedNodes(): cytoscape.NodeCollection | null {
+    if (!cy.value) return null
+    const sel = cy.value.nodes(':selected')
+    return sel.length > 0 ? sel : null
+  }
+
+  function setNodePos(n: cytoscape.NodeSingular, x: number, y: number) {
+    n.position({ x, y })
+  }
+
+  function runAlign(fn: (sel: cytoscape.NodeCollection) => void) {
+    const sel = getSelectedNodes()
+    if (!sel || sel.length < 2) return
+    fn(sel)
+    bumpRev()
+    isDirty.value = true
+  }
+
+  function alignLeft() {
+    runAlign(sel => {
+      const minX = Math.min(...sel.map(n => n.position().x))
+      sel.forEach(n => setNodePos(n, minX, n.position().y))
+    })
+  }
+
+  function alignRight() {
+    runAlign(sel => {
+      const maxX = Math.max(...sel.map(n => n.position().x))
+      sel.forEach(n => setNodePos(n, maxX, n.position().y))
+    })
+  }
+
+  function alignTop() {
+    runAlign(sel => {
+      const minY = Math.min(...sel.map(n => n.position().y))
+      sel.forEach(n => setNodePos(n, n.position().x, minY))
+    })
+  }
+
+  function alignBottom() {
+    runAlign(sel => {
+      const maxY = Math.max(...sel.map(n => n.position().y))
+      sel.forEach(n => setNodePos(n, n.position().x, maxY))
+    })
+  }
+
+  function alignCenter() {
+    runAlign(sel => {
+      const xs = sel.map(n => n.position().x)
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2
+      sel.forEach(n => setNodePos(n, cx, n.position().y))
+    })
+  }
+
+  function alignMiddle() {
+    runAlign(sel => {
+      const ys = sel.map(n => n.position().y)
+      const mid = (Math.min(...ys) + Math.max(...ys)) / 2
+      sel.forEach(n => setNodePos(n, n.position().x, mid))
+    })
+  }
+
+  function distributeHorizontally() {
+    runAlign(sel => {
+      if (sel.length < 3) return
+      const sorted = [...sel].sort((a, b) => a.position().x - b.position().x)
+      const minX = sorted[0].position().x
+      const maxX = sorted[sorted.length - 1].position().x
+      const step = (maxX - minX) / (sorted.length - 1)
+      sorted.forEach((n, i) => setNodePos(n, minX + step * i, n.position().y))
+    })
+  }
+
+  function distributeVertically() {
+    runAlign(sel => {
+      if (sel.length < 3) return
+      const sorted = [...sel].sort((a, b) => a.position().y - b.position().y)
+      const minY = sorted[0].position().y
+      const maxY = sorted[sorted.length - 1].position().y
+      const step = (maxY - minY) / (sorted.length - 1)
+      sorted.forEach((n, i) => setNodePos(n, n.position().x, minY + step * i))
+    })
+  }
+
   return {
     cy,
     isLoading,
@@ -847,5 +941,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     runLayout,
     fitToScreen,
     exportPng,
+    alignLeft, alignRight, alignTop, alignBottom, alignCenter, alignMiddle,
+    distributeHorizontally, distributeVertically,
   }
 }

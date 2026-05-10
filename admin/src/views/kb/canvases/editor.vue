@@ -27,6 +27,12 @@ provide('canvas', canvas)
 const showBrowser = ref(true)
 const showPanel = computed(() => canvas.selectedNode.value !== null)
 const showDebug = ref(false)
+
+// Stats change tracking
+const prevNodeCount = ref(0)
+const prevEdgeCount = ref(0)
+const nodeChange = computed(() => canvas.nodeCount.value - prevNodeCount.value)
+const edgeChange = computed(() => canvas.edgeCount.value - prevEdgeCount.value)
 const debugLogs = ref<string[]>([])
 function addLog(msg: string) {
   debugLogs.value.push(`[${new Date().toLocaleTimeString()}] ${msg}`)
@@ -35,12 +41,19 @@ function addLog(msg: string) {
 
 let autoSaveTimer: ReturnType<typeof setInterval> | null = null
 
+function updatePrevCounts() {
+  prevNodeCount.value = canvas.nodeCount.value
+  prevEdgeCount.value = canvas.edgeCount.value
+}
+
 function startAutoSave() {
+  updatePrevCounts()
   autoSaveTimer = setInterval(async () => {
     if (canvas.isDirty.value && canvas.cy.value) {
       try {
         await canvas.saveCanvas()
         canvas.isDirty.value = false
+        updatePrevCounts()
       } catch { /* silent */ }
     }
   }, 10000)
@@ -161,10 +174,17 @@ onBeforeUnmount(() => {
         <div class="h-full rounded-full bg-primary transition-all duration-300" style="width:60%"></div>
       </div>
 
-      <!-- Node/edge count -->
-      <span class="text-[11px] text-base-content/50">
-        {{ canvas.nodeCount.value }} · {{ canvas.edgeCount.value }}
-      </span>
+      <!-- Node/edge count with change indicators -->
+      <div class="flex items-center gap-3 text-[11px]">
+        <span class="text-base-content/50">
+          <span class="font-medium text-base-content/70">{{ canvas.nodeCount.value }}</span> 节点
+          <span v-if="nodeChange !== 0" :class="nodeChange > 0 ? 'text-green-500' : 'text-red-500'">({{ nodeChange > 0 ? '+' : '' }}{{ nodeChange }})</span>
+        </span>
+        <span class="text-base-content/50">
+          <span class="font-medium text-base-content/70">{{ canvas.edgeCount.value }}</span> 连线
+          <span v-if="edgeChange !== 0" :class="edgeChange > 0 ? 'text-green-500' : 'text-red-500'">({{ edgeChange > 0 ? '+' : '' }}{{ edgeChange }})</span>
+        </span>
+      </div>
     </div>
 
     <!-- Toolbar -->
