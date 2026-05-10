@@ -108,7 +108,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
             'height': 76,
             'border-width': '0',
             'border-opacity': 0,
-            'padding': 0,
+            'padding': '0',
           },
         },
         {
