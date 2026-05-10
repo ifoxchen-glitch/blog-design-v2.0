@@ -278,7 +278,7 @@ function migrate(db) {
     CREATE TABLE IF NOT EXISTS kb_canvas_nodes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       canvas_id INTEGER NOT NULL REFERENCES kb_canvases(id) ON DELETE CASCADE,
-      type TEXT NOT NULL DEFAULT 'concept' CHECK (type IN ('concept','note','term','reference')),
+      type TEXT NOT NULL DEFAULT 'concept',
       label TEXT NOT NULL,
       content TEXT NOT NULL DEFAULT '',
       x REAL NOT NULL DEFAULT 0,
@@ -368,6 +368,38 @@ function migrate(db) {
 
   // Add selected_paths column for sync folder selection
   try { db.exec(`ALTER TABLE kb_sync_config ADD COLUMN selected_paths TEXT NOT NULL DEFAULT '[]'`); } catch { /* already exists */ }
+
+  // Relax kb_canvas_nodes type CHECK constraint to allow kb-doc types
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS kb_canvas_nodes_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        canvas_id INTEGER NOT NULL REFERENCES kb_canvases(id) ON DELETE CASCADE,
+        type TEXT NOT NULL DEFAULT 'concept',
+        label TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        x REAL NOT NULL DEFAULT 0,
+        y REAL NOT NULL DEFAULT 0,
+        width REAL NOT NULL DEFAULT 180,
+        height REAL NOT NULL DEFAULT 80,
+        color TEXT NOT NULL DEFAULT '#6366f1',
+        metadata TEXT NOT NULL DEFAULT '{}',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
+    // Only migrate if the old table has the CHECK constraint
+    const tblInfo = db.prepare("SELECT sql FROM sqlite_master WHERE name='kb_canvas_nodes' AND sql LIKE '%CHECK%'").get();
+    if (tblInfo) {
+      db.exec(`INSERT INTO kb_canvas_nodes_new SELECT * FROM kb_canvas_nodes`);
+      db.exec(`DROP TABLE kb_canvas_nodes`);
+      db.exec(`ALTER TABLE kb_canvas_nodes_new RENAME TO kb_canvas_nodes`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_kb_cn_canvas ON kb_canvas_nodes(canvas_id)`);
+    } else {
+      db.exec(`DROP TABLE IF EXISTS kb_canvas_nodes_new`);
+    }
+  } catch { /* ignore migration failures */ }
 
 }
 

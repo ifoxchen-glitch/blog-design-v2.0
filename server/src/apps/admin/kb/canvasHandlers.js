@@ -172,7 +172,9 @@ function addNode(req, res) {
   if (!canvas) return res.status(404).json({ code: 404, message: "Canvas not found" });
 
   const body = req.body || {};
-  const type = String(body.type ?? "concept");
+  const ALLOWED_TYPES = new Set(['concept','note','term','reference','entity','source','synthesis','kb-doc']);
+  const typeRaw = String(body.type ?? "concept");
+  const type = ALLOWED_TYPES.has(typeRaw) ? typeRaw : 'concept';
   const label = String(body.label ?? "").trim() || "新节点";
   const content = String(body.content ?? "");
   const x = Number(body.x ?? 0);
