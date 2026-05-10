@@ -101,22 +101,14 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
           selector: 'node[nodeType="kb-doc"]',
           style: {
             'shape': 'round-rectangle',
-            'background-color': 'data(color)',
-            'background-opacity': 0.12,
-            'label': '', // hidden — rendered via HTML overlay
+            'background-color': 'transparent',
+            'background-opacity': 0,
+            'label': '',
             'width': 220,
             'height': 76,
-            'font-size': '11px',
-            'color': 'data(color)',
-            'text-valign': 'top',
-            'text-halign': 'left',
-            'text-wrap': 'wrap',
-            'text-max-width': '196px',
-            'border-width': 3,
-            'border-color': 'data(color)',
-            'border-opacity': 0.8,
-            'padding': '4px',
-            'min-zoomed-font-size': 7,
+            'border-width': 0,
+            'border-opacity': 0,
+            'padding': 0,
           },
         },
         {
@@ -480,24 +472,25 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       }
       const dotColor = DOC_TYPE_COLORS[String(meta.doc_type || '')] || color
 
-      const zoomed = Math.max(zoom, 0.3)
-      const fontSize = Math.round(11 * zoomed)
-      const smallSize = Math.round(9 * zoomed)
+      const zoomed = Math.max(zoom, 0.25)
+      const titleSize = Math.round(12 * zoomed)
+      const tagSize = Math.round(10 * zoomed)
       const dotSz = Math.round(6 * zoomed)
-      const gap = Math.round(4 * zoomed)
-      const mt = Math.round(3 * zoomed)
-      const br = Math.round(6 * zoomed)
-      const bw = Math.max(1, Math.round(3 * zoomed))
-      const pd = Math.round(4 * zoomed)
+      const gap = Math.round(6 * zoomed)
+      const mt = Math.round(4 * zoomed)
+      const br = Math.round(8 * zoomed)
+      const pd = Math.round(8 * zoomed)
 
-      el.style.cssText = `position:absolute;pointer-events:none;box-sizing:border-box;overflow:hidden;font-family:system-ui,sans-serif;left:${sx}px;top:${sy}px;width:${w}px;height:${h}px;border-radius:${br}px;background:${color}1a;border:${bw}px solid ${color};padding:${pd}px`
+      el.style.cssText = `position:absolute;pointer-events:none;box-sizing:border-box;overflow:hidden;font-family:system-ui,sans-serif;left:${sx}px;top:${sy}px;width:${w}px;height:${h}px;border-radius:${br}px;background:${color}12;padding:${pd}px`
 
       el.innerHTML = `
-        <div style="display:flex;align-items:center;gap:${gap}px">
-          <div style="width:${dotSz}px;height:${dotSz}px;border-radius:50%;background:${dotColor};flex-shrink:0"></div>
-          <span style="font-size:${fontSize}px;font-weight:600;color:${dotColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(title)}</span>
+        <div style="display:flex;align-items:flex-start;gap:${gap}px;height:100%">
+          <div style="width:${dotSz}px;height:${dotSz}px;border-radius:50%;background:${dotColor};flex-shrink:0;margin-top:${Math.round(3 * zoomed)}px"></div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:${Math.round(2 * zoomed)}px">
+            <span style="font-size:${titleSize}px;font-weight:500;color:#e2e8f0;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(title)}</span>
+            ${category ? `<span style="display:inline-flex;align-items:center;font-size:${tagSize}px;color:${dotColor};background:${dotColor}18;border-radius:${Math.round(4 * zoomed)}px;padding:0 ${Math.round(6 * zoomed)}px;line-height:${Math.round(18 * zoomed)}px;align-self:flex-start">${escapeHtml(category)}</span>` : ''}
+          </div>
         </div>
-        ${category ? `<div style="font-size:${smallSize}px;color:${color};margin-top:${mt}px;opacity:0.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:${gap + dotSz}px">${escapeHtml(category)}</div>` : ''}
       `
     })
 
