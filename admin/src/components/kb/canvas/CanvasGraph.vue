@@ -265,25 +265,29 @@ function handleDragOver(e: DragEvent) {
 function handleDrop(e: DragEvent) {
   e.preventDefault()
   const json = e.dataTransfer?.getData('application/json')
-  if (!json || !canvas.cy.value) return
+  if (!json) { console.warn('[drop] no json data'); return }
+  if (!canvas.cy.value) { console.warn('[drop] cy not ready'); return }
   try {
     const doc = JSON.parse(json) as { id: number; title: string; category: string | null; doc_type: string | null; review_status: string | null; excerpt: string | null; tags: string[]; slug: string }
-    // Convert screen coordinates to model position
+    console.log('[drop] doc:', doc.title, 'at', e.clientX, e.clientY)
     const rect = container.value!.getBoundingClientRect()
     const modelPos = {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
     }
-    // Convert rendered position to model position
     const pan = canvas.cy.value.pan()
     const zoom = canvas.cy.value.zoom()
     const x = (modelPos.x - pan.x) / zoom
     const y = (modelPos.y - pan.y) / zoom
+    console.log('[drop] modelPos:', modelPos, 'pan:', pan, 'zoom:', zoom, '->', x, y)
     canvas.addDocNodeWithConnections(doc as any, x, y).then((result) => {
+      console.log('[drop] result:', result)
       if (result) message.success(`已添加「${doc.title}」`)
       else message.error(`添加「${doc.title}」失败`)
     })
-  } catch { /* ignore invalid drop data */ }
+  } catch (e) {
+    console.error('[drop] parse/process error:', e)
+  }
 }
 
 onMounted(async () => {

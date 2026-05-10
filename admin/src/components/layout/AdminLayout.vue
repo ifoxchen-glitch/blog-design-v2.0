@@ -305,9 +305,7 @@ const breadcrumbs = computed(() => {
       <!-- Page content -->
       <div class="flex flex-1 flex-col overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
         <RouterView v-slot="{ Component, route }">
-          <Transition name="fade" mode="out-in">
-            <Component :is="Component" :key="route.path" />
-          </Transition>
+          <Component :is="Component" :key="route.path" />
         </RouterView>
       </div>
     </div>

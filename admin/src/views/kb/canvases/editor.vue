@@ -26,6 +26,12 @@ provide('canvas', canvas)
 // Panel visibility
 const showBrowser = ref(true)
 const showPanel = computed(() => canvas.selectedNode.value !== null)
+const showDebug = ref(false)
+const debugLogs = ref<string[]>([])
+function addLog(msg: string) {
+  debugLogs.value.push(`[${new Date().toLocaleTimeString()}] ${msg}`)
+  console.log(msg)
+}
 
 let autoSaveTimer: ReturnType<typeof setInterval> | null = null
 
@@ -62,16 +68,24 @@ function handleBack() {
 }
 
 function handleBrowserClick(doc: KbDocumentListItem) {
+  addLog(`click add: ${doc.title} (id=${doc.id})`)
   if (!canvas.cy.value) {
+    addLog('  ERROR: canvas not initialized')
     message.warning('画布未初始化')
     return
   }
   const extent = canvas.cy.value.extent()
   const cx = (extent.x1 + extent.x2) / 2
   const cy_ = (extent.y1 + extent.y2) / 2
+  addLog(`  position: (${Math.round(cx)}, ${Math.round(cy_)})`)
   canvas.addDocNodeWithConnections(doc, cx, cy_).then((result) => {
-    if (result) message.success(`已添加「${doc.title}」`)
-    else message.error(`添加「${doc.title}」失败`)
+    if (result) {
+      addLog(`  SUCCESS: node id=${result}`)
+      message.success(`已添加「${doc.title}」`)
+    } else {
+      addLog(`  FAILED: addDocNodeWithConnections returned null`)
+      message.error(`添加「${doc.title}」失败`)
+    }
   })
 }
 
@@ -89,13 +103,21 @@ const isMobile = ref(false)
 function checkMobile() {
   isMobile.value = window.innerWidth < 768
 }
+function handleGlobalKeydown(e: KeyboardEvent) {
+  if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+    showDebug.value = !showDebug.value
+  }
+}
+
 onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
+  window.addEventListener('keydown', handleGlobalKeydown)
   startAutoSave()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', checkMobile)
+  window.removeEventListener('keydown', handleGlobalKeydown)
   if (autoSaveTimer) clearInterval(autoSaveTimer)
 })
 </script>
@@ -164,4 +186,13 @@ onBeforeUnmount(() => {
     :doc-id="docDetailId"
     @update:show="(v: boolean) => showDocDetail = v"
   />
+
+  <!-- Debug log panel (toggle with Ctrl+Shift+D) -->
+  <div v-if="showDebug" class="fixed bottom-0 left-0 right-0 z-[9999] bg-black/90 text-green-400 text-[10px] font-mono p-2 max-h-40 overflow-y-auto">
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-white/50">调试日志</span>
+      <NButton size="tiny" quaternary class="!text-white/50" @click="showDebug = false">关闭</NButton>
+    </div>
+    <div v-for="(log, i) in debugLogs" :key="i">{{ log }}</div>
+  </div>
 </template>

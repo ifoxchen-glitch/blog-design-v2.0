@@ -109,15 +109,14 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
             'text-valign': 'top',
             'text-halign': 'left',
             'text-wrap': 'wrap',
-            'text-max-width': '200px',
+            'text-max-width': '196px',
             'border-width': 3,
             'border-color': 'data(color)',
             'border-opacity': 0.8,
             'padding': '4px',
-            'text-margin-y': 2,
+            'text-margin-y': 3,
             'text-margin-x': 4,
             'min-zoomed-font-size': 7,
-            'font-weight': 'bold',
           },
         },
         {
@@ -431,9 +430,10 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     // Color by category (分组)
     const color = getCategoryColor(doc.category)
 
-    // Label: category badge + title (two lines, matching card style)
+    // Label: title on first line (top-left, color = border color),
+    // category on second line (centered, same color)
     const label = doc.category
-      ? `[${doc.category}]\n${doc.title}`
+      ? `${doc.title}\n[${doc.category}]`
       : doc.title
 
     const metadata = {
