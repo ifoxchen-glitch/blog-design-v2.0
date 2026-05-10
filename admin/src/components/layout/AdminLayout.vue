@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, onMounted, ref } from 'vue'
+import { computed, h, onErrorCaptured, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { usePermissionStore } from '../../stores/permission'
@@ -38,6 +38,13 @@ function toggleMenu(key: string) {
     expandedMenus.value.add(key)
   }
 }
+
+// Error boundary: catch rendering errors from child components
+// to prevent blank pages when navigating away from complex editors
+onErrorCaptured((err) => {
+  console.warn('[AdminLayout] error captured:', err)
+  return false // don't suppress — let it propagate for devtools
+})
 
 // Icon mapping from permission store icons to SVG render functions
 const iconMap: Record<string, () => Component> = {

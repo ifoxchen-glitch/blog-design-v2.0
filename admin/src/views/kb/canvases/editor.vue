@@ -123,14 +123,9 @@ onBeforeUnmount(() => {
 
       <div class="flex-1" />
 
-      <!-- Toggle browser button -->
-      <NButton size="tiny" quaternary @click="showBrowser = !showBrowser" :type="showBrowser ? 'primary' : 'default'">
-        文档库
-      </NButton>
-
       <!-- Node/edge count -->
-      <span class="text-[11px] text-base-content/30">
-        {{ canvas.nodeCount.value }}N / {{ canvas.edgeCount.value }}E
+      <span class="text-[11px] text-base-content/50">
+        {{ canvas.nodeCount.value }} 节点 · {{ canvas.edgeCount.value }} 连线
       </span>
     </div>
 
