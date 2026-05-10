@@ -62,6 +62,8 @@ export interface UseCanvasReturn {
   alignMiddle: () => void
   distributeHorizontally: () => void
   distributeVertically: () => void
+  undo: () => void
+  redo: () => void
 }
 
 export function useCanvas(initialCanvasId: number): UseCanvasReturn {
@@ -70,6 +72,54 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
   const isSaving = ref(false)
   const isDirty = ref(false)
   const selectedNode = ref<CanvasNode | null>(null)
+
+  // ---- Undo/Redo ----
+  const MAX_HISTORY = 50
+  const undoStack: string[] = []
+  const redoStack: string[] = []
+
+  function saveState() {
+    if (!cy.value) return
+    const state = JSON.stringify({
+      nodes: cy.value.nodes().map(n => ({ id: n.id(), x: n.position().x, y: n.position().y })),
+    })
+    if (undoStack.length === 0 || undoStack[undoStack.length - 1] !== state) {
+      undoStack.push(state)
+      if (undoStack.length > MAX_HISTORY) undoStack.shift()
+      redoStack.length = 0
+    }
+  }
+
+  function applyState(state: string) {
+    if (!cy.value) return
+    try {
+      const data = JSON.parse(state) as { nodes: Array<{ id: string; x: number; y: number }> }
+      const idMap = new Map(data.nodes.map((n) => [n.id, n]))
+      cy.value.nodes().forEach(n => {
+        const saved = idMap.get(n.id())
+        if (saved) n.position({ x: saved.x, y: saved.y })
+      })
+    } catch { /* ignore */ }
+  }
+
+  function undo() {
+    if (undoStack.length < 2) return
+    const current = undoStack.pop()!
+    redoStack.push(current)
+    const prev = undoStack[undoStack.length - 1]
+    applyState(prev)
+    bumpRev()
+    isDirty.value = true
+  }
+
+  function redo() {
+    if (redoStack.length === 0) return
+    const next = redoStack.pop()!
+    undoStack.push(next)
+    applyState(next)
+    bumpRev()
+    isDirty.value = true
+  }
   const selectedEdge = ref<CanvasEdge | null>(null)
   const currentZoom = ref(1)
   const canvasId = ref(initialCanvasId)
@@ -82,6 +132,9 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
 
   function init(container: HTMLElement): void {
     if (cy.value) destroy()
+
+    // Set dark canvas background
+    container.style.background = '#0f172a'
 
     cy.value = cytoscape({
       container,
@@ -246,6 +299,10 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       autoungrabify: false,
       autounselectify: false,
     })
+
+    // Save state on node drag end and add/remove
+    cy.value.on('dragfree', 'node', () => saveState())
+    cy.value.on('add remove', () => setTimeout(() => saveState(), 50))
 
     // Event bridge
     cy.value.on('tap', 'node', (evt) => {
@@ -943,5 +1000,6 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     exportPng,
     alignLeft, alignRight, alignTop, alignBottom, alignCenter, alignMiddle,
     distributeHorizontally, distributeVertically,
+    undo, redo,
   }
 }

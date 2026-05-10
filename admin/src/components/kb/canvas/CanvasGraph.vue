@@ -290,6 +290,30 @@ function handleDrop(e: DragEvent) {
   }
 }
 
+// Global keyboard shortcuts
+function handleGlobalKeydown(e: KeyboardEvent) {
+  const isInput = document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA'
+  if (isInput) return
+
+  // Ctrl+Z: Undo
+  if (e.ctrlKey && e.key === 'z') {
+    e.preventDefault()
+    canvas.undo()
+    return
+  }
+  // Ctrl+Y: Redo
+  if (e.ctrlKey && e.key === 'y') {
+    e.preventDefault()
+    canvas.redo()
+    return
+  }
+  // F: Fit to screen
+  if (e.key === 'f' || e.key === 'F') {
+    canvas.fitToScreen()
+    e.preventDefault()
+  }
+}
+
 onMounted(async () => {
   await nextTick()
   if (!container.value) return
@@ -309,10 +333,12 @@ onMounted(async () => {
   container.value.addEventListener('dragover', handleDragOver)
   container.value.addEventListener('drop', handleDrop)
   document.addEventListener('click', handleDocumentClick)
+  document.addEventListener('keydown', handleGlobalKeydown)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
+  document.removeEventListener('keydown', handleGlobalKeydown)
   if (container.value) {
     container.value.removeEventListener('dragover', handleDragOver)
     container.value.removeEventListener('drop', handleDrop)
