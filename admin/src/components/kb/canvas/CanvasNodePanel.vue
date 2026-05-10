@@ -78,24 +78,33 @@ const REVIEW_COLORS: Record<string, string> = { mature: 'success', developing: '
 </script>
 
 <template>
-  <div
-    v-if="isOpen && node"
-    class="h-full flex flex-col bg-base-100 border-l border-base-content/10 w-72 shrink-0"
-  >
-    <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-base-content/5 shrink-0">
-      <h3 class="font-medium text-sm">
-        {{ isKbNode ? '文档详情' : '节点属性' }}
-      </h3>
+  <div class="h-full flex flex-col bg-base-100 border-l border-base-content/10 w-72 shrink-0">
+    <!-- Header: always show counts -->
+    <div class="flex items-center justify-between px-4 py-2.5 border-b border-base-content/5 shrink-0">
+      <div v-if="isOpen && node">
+        <h3 class="font-medium text-sm">{{ isKbNode ? '文档详情' : '节点属性' }}</h3>
+      </div>
+      <div v-else class="text-xs text-base-content/50">
+        {{ canvas.nodeCount.value }} 节点 · {{ canvas.edgeCount.value }} 连线
+      </div>
       <NSpace :size="4">
-        <NButton v-if="!isKbNode" size="tiny" quaternary type="error" @click="handleDelete">
+        <NButton v-if="isOpen && node && !isKbNode" size="tiny" quaternary type="error" @click="handleDelete">
           <TrashOutline class="w-3.5 h-3.5" />
         </NButton>
         <NButton size="tiny" quaternary @click="handleClose">×</NButton>
       </NSpace>
     </div>
 
-    <!-- Body -->
+    <!-- Empty state when no node selected -->
+    <div v-if="!isOpen || !node" class="flex-1 flex items-center justify-center">
+      <div class="text-center px-4">
+        <div class="text-xs text-base-content/30">点击节点查看属性</div>
+        <div class="mt-2 text-[10px] text-base-content/20">{{ canvas.nodeCount.value }}N · {{ canvas.edgeCount.value }}E</div>
+      </div>
+    </div>
+
+    <!-- Body: only when node selected -->
+    <template v-if="isOpen && node">
     <div class="flex-1 overflow-y-auto p-4 space-y-4">
       <!-- KB Document view -->
       <template v-if="isKbNode && kbMeta">
@@ -208,6 +217,7 @@ const REVIEW_COLORS: Record<string, string> = { mature: 'success', developing: '
         <NButton size="small" type="error" quaternary block @click="handleDelete">删除节点</NButton>
       </template>
     </div>
+    </template> <!-- end isOpen && node -->
 
     <!-- Footer: position info -->
     <div v-if="node" class="px-4 py-2 border-t border-base-content/5 text-[10px] text-base-content/25 shrink-0">

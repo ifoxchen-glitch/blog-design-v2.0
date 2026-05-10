@@ -65,8 +65,8 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
   const canvasId = ref(initialCanvasId)
   const connectMode = ref(false)
 
-  const nodeCount = computed(() => cy.value?.nodes().length ?? 0)
-  const edgeCount = computed(() => cy.value?.edges().length ?? 0)
+  const nodeCount = computed(() => cy.value ? cy.value.nodes().size() : 0)
+  const edgeCount = computed(() => cy.value ? cy.value.edges().size() : 0)
 
   function init(container: HTMLElement): void {
     if (cy.value) destroy()
@@ -425,7 +425,9 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
   }
 
   async function addDocNode(doc: KbDocumentListItem, x: number, y: number): Promise<string | null> {
-    if (!cy.value || !canvasId.value) return null
+    if (!cy.value) { console.warn('[addDocNode] cy not ready'); return null }
+    if (!canvasId.value) { console.warn('[addDocNode] canvasId invalid:', canvasId.value); return null }
+    if (!doc || !doc.id) { console.warn('[addDocNode] doc invalid:', doc); return null }
 
     // Color by category (分组)
     const color = getCategoryColor(doc.category)
@@ -490,18 +492,26 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
    * creates edges between the main document and each connected document.
    */
   async function addDocNodeWithConnections(doc: KbDocumentListItem, x: number, y: number): Promise<string | null> {
-    if (!cy.value || !canvasId.value) return null
+    if (!cy.value) { console.warn('[addConn] cy not ready'); return null }
+    if (!canvasId.value) { console.warn('[addConn] canvasId invalid:', canvasId.value); return null }
+    if (!doc || !doc.id) { console.warn('[addConn] doc invalid:', doc); return null }
 
     // 1. Add the main document node
+    console.log('[addConn] adding doc:', doc.title, 'id:', doc.id, 'at', x, y)
     const mainNodeId = await addDocNode(doc, x, y)
-    if (!mainNodeId) return null
+    if (!mainNodeId) {
+      console.warn('[addConn] addDocNode returned null for:', doc.title)
+      return null
+    }
+    console.log('[addConn] main node created:', mainNodeId)
 
     // 2. Fetch document detail to get connections/sources
     let connectedTitles: string[] = []
     try {
       const detail = await apiGetKbDocument(doc.id)
       connectedTitles = [...(detail.connections || []), ...(detail.sources || [])]
-    } catch {
+    } catch (e) {
+      console.warn('[addConn] apiGetKbDocument failed:', doc.id, e)
       // If we can't fetch detail, just return the main node
       return mainNodeId
     }

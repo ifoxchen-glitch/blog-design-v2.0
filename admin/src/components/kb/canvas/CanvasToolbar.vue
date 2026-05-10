@@ -7,11 +7,8 @@ import {
   SaveOutline,
   DownloadOutline,
   LinkOutline,
-  BookOutline,
 } from '@vicons/ionicons5'
 import type { UseCanvasReturn } from '../../../composables/useCanvas'
-import AddDocDialog from './AddDocDialog.vue'
-import type { KbDocumentListItem } from '../../../api/kb'
 
 const canvas = inject<UseCanvasReturn>('canvas')!
 const message = useMessage()
@@ -99,11 +96,6 @@ const LAYOUT_OPTIONS = [
 
     <div class="w-px h-5 bg-base-content/10" />
 
-    <NButton size="tiny" quaternary type="primary" @click="showDocDialog = true" title="从知识库添加">
-      <BookOutline class="w-4 h-4" />
-      知识库
-    </NButton>
-
     <NPopover trigger="hover">
       <template #trigger>
         <NButton size="tiny" quaternary>布局</NButton>
@@ -161,11 +153,4 @@ const LAYOUT_OPTIONS = [
       <SaveOutline class="w-4 h-4" />
     </NButton>
   </div>
-
-  <!-- Add from KB dialog -->
-  <AddDocDialog
-    :show="showDocDialog"
-    @update:show="(v: boolean) => showDocDialog = v"
-    @select="handleAddFromDoc"
-  />
 </template>
