@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, ref } from 'vue'
+import { inject } from 'vue'
 import { NButton, NPopover, useMessage } from 'naive-ui'
 import {
   TrashOutline,
@@ -13,8 +13,6 @@ import type { UseCanvasReturn } from '../../../composables/useCanvas'
 const canvas = inject<UseCanvasReturn>('canvas')!
 const message = useMessage()
 
-const showDocDialog = ref(false)
-
 async function handleAddNode(type: string) {
   if (!canvas.cy.value) return
   const extent = canvas.cy.value.extent()
@@ -23,20 +21,6 @@ async function handleAddNode(type: string) {
   const jitter = (Math.random() - 0.5) * 100
   const result = await canvas.addNode(type, cx + jitter, cy_ + jitter)
   if (result) message.success('已添加节点')
-}
-
-async function handleAddFromDoc(doc: KbDocumentListItem) {
-  if (!canvas.cy.value) return
-  const extent = canvas.cy.value.extent()
-  const cx = (extent.x1 + extent.x2) / 2
-  const cy_ = (extent.y1 + extent.y2) / 2
-  const result = await canvas.addDocNodeWithConnections(doc, cx, cy_)
-  if (result) {
-    message.success(`已添加「${doc.title}」及关联文档`)
-    canvas.isDirty.value = true
-  } else {
-    message.error('添加失败')
-  }
 }
 
 async function handleRemove() {
