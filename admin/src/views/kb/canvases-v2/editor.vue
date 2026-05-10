@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { computed, provide, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { NButton, useMessage } from 'naive-ui'
 import { ArrowBackOutline, BookOutline } from '@vicons/ionicons5'
-import { useInfiniteCanvas } from '../../../composables/useInfiniteCanvas'
-import InfiniteCanvas from '../../../components/kb/canvas-v2/InfiniteCanvas.vue'
+import { useCanvasV2 } from '../../../composables/useCanvasV2'
+import type { CanvasData } from '../../../composables/useCanvasV2'
+import CanvasView from '../../../components/kb/canvas-v2/CanvasView.vue'
 import CanvasToolbar from '../../../components/kb/canvas-v2/CanvasToolbar.vue'
 import LeftDocPanel from '../../../components/kb/canvas-v2/LeftDocPanel.vue'
 import RightPropsPanel from '../../../components/kb/canvas-v2/RightPropsPanel.vue'
 import DocDetailDialog from '../../../components/kb/canvas/DocDetailDialog.vue'
 import { request } from '../../../api/request'
 import type { ApiResponse } from '../../../api/request'
-import type { CanvasData } from '../../../composables/useInfiniteCanvas'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,14 +22,18 @@ const canvasId = computed(() => {
   return Number.isFinite(id) && id > 0 ? id : 0
 })
 
-const canvas = useInfiniteCanvas(canvasId)
-provide('canvasV2', canvas)
+const canvas = useCanvasV2(canvasId)
 
 const showBrowser = ref(true)
 const showDocDetail = ref(false)
 const docDetailId = ref<number | null>(null)
+const isMobile = ref(false)
+
+function checkMobile() { isMobile.value = window.innerWidth < 768 }
 
 // Load canvas data
+let zoomFitTimer: ReturnType<typeof setTimeout> | null = null
+
 async function loadCanvasData() {
   if (canvasId.value <= 0) return
   canvas.isLoading.value = true
@@ -41,7 +45,7 @@ async function loadCanvasData() {
       panX: data.pan_x || 0,
       panY: data.pan_y || 0,
     })
-    setTimeout(() => canvas.zoomToFit(), 200)
+    zoomFitTimer = setTimeout(() => canvas.zoomToFit(), 200)
   } catch {
     message.warning('加载画布数据失败')
   } finally {
@@ -49,26 +53,15 @@ async function loadCanvasData() {
   }
 }
 
-// Save
-async function handleSave() {
-  try {
-    await canvas.save()
-    message.success('已保存')
-  } catch {
-    message.error('保存失败')
+// Save — called both on manual save and before route leave
+async function handleSave(): Promise<boolean> {
+  const err = await canvas.save()
+  if (err) {
+    message.error(err)
+    return false
   }
-}
-
-// Auto-save
-let autoSaveTimer: ReturnType<typeof setInterval> | null = null
-function startAutoSave() {
-  autoSaveTimer = setInterval(async () => {
-    if (canvas.isDirty.value) {
-      try {
-        await canvas.save()
-      } catch { /* silent */ }
-    }
-  }, 15000)
+  message.success('已保存')
+  return true
 }
 
 function handleBack() {
@@ -84,8 +77,29 @@ function handleClosePanel() {
   canvas.selectedIds.value = new Set()
 }
 
-const isMobile = ref(false)
-function checkMobile() { isMobile.value = window.innerWidth < 768 }
+// Auto-save
+let autoSaveTimer: ReturnType<typeof setInterval> | null = null
+
+function startAutoSave() {
+  autoSaveTimer = setInterval(async () => {
+    if (canvas.isDirty.value) {
+      await canvas.save()
+    }
+  }, 15000)
+}
+
+// Save on route leave — BEFORE unmount
+onBeforeRouteLeave(async (_to, _from, next) => {
+  if (canvas.isDirty.value) {
+    const ok = await handleSave()
+    if (!ok) {
+      // Save failed, ask user what to do
+      next(false) // block navigation
+      return
+    }
+  }
+  next()
+})
 
 onMounted(() => {
   checkMobile()
@@ -97,10 +111,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', checkMobile)
   if (autoSaveTimer) clearInterval(autoSaveTimer)
-  // Save before destroy
-  if (canvas.isDirty.value) {
-    canvas.save().catch(() => {})
-  }
+  if (zoomFitTimer) clearTimeout(zoomFitTimer)
 })
 </script>
 
@@ -131,14 +142,14 @@ onBeforeUnmount(() => {
       <span v-if="canvas.isDirty.value" class="text-[10px] text-warning">未保存</span>
     </div>
 
-    <CanvasToolbar class="shrink-0" @save="handleSave" />
+    <CanvasToolbar :canvas="canvas" @save="handleSave" />
 
     <div class="flex flex-1 min-h-0 overflow-hidden">
-      <LeftDocPanel v-if="showBrowser" class="w-60 shrink-0" />
+      <LeftDocPanel v-if="showBrowser" :canvas="canvas" class="w-60 shrink-0" />
       <div class="flex-1 relative min-w-0">
-        <InfiniteCanvas @dirty-changed="canvas.isDirty.value = $event" />
+        <CanvasView :canvas="canvas" />
       </div>
-      <RightPropsPanel @open-doc-detail="handleOpenDocDetail" @close="handleClosePanel" />
+      <RightPropsPanel :canvas="canvas" @open-doc-detail="handleOpenDocDetail" @close="handleClosePanel" />
     </div>
   </div>
 

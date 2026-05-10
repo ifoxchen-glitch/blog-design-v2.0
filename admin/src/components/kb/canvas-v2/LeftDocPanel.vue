@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { NInput, NTag, NSpin, useMessage } from 'naive-ui'
 import { SearchOutline, ChevronDownOutline, ChevronForwardOutline } from '@vicons/ionicons5'
 import {
@@ -8,9 +8,9 @@ import {
   apiGetKbDocument,
   type KbDocumentListItem,
 } from '../../../api/kb'
-import type { UseInfiniteCanvasReturn } from '../../../composables/useInfiniteCanvas'
+import type { UseCanvasV2Return } from '../../../composables/useCanvasV2'
 
-const canvas = inject<UseInfiniteCanvasReturn>('canvasV2')!
+const props = defineProps<{ canvas: UseCanvasV2Return }>()
 const message = useMessage()
 
 const loading = ref(false)
@@ -60,12 +60,12 @@ function handleDragStart(e: DragEvent, doc: KbDocumentListItem) {
 
 async function handleClick(doc: KbDocumentListItem) {
   // Add at center of visible canvas area
-  const z = canvas.zoom.value / 100
-  const cx = (0 - canvas.panX.value) / z + 400
+  const z = props.canvas.zoom.value / 100
+  const cx = (0 - props.canvas.panX.value) / z + 400
   const cy = (0 - canvas.panY.value) / z + 300
   const jitter = (Math.random() - 0.5) * 80
 
-  const id = await canvas.addKbDoc(doc, cx + jitter, cy + jitter)
+  const id = await props.canvas.addKbDoc(doc, cx + jitter, cy + jitter)
   if (id) {
     message.success(`已添加「${doc.title}」`)
     // Auto-connect related docs
@@ -79,9 +79,9 @@ async function handleClick(doc: KbDocumentListItem) {
           if (existing) {
             const rx = cx + (Math.random() - 0.5) * 400
             const ry = cy + (Math.random() - 0.5) * 300 + 150
-            const connectedId = await canvas.addKbDoc(existing, rx, ry)
+            const connectedId = await props.canvas.addKbDoc(existing, rx, ry)
             if (connectedId) {
-              await canvas.completeConnection(id)
+              await props.canvas.completeConnection(id)
               added++
             }
           }

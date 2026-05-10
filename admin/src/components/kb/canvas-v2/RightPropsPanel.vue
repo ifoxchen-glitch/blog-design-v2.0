@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { NButton, NTag, NInput, NInputNumber, NDivider, NSpace } from 'naive-ui'
 import { AddOutline, TrashOutline } from '@vicons/ionicons5'
-import type { UseInfiniteCanvasReturn, CanvasElementData } from '../../../composables/useInfiniteCanvas'
+import type { UseCanvasV2Return, CanvasElementData } from '../../../composables/useCanvasV2'
 
-const canvas = inject<UseInfiniteCanvasReturn>('canvasV2')!
+const props = defineProps<{ canvas: UseCanvasV2Return }>()
 
 const selectedId = computed<string | null>(() => {
-  const ids = canvas.selectedIds.value
+  const ids = props.canvas.selectedIds.value
   return ids.size === 1 ? [...ids][0] : null
 })
 
 const el = computed<CanvasElementData | null>(() => {
   if (!selectedId.value) return null
-  return canvas.elements.value.get(selectedId.value) ?? null
+  return props.canvas.elements.value.get(selectedId.value) ?? null
 })
 
 const isKbDoc = computed(() => el.value?.type === 'kb-doc')
@@ -31,7 +31,7 @@ const customLabels = computed(() => (meta.value.customLabels as string[]) || [])
 function addCustomLabel() {
   if (!newLabel.value.trim() || !el.value) return
   const updated = [...customLabels.value, newLabel.value.trim()]
-  canvas.updateElement(el.value.id, { metadata: { ...meta.value, customLabels: updated } })
+  props.canvas.updateElement(el.value.id, { metadata: { ...meta.value, customLabels: updated } })
   newLabel.value = ''
 }
 
@@ -39,7 +39,7 @@ function removeCustomLabel(idx: number) {
   if (!el.value) return
   const updated = [...customLabels.value]
   updated.splice(idx, 1)
-  canvas.updateElement(el.value.id, { metadata: { ...meta.value, customLabels: updated } })
+  props.canvas.updateElement(el.value.id, { metadata: { ...meta.value, customLabels: updated } })
 }
 
 function handleOpenDetail() {
@@ -52,7 +52,7 @@ const REVIEW_COLORS: Record<string, string> = { mature: 'success', developing: '
 
 function handleDelete() {
   if (!el.value) return
-  canvas.removeSelected()
+  props.canvas.removeSelected()
 }
 </script>
 
