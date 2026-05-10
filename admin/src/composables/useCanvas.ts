@@ -453,42 +453,38 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       excerpt: doc.excerpt || '',
     }
 
-    try {
-      const created = await apiAddCanvasNode(canvasId.value, {
+    const created = await apiAddCanvasNode(canvasId.value, {
+      type: doc.doc_type ?? 'concept',
+      label: doc.title,
+      x,
+      y,
+      color,
+      content: '',
+      metadata,
+    })
+
+    cy.value.add({
+      group: 'nodes',
+      data: {
+        id: `n-${created.id}`,
+        label,
+        nodeType: 'kb-doc',
         type: doc.doc_type ?? 'concept',
-        label: doc.title,
-        x,
-        y,
-        color,
         content: '',
+        width: 220,
+        height: 76,
+        color,
         metadata,
-      })
+        sort_order: created.sort_order,
+        created_at: created.created_at,
+        updated_at: created.updated_at,
+      },
+      position: { x, y },
+    })
 
-      cy.value.add({
-        group: 'nodes',
-        data: {
-          id: `n-${created.id}`,
-          label,
-          nodeType: 'kb-doc',
-          type: doc.doc_type ?? 'concept',
-          content: '',
-          width: 220,
-          height: 76,
-          color,
-          metadata,
-          sort_order: created.sort_order,
-          created_at: created.created_at,
-          updated_at: created.updated_at,
-        },
-        position: { x, y },
-      })
-
-      isDirty.value = true
-      return `n-${created.id}`
-    } catch (e: any) {
-      console.warn('[addDocNode] apiAddCanvasNode failed:', doc.title, doc.id, e?.response?.data || e?.message || e)
-      return null
-    }
+    bumpRev()
+    isDirty.value = true
+    return `n-${created.id}`
   }
 
   /**

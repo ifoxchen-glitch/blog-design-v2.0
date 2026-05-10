@@ -67,7 +67,7 @@ function handleBack() {
   router.push({ name: 'kb-canvases' })
 }
 
-function handleBrowserClick(doc: KbDocumentListItem) {
+async function handleBrowserClick(doc: KbDocumentListItem) {
   addLog(`click add: ${doc.title} (id=${doc.id})`)
   if (!canvas.cy.value) {
     addLog('  ERROR: canvas not initialized')
@@ -78,15 +78,20 @@ function handleBrowserClick(doc: KbDocumentListItem) {
   const cx = (extent.x1 + extent.x2) / 2
   const cy_ = (extent.y1 + extent.y2) / 2
   addLog(`  position: (${Math.round(cx)}, ${Math.round(cy_)})`)
-  canvas.addDocNodeWithConnections(doc, cx, cy_).then((result) => {
+  try {
+    const result = await canvas.addDocNodeWithConnections(doc, cx, cy_)
     if (result) {
       addLog(`  SUCCESS: node id=${result}`)
       message.success(`已添加「${doc.title}」`)
     } else {
-      addLog(`  FAILED: addDocNodeWithConnections returned null`)
+      addLog(`  FAILED: addDocNodeWithConnections returned null (precondition)`)
       message.error(`添加「${doc.title}」失败`)
     }
-  })
+  } catch (err: any) {
+    const msg = err?.response?.data?.message || err?.message || String(err)
+    addLog(`  API ERROR: ${msg}`)
+    message.error(`添加「${doc.title}」失败: ${msg}`)
+  }
 }
 
 // Doc detail dialog
