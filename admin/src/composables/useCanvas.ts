@@ -106,7 +106,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
             'label': '',
             'width': 220,
             'height': 76,
-            'border-width': 0,
+            'border-width': '0',
             'border-opacity': 0,
             'padding': 0,
           },
@@ -477,7 +477,6 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
       const tagSize = Math.round(10 * zoomed)
       const dotSz = Math.round(6 * zoomed)
       const gap = Math.round(6 * zoomed)
-      const mt = Math.round(4 * zoomed)
       const br = Math.round(8 * zoomed)
       const pd = Math.round(8 * zoomed)
 
