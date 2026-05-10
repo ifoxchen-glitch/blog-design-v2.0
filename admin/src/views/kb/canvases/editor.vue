@@ -2,7 +2,7 @@
 import { computed, provide, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { NButton, useMessage } from 'naive-ui'
-import { ArrowBackOutline } from '@vicons/ionicons5'
+import { ArrowBackOutline, BookOutline } from '@vicons/ionicons5'
 import { useCanvas, type UseCanvasReturn } from '../../../composables/useCanvas'
 import CanvasGraph from '../../../components/kb/canvas/CanvasGraph.vue'
 import CanvasToolbar from '../../../components/kb/canvas/CanvasToolbar.vue'
@@ -145,9 +145,15 @@ onBeforeUnmount(() => {
 
       <div class="flex-1" />
 
+      <!-- Toggle left KB doc browser -->
+      <NButton size="tiny" quaternary @click="showBrowser = !showBrowser"
+        :type="showBrowser ? 'primary' : 'default'">
+        <BookOutline class="w-3.5 h-3.5" />
+      </NButton>
+
       <!-- Node/edge count -->
       <span class="text-[11px] text-base-content/50">
-        {{ canvas.nodeCount.value }} 节点 · {{ canvas.edgeCount.value }} 连线
+        {{ canvas.nodeCount.value }} · {{ canvas.edgeCount.value }}
       </span>
     </div>
 

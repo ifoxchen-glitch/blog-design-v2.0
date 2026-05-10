@@ -105,9 +105,9 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
             'width': 220,
             'height': 76,
             'font-size': '11px',
-            'color': 'data(color)',
+            'color': '#ffffff',
             'text-valign': 'top',
-            'text-halign': 'left',
+            'text-halign': 'right',
             'text-wrap': 'wrap',
             'text-max-width': '196px',
             'border-width': 3,
@@ -429,23 +429,26 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     if (!canvasId.value) { console.warn('[addDocNode] canvasId invalid:', canvasId.value); return null }
     if (!doc || !doc.id) { console.warn('[addDocNode] doc invalid:', doc); return null }
 
-    // Color by category (分组)
-    const color = getCategoryColor(doc.category)
+    // Color: match left sidebar tree directory's doc_type colors
+    const DOC_TYPE_COLORS: Record<string, string> = {
+      entity: '#8b5cf6', concept: '#6366f1', source: '#0ea5e9', synthesis: '#f59e0b',
+    }
+    const color = DOC_TYPE_COLORS[doc.doc_type ?? ''] || '#6366f1'
 
-    // Label: title on first line (top-left, color = border color),
-    // category on second line (centered, same color)
+    // Label: [category] at top-right, title centered below
+    // Cytoscape uses single alignment: text-halign:right puts both lines to right
     const label = doc.category
-      ? `${doc.title}\n[${doc.category}]`
+      ? `[${doc.category}]\n${doc.title}`
       : doc.title
 
-    const metadata = {
+    const metadata: Record<string, unknown> = {
       doc_id: doc.id,
       doc_title: doc.title,
       doc_category: doc.category,
-      doc_type: doc.doc_type,
-      review_status: doc.review_status,
-      tags: doc.tags,
-      excerpt: doc.excerpt,
+      doc_type: doc.doc_type || '',
+      review_status: doc.review_status || '',
+      tags: doc.tags || [],
+      excerpt: doc.excerpt || '',
     }
 
     try {
@@ -480,7 +483,8 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
 
       isDirty.value = true
       return `n-${created.id}`
-    } catch {
+    } catch (e: any) {
+      console.warn('[addDocNode] apiAddCanvasNode failed:', doc.title, doc.id, e?.response?.data || e?.message || e)
       return null
     }
   }

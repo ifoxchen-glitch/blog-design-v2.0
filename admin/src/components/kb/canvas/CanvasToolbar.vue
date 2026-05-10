@@ -123,9 +123,6 @@ const LAYOUT_OPTIONS = [
 
     <div class="flex-1" />
 
-    <span class="text-[11px] text-base-content/30">
-      {{ canvas.nodeCount.value }} 节点 / {{ canvas.edgeCount.value }} 连线
-    </span>
     <span
       v-if="canvas.isDirty.value"
       class="text-[11px] text-warning"
