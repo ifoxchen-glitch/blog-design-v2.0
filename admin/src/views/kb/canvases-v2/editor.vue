@@ -53,15 +53,23 @@ async function loadCanvasData() {
   }
 }
 
-// Save — called both on manual save and before route leave
-async function handleSave(): Promise<boolean> {
+// Save — manual save (user clicks save button)
+async function handleSave() {
   const err = await canvas.save()
   if (err) {
     message.error(err)
-    return false
+  } else {
+    message.success('已保存')
   }
-  message.success('已保存')
-  return true
+}
+
+// Save before leaving — does NOT block navigation
+async function saveBeforeLeave() {
+  if (!canvas.isDirty.value) return
+  const err = await canvas.save()
+  if (err) {
+    console.warn('save before leave failed:', err)
+  }
 }
 
 function handleBack() {
@@ -88,16 +96,9 @@ function startAutoSave() {
   }, 15000)
 }
 
-// Save on route leave — BEFORE unmount
+// Save before leaving — never blocks navigation
 onBeforeRouteLeave(async (_to, _from, next) => {
-  if (canvas.isDirty.value) {
-    const ok = await handleSave()
-    if (!ok) {
-      // Save failed, ask user what to do
-      next(false) // block navigation
-      return
-    }
-  }
+  await saveBeforeLeave()
   next()
 })
 

@@ -725,12 +725,14 @@ export function useCanvasV2(canvasId: Ref<number>): UseCanvasV2Return {
   // ---- Save ----
 
   async function save(): Promise<string | null> {
+    if (canvasId.value <= 0) return '画布ID无效'
+
     // Build payload
     const nodesPayload: Array<{
       id: number; type: string; label: string; x: number; y: number;
       width: number; height: number; color: string; metadata: Record<string, unknown>
     }> = []
-    const elementIdMap = new Map<string, string>() // localId -> el.id
+    const dataNodesById = new Map<string, number>() // localId -> original dbId
 
     elements.value.forEach(el => {
       nodesPayload.push({
@@ -738,10 +740,10 @@ export function useCanvasV2(canvasId: Ref<number>): UseCanvasV2Return {
         x: el.x, y: el.y, width: el.width, height: el.height,
         color: el.color, metadata: el.metadata,
       })
-      elementIdMap.set(el.id, el.id)
+      dataNodesById.set(el.id, el.dbId)
     })
 
-    // 1. Save viewport
+    // 1. Save viewport (ignore 404 — canvas might not exist yet)
     try {
       await request.put(`/api/v2/admin/kb/canvases/${canvasId.value}`, {
         zoom: zoom.value / 100,
@@ -749,10 +751,11 @@ export function useCanvasV2(canvasId: Ref<number>): UseCanvasV2Return {
         pan_y: panY.value,
       })
     } catch {
-      return '保存视口失败'
+      // viewport save is non-critical, continue
     }
 
     // 2. Save nodes
+    let allOk = true
     for (const node of nodesPayload) {
       if (node.id > 0) {
         try {
@@ -760,13 +763,13 @@ export function useCanvasV2(canvasId: Ref<number>): UseCanvasV2Return {
             x: node.x, y: node.y,
           })
         } catch {
-          return `更新节点「${node.label}」失败`
+          allOk = false
         }
       } else {
         try {
           const res = await request.post<ApiResponse<CanvasNode>>(`/api/v2/admin/kb/canvases/${canvasId.value}/nodes`, node)
           const created: CanvasNode = res.data.data
-          // Update dbId on the element — match by local data we just sent
+          // Update dbId on the freshly created node
           const elMap = new Map(elements.value)
           for (const [elId, el] of elMap) {
             if (el.dbId === 0 && el.label === node.label) {
@@ -777,7 +780,7 @@ export function useCanvasV2(canvasId: Ref<number>): UseCanvasV2Return {
             }
           }
         } catch {
-          return `创建节点「${node.label}」失败`
+          allOk = false
         }
       }
     }
@@ -798,8 +801,8 @@ export function useCanvasV2(canvasId: Ref<number>): UseCanvasV2Return {
       }
     }
 
-    isDirty.value = false
-    return null
+    if (allOk) isDirty.value = false
+    return allOk ? null : '部分节点保存失败，请重试'
   }
 
   return {
