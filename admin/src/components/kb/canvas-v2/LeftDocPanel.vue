@@ -62,7 +62,7 @@ async function handleClick(doc: KbDocumentListItem) {
   // Add at center of visible canvas area
   const z = props.canvas.zoom.value / 100
   const cx = (0 - props.canvas.panX.value) / z + 400
-  const cy = (0 - canvas.panY.value) / z + 300
+  const cy = (0 - props.canvas.panY.value) / z + 300
   const jitter = (Math.random() - 0.5) * 80
 
   const id = await props.canvas.addKbDoc(doc, cx + jitter, cy + jitter)

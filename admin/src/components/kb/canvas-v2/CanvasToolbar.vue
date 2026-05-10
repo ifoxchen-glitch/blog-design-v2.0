@@ -5,7 +5,7 @@ import {
   LinkOutline, TrashOutline, ExpandOutline,
   SaveOutline, AddOutline, RemoveOutline,
 } from '@vicons/ionicons5'
-import type { CanvasTool, UseCanvasV2Return } from '../../../composables/useCanvasV2'
+import type { UseCanvasV2Return } from '../../../composables/useCanvasV2'
 
 const props = defineProps<{
   canvas: UseCanvasV2Return
