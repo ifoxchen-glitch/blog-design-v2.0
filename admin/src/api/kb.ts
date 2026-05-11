@@ -871,4 +871,51 @@ export async function apiCompareModels(
   return res.data.data
 }
 
+// ============================================================
+// Web Search
+// ============================================================
+
+export interface WebSearchResult {
+  index: number
+  snippet: string
+  title?: string
+  url?: string
+}
+
+export interface WebSearchResponse {
+  provider: string
+  query: string
+  results: WebSearchResult[]
+  error?: string
+}
+
+export async function apiWebSearch(
+  q: string,
+  client: AxiosInstance = request,
+): Promise<WebSearchResponse> {
+  const res = await client.get<ApiResponse<WebSearchResponse>>(
+    '/api/v2/admin/kb/search/search',
+    { params: { q } }
+  )
+  return res.data.data
+}
+
+export interface WebSearchConfig {
+  provider: string
+  api_endpoint: string
+  is_active: boolean
+}
+
+export async function apiGetSearchConfig(client: AxiosInstance = request): Promise<WebSearchConfig> {
+  const res = await client.get<ApiResponse<WebSearchConfig>>('/api/v2/admin/kb/search/config')
+  return res.data.data
+}
+
+export async function apiUpdateSearchConfig(
+  data: { provider?: string; api_endpoint?: string; api_key?: string; is_active?: boolean },
+  client: AxiosInstance = request,
+): Promise<void> {
+  await client.put<ApiResponse<void>>('/api/v2/admin/kb/search/config', data)
+}
+
 

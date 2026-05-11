@@ -477,6 +477,19 @@ function migrate(db) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_kb_branches_conv ON kb_conversation_branches(conversation_id);
+
+    CREATE TABLE IF NOT EXISTS kb_web_search_config (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL DEFAULT 'duckduckgo',
+      api_key TEXT NOT NULL DEFAULT '',
+      api_endpoint TEXT NOT NULL DEFAULT '',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    -- Seed singleton row
+    db.prepare(`INSERT OR IGNORE INTO kb_web_search_config (id, provider, is_active, created_at, updated_at) VALUES (1, 'duckduckgo', 1, datetime('now'), datetime('now'))`).run();
   `);
 
   // Seed default prompt templates

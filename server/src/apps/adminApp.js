@@ -21,6 +21,7 @@ const modelsRouter = require("./admin/kb/modelsRouter");
 const conversationsRouter = require("./admin/kb/conversationsRouter");
 const tasksRouter = require("./admin/kb/tasksRouter");
 const templatesRouter = require("./admin/kb/templatesRouter");
+const webSearchRouter = require("./admin/kb/webSearchRouter");
 
 const app = express();
 
@@ -67,6 +68,7 @@ v2Router.use("/admin/kb/models", modelsRouter);
 v2Router.use("/admin/kb/conversations", conversationsRouter);
 v2Router.use("/admin/kb/tasks", tasksRouter);
 v2Router.use("/admin/kb/templates", templatesRouter);
+v2Router.use("/admin/kb/search", webSearchRouter);
 
 // SPA catch-all middleware (Express 5: bare * is invalid, use middleware instead)
 app.use((req, res, next) => {

@@ -8,7 +8,11 @@ import {
   ChatbubbleOutline, ReturnDownBackOutline, EllipsisHorizontalOutline,
 } from '@vicons/ionicons5'
 import { useAiChat } from '../../../composables/useAiChat'
-import { apiListAiModels, apiSaveAiConversationToKb, apiListPromptTemplates, type AiModel, type PromptTemplate, type CompareBranch } from '../../../api/kb'
+import {
+  apiListAiModels, apiSaveAiConversationToKb, apiListPromptTemplates,
+  apiWebSearch,
+  type AiModel, type PromptTemplate, type CompareBranch, type WebSearchResponse,
+} from '../../../api/kb'
 import InputVariablesModal from './InputVariablesModal.vue'
 
 const route = useRoute()
@@ -41,6 +45,57 @@ const compareMode = ref(false)
 const selectedCompareModels = ref<string[]>([])
 const compareResults = ref<CompareBranch[]>([])
 const compareLoading = ref(false)
+
+// Web search mode
+const showSearchPanel = ref(false)
+const searchQuery = ref('')
+const searchResults = ref<WebSearchResponse | null>(null)
+const searchLoading = ref(false)
+const selectedSearchResults = ref<Set<number>>(new Set())
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+async function handleSearch(q: string) {
+  if (!q.trim()) { showSearchPanel.value = false; searchResults.value = null; return }
+  searchLoading.value = true
+  try {
+    searchResults.value = await apiWebSearch(q)
+  } catch {
+    searchResults.value = null
+  } finally {
+    searchLoading.value = false
+  }
+}
+
+function toggleSearchResult(idx: number) {
+  if (selectedSearchResults.value.has(idx)) {
+    selectedSearchResults.value.delete(idx)
+  } else {
+    selectedSearchResults.value.add(idx)
+  }
+  selectedSearchResults.value = new Set(selectedSearchResults.value)
+}
+
+function confirmSearchResults() {
+  if (!searchResults.value || selectedSearchResults.value.size === 0) {
+    showSearchPanel.value = false; searchQuery.value = ''; return
+  }
+  // Build context string from selected results
+  const selected = searchResults.value.results.filter((_, i) => selectedSearchResults.value.has(i))
+  const contextLines = selected.map(r => `[搜索结果] ${r.snippet}`).join('\n')
+  const finalMsg = `请结合以下网络搜索结果回答我的问题：\n\n${contextLines}\n\n我的问题：${searchQuery.value.replace(/^#\s*/, '')}`
+  inputContent.value = finalMsg
+  showSearchPanel.value = false
+  searchQuery.value = ''
+  selectedSearchResults.value = new Set()
+  searchResults.value = null
+}
+
+function cancelSearch() {
+  showSearchPanel.value = false
+  searchQuery.value = ''
+  searchResults.value = null
+  selectedSearchResults.value = new Set()
+}
 
 // ============================================================
 // Slash commands
@@ -215,6 +270,27 @@ function handleKeydown(e: KeyboardEvent) {
 // Detect slash command in input
 function handleInput() {
   const text = inputContent.value
+
+  // # search mode
+  const hashIdx = text.lastIndexOf('#')
+  if (hashIdx >= 0 && !text.slice(hashIdx).includes(' ')) {
+    const q = text.slice(hashIdx + 1).trim()
+    if (q.length > 0) {
+      searchQuery.value = q
+      showSearchPanel.value = true
+      selectedSearchResults.value = new Set()
+      // Debounce search
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = setTimeout(() => handleSearch(q), 500)
+    }
+    showSlashMenu.value = false
+    return
+  } else {
+    showSearchPanel.value = false
+    searchResults.value = null
+  }
+
+  // / command mode
   const slashIdx = text.lastIndexOf('/')
   if (slashIdx >= 0 && !text.slice(slashIdx).includes(' ')) {
     slashFilter.value = text.slice(slashIdx + 1)
@@ -696,7 +772,7 @@ const messageList = computed(() => messages.value || [])
                 type="textarea"
                 :rows="2"
                 :autosize="{ minRows: 1, maxRows: 8 }"
-                placeholder="输入 / 触发快捷模板…"
+                placeholder="输入 / 触发快捷模板，# 触发网络搜索…"
                 @input="handleInput"
                 @keydown="handleKeydown"
               />
@@ -708,15 +784,60 @@ const messageList = computed(() => messages.value || [])
               >
                 <div class="px-3 py-1 text-[10px] text-base-content/30 border-b border-base-content/5">快捷命令</div>
                 <button
-                  v-for="(t, i) in filteredTemplates"
+                  v-for="t in filteredTemplates"
                   :key="t.id"
                   class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-200/50 text-left"
-                  :class="i === slashSelectedIdx ? 'bg-primary/10' : ''"
                   @click="handleSelectTemplate(t)"
                 >
                   <span class="text-xs font-mono text-primary shrink-0">{{ t.command }}</span>
                   <span class="text-xs text-base-content/60">{{ t.title }}</span>
                 </button>
+              </div>
+
+              <!-- Web search panel (#) -->
+              <div
+                v-if="showSearchPanel"
+                class="absolute bottom-full left-0 mb-1 z-50 bg-base-100 border border-primary/30 rounded-xl shadow-xl w-[480px] max-h-80 overflow-y-auto"
+              >
+                <div class="flex items-center justify-between px-3 py-2 border-b border-base-content/10">
+                  <div class="flex items-center gap-2">
+                    <SearchOutline class="w-4 h-4 text-primary" />
+                    <span class="text-xs font-medium text-primary">网络搜索</span>
+                    <span class="text-[10px] text-base-content/30">#{{ searchQuery }}</span>
+                  </div>
+                  <div class="flex gap-2">
+                    <NButton size="tiny" @click="cancelSearch">取消</NButton>
+                    <NButton size="tiny" type="primary" :disabled="selectedSearchResults.size === 0" @click="confirmSearchResults">
+                      插入 {{ selectedSearchResults.size > 0 ? `(${selectedSearchResults.size}条) ` : '' }}发送
+                    </NButton>
+                  </div>
+                </div>
+                <!-- Search results -->
+                <div v-if="searchLoading" class="px-4 py-3 text-xs text-base-content/40 flex items-center gap-2">
+                  <NSpin size="small" /> 搜索中…
+                </div>
+                <div v-else-if="searchResults?.error" class="px-4 py-3 text-xs text-red-400">
+                  搜索失败: {{ searchResults.error }}
+                </div>
+                <div v-else-if="searchResults?.results.length === 0" class="px-4 py-3 text-xs text-base-content/30">
+                  未找到结果
+                </div>
+                <div v-else class="py-1">
+                  <div
+                    v-for="(r, i) in searchResults?.results"
+                    :key="i"
+                    class="flex items-start gap-2 px-3 py-2 hover:bg-base-200/50 cursor-pointer"
+                    :class="selectedSearchResults.has(i) ? 'bg-primary/5' : ''"
+                    @click="toggleSearchResult(i)"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="selectedSearchResults.has(i)"
+                      class="checkbox checkbox-xs mt-0.5"
+                    />
+                    <div class="text-xs text-base-content/70 leading-relaxed">{{ r.snippet }}</div>
+                  </div>
+                </div>
               </div>
               <NButton type="primary" :loading="sending" @click="handleSend" style="height: auto; align-self: flex-end">
                 发送
