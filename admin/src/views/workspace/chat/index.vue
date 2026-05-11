@@ -8,7 +8,8 @@ import {
   ChatbubbleOutline, ReturnDownBackOutline, EllipsisHorizontalOutline,
 } from '@vicons/ionicons5'
 import { useAiChat } from '../../../composables/useAiChat'
-import { apiListAiModels, apiSaveAiConversationToKb, type AiModel } from '../../../api/kb'
+import { apiListAiModels, apiSaveAiConversationToKb, apiListPromptTemplates, type AiModel, type PromptTemplate, type CompareBranch } from '../../../api/kb'
+import InputVariablesModal from './InputVariablesModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,7 +18,7 @@ const message = useMessage()
 const {
   conversations, currentConversation, messages, sending,
   loadConversations, createConversation, updateConversation,
-  deleteConversation, sendMessage, switchConversation, clearCurrent,
+  deleteConversation, sendMessage, sendMessageStream, compareModels, switchConversation, clearCurrent,
 } = useAiChat()
 
 const models = ref<AiModel[]>([])
@@ -32,6 +33,39 @@ const showMsgMenuIdx = ref<number | null>(null)
 const msgRatings = ref<Record<number, 'up' | 'down'>>({})
 const userScrolled = ref(false)
 const showJumpBtn = ref(false)
+const streamingMode = ref(false) // toggle: SSE streaming vs blocking
+let streamCleanup: (() => void) | null = null
+
+// Compare mode
+const compareMode = ref(false)
+const selectedCompareModels = ref<string[]>([])
+const compareResults = ref<CompareBranch[]>([])
+const compareLoading = ref(false)
+
+// ============================================================
+// Slash commands
+// ============================================================
+defineOptions({ components: { InputVariablesModal } })
+
+const promptTemplates = ref<PromptTemplate[]>([])
+const showSlashMenu = ref(false)
+const slashFilter = ref('')
+const slashSelectedIdx = ref(0)
+const showVarModal = ref(false)
+const selectedTemplate = ref<PromptTemplate | null>(null)
+
+const filteredTemplates = computed(() => {
+  const q = slashFilter.value.toLowerCase()
+  return promptTemplates.value.filter(t => t.is_active && (
+    t.command.toLowerCase().includes(q) || t.title.toLowerCase().includes(q)
+  ))
+})
+
+async function loadTemplates() {
+  try {
+    promptTemplates.value = await apiListPromptTemplates({ active: true })
+  } catch { /* silent */ }
+}
 
 // ============================================================
 // Suggestion chips (quick start prompts)
@@ -53,6 +87,7 @@ async function loadModels() {
 
 async function init() {
   await loadModels()
+  await loadTemplates()
   const id = route.params.id
   if (id) {
     await switchConversation(Number(id))
@@ -107,11 +142,38 @@ async function handleSend() {
   }
 
   inputContent.value = ''
-  try {
-    await sendMessage(content)
-    userScrolled.value = false
-  } catch (e: any) {
-    message.error(e?.message || '发送失败')
+  userScrolled.value = false
+
+  if (compareMode.value && selectedCompareModels.value.length >= 2) {
+    // Multi-model compare mode
+    compareResults.value = []
+    compareLoading.value = true
+    try {
+      const branches = await compareModels(content, selectedCompareModels.value)
+      compareResults.value = branches
+    } catch (e: any) {
+      message.error(e?.message || '对比失败')
+    } finally {
+      compareLoading.value = false
+    }
+    return
+  }
+
+  if (streamingMode.value) {
+    // SSE streaming mode
+    try {
+      if (streamCleanup) streamCleanup()
+      streamCleanup = sendMessageStream(content)
+    } catch (e: any) {
+      message.error(e?.message || '发送失败')
+    }
+  } else {
+    // Blocking mode
+    try {
+      await sendMessage(content)
+    } catch (e: any) {
+      message.error(e?.message || '发送失败')
+    }
   }
 }
 
@@ -128,10 +190,66 @@ async function handleSuggestion(text: string) {
 function handleKeydown(e: KeyboardEvent) {
   const isInput = document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA'
   if (!isInput) return
+
+  if (showSlashMenu.value) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); slashSelectedIdx.value = Math.min(slashSelectedIdx.value + 1, filteredTemplates.value.length - 1); return }
+    if (e.key === 'ArrowUp') { e.preventDefault(); slashSelectedIdx.value = Math.max(slashSelectedIdx.value - 1, 0); return }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const t = filteredTemplates.value[slashSelectedIdx.value]
+      if (t) { handleSelectTemplate(t); return }
+    }
+    if (e.key === 'Escape') { showSlashMenu.value = false; return }
+  }
+
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
+    if (showSlashMenu.value && filteredTemplates.value.length > 0) {
+      const t = filteredTemplates.value[slashSelectedIdx.value]
+      if (t) { handleSelectTemplate(t); return }
+    }
     handleSend()
   }
+}
+
+// Detect slash command in input
+function handleInput() {
+  const text = inputContent.value
+  const slashIdx = text.lastIndexOf('/')
+  if (slashIdx >= 0 && !text.slice(slashIdx).includes(' ')) {
+    slashFilter.value = text.slice(slashIdx + 1)
+    showSlashMenu.value = true
+    slashSelectedIdx.value = 0
+  } else {
+    showSlashMenu.value = false
+  }
+}
+
+function handleSelectTemplate(t: PromptTemplate) {
+  selectedTemplate.value = t
+  showSlashMenu.value = false
+  if (t.variables && t.variables.length > 0) {
+    showVarModal.value = true
+  } else {
+    // No variables — fill directly
+    fillTemplateAndClose(t)
+  }
+}
+
+function handleVarModalConfirm(filledContent: string) {
+  inputContent.value = filledContent
+  showVarModal.value = false
+  selectedTemplate.value = null
+}
+void handleVarModalConfirm // referenced by template
+
+function fillTemplateAndClose(t: PromptTemplate) {
+  let content = t.content
+  for (const v of t.variables) {
+    content = content.replace(new RegExp(`\\{\\{${v.name}\\}\\}`, 'g'), v.default ?? '')
+  }
+  inputContent.value = content
+  showSlashMenu.value = false
 }
 
 async function handleSelectConversation(id: number) {
@@ -276,6 +394,35 @@ const messageList = computed(() => messages.value || [])
         :options="models.map(m => ({ label: m.name, value: m.model_name }))"
         size="tiny"
         style="width: 140px"
+      />
+      <!-- Streaming toggle -->
+      <button
+        class="text-[10px] px-2 py-1 rounded border transition-all"
+        :class="streamingMode ? 'bg-primary/10 border-primary/40 text-primary' : 'bg-base-200/50 border-base-content/10 text-base-content/40 hover:text-base-content/60'"
+        title="流式输出（打字机效果）"
+        @click="streamingMode = !streamingMode"
+      >
+        {{ streamingMode ? '流式' : '普通' }}
+      </button>
+      <!-- Compare toggle -->
+      <button
+        class="text-[10px] px-2 py-1 rounded border transition-all"
+        :class="compareMode ? 'bg-purple-50 border-purple-300 text-purple-600' : 'bg-base-200/50 border-base-content/10 text-base-content/40 hover:text-base-content/60'"
+        title="多模型对比"
+        @click="compareMode = !compareMode"
+      >
+        {{ compareMode ? '对比中' : '对比' }}
+      </button>
+      <!-- Compare model selector (shown when compare mode is on) -->
+      <NSelect
+        v-if="compareMode && models.length"
+        v-model:value="selectedCompareModels"
+        multiple
+        :options="models.filter(m => m.is_active).map(m => ({ label: m.name, value: m.model_name }))"
+        size="tiny"
+        style="width: 180px"
+        placeholder="选择 2-4 个模型"
+        :max="4"
       />
       <NButton size="tiny" type="primary" @click="handleNewConversation">
         <AddOutline class="w-3.5 h-3.5 mr-1" /> 新建
@@ -477,13 +624,14 @@ const messageList = computed(() => messages.value || [])
               </div>
             </div>
 
-            <!-- Streaming indicator -->
+            <!-- Streaming / Thinking indicator -->
             <div v-if="sending" class="flex gap-2">
               <div class="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-medium bg-base-300 text-base-content">AI</div>
               <div class="max-w-[75%] rounded-2xl rounded-tl-2xl bg-base-200 px-4 py-3">
                 <div class="flex items-center gap-1 text-base-content/50 text-sm">
-                  <NSpin :size="12" />
-                  <span class="text-xs">思考中…</span>
+                  <NSpin v-if="!streamingMode" :size="12" />
+                  <span v-if="streamingMode" class="text-xs animate-pulse">✦ </span>
+                  <span class="text-xs">{{ streamingMode ? '生成中…' : '思考中…' }}</span>
                 </div>
               </div>
             </div>
@@ -510,6 +658,36 @@ const messageList = computed(() => messages.value || [])
             </button>
           </Transition>
 
+          <!-- Compare results panel -->
+          <div v-if="compareResults.length > 0" class="border-t border-base-content/10 bg-base-100 p-4 shrink-0">
+            <div class="text-xs font-medium text-base-content/60 mb-3 flex items-center justify-between">
+              <span>多模型对比结果</span>
+              <button class="text-base-content/30 hover:text-base-content/60 text-[10px]" @click="compareResults = []">清除</button>
+            </div>
+            <div class="flex gap-3 overflow-x-auto">
+              <div
+                v-for="(branch, i) in compareResults"
+                :key="i"
+                class="flex-1 min-w-0 border border-base-content/10 rounded-xl p-3"
+              >
+                <div class="text-[10px] font-bold mb-2 flex items-center gap-1">
+                  <span class="text-purple-600">{{ branch.model }}</span>
+                  <span v-if="branch.status === 'done'" class="text-green-400 text-[8px]">✓</span>
+                  <span v-if="branch.status === 'error'" class="text-red-400 text-[8px]">✗</span>
+                </div>
+                <div v-if="branch.status === 'error'" class="text-xs text-red-500">{{ branch.error }}</div>
+                <div
+                  v-else-if="branch.content"
+                  class="text-xs leading-relaxed whitespace-pre-wrap break-words max-h-64 overflow-y-auto"
+                >
+                  <!-- eslint-disable-next-line vue/no-v-html -->
+                  <div v-html="renderContent(branch.content)" />
+                </div>
+                <div v-else class="text-xs text-base-content/30 animate-pulse">等待回复…</div>
+              </div>
+            </div>
+          </div>
+
           <!-- Input area -->
           <div class="shrink-0 border-t border-base-content/10 bg-base-100 p-3">
             <div class="flex items-end gap-2">
@@ -518,9 +696,28 @@ const messageList = computed(() => messages.value || [])
                 type="textarea"
                 :rows="2"
                 :autosize="{ minRows: 1, maxRows: 8 }"
-                placeholder="输入消息… (Ctrl+Enter 发送, Shift+Enter 换行)"
+                placeholder="输入 / 触发快捷模板…"
+                @input="handleInput"
                 @keydown="handleKeydown"
               />
+
+              <!-- Slash command popup -->
+              <div
+                v-if="showSlashMenu && filteredTemplates.length"
+                class="absolute bottom-full left-0 mb-1 z-50 bg-base-100 border border-base-content/10 rounded-lg shadow-xl py-1 min-w-72 max-h-64 overflow-y-auto"
+              >
+                <div class="px-3 py-1 text-[10px] text-base-content/30 border-b border-base-content/5">快捷命令</div>
+                <button
+                  v-for="(t, i) in filteredTemplates"
+                  :key="t.id"
+                  class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-200/50 text-left"
+                  :class="i === slashSelectedIdx ? 'bg-primary/10' : ''"
+                  @click="handleSelectTemplate(t)"
+                >
+                  <span class="text-xs font-mono text-primary shrink-0">{{ t.command }}</span>
+                  <span class="text-xs text-base-content/60">{{ t.title }}</span>
+                </button>
+              </div>
               <NButton type="primary" :loading="sending" @click="handleSend" style="height: auto; align-self: flex-end">
                 发送
               </NButton>
@@ -538,6 +735,13 @@ const messageList = computed(() => messages.value || [])
     </div>
   </div>
 </template>
+
+<!-- Slash command: variable fill modal -->
+<InputVariablesModal
+  v-model="showVarModal"
+  :template="selectedTemplate"
+  @confirm="handleVarModalConfirm"
+/>
 
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }

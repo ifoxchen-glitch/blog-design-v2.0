@@ -784,3 +784,91 @@ export async function apiDeleteKbTask(id: number, client: AxiosInstance = reques
   await client.delete<ApiResponse<void>>(`/api/v2/admin/kb/tasks/${id}`)
 }
 
+// ============================================================
+// Prompt Templates (Slash Commands)
+// ============================================================
+
+export interface PromptTemplate {
+  id: number
+  title: string
+  command: string
+  content: string
+  variables: Array<{ name: string; label: string; default: string }>
+  tags: string[]
+  is_active: boolean
+  use_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CreatePromptTemplatePayload {
+  title: string
+  command: string
+  content: string
+  variables?: Array<{ name: string; label: string; default: string }>
+  tags?: string[]
+  is_active?: boolean
+}
+
+export async function apiListPromptTemplates(
+  params?: { active?: boolean },
+  client: AxiosInstance = request,
+): Promise<PromptTemplate[]> {
+  const res = await client.get<ApiResponse<PromptTemplate[]>>(
+    '/api/v2/admin/kb/templates',
+    { params: { active: params?.active ? 1 : undefined } }
+  )
+  return res.data.data
+}
+
+export async function apiCreatePromptTemplate(
+  data: CreatePromptTemplatePayload,
+  client: AxiosInstance = request,
+): Promise<PromptTemplate> {
+  const res = await client.post<ApiResponse<PromptTemplate>>('/api/v2/admin/kb/templates', data)
+  return res.data.data
+}
+
+export async function apiUpdatePromptTemplate(
+  id: number,
+  data: Partial<CreatePromptTemplatePayload>,
+  client: AxiosInstance = request,
+): Promise<PromptTemplate> {
+  const res = await client.put<ApiResponse<PromptTemplate>>(`/api/v2/admin/kb/templates/${id}`, data)
+  return res.data.data
+}
+
+export async function apiDeletePromptTemplate(id: number, client: AxiosInstance = request): Promise<void> {
+  await client.delete<ApiResponse<void>>(`/api/v2/admin/kb/templates/${id}`)
+}
+
+// ============================================================
+// Multi-model Compare
+// ============================================================
+
+export interface CompareBranch {
+  branch_id: number
+  model: string
+  content: string | null
+  provider: string | null
+  status: 'pending' | 'done' | 'error'
+  error: string | null
+}
+
+export interface CompareResult {
+  branches: CompareBranch[]
+}
+
+export async function apiCompareModels(
+  conversationId: number,
+  data: { content: string; models: string[] },
+  client: AxiosInstance = request,
+): Promise<CompareResult> {
+  const res = await client.post<ApiResponse<CompareResult>>(
+    `/api/v2/admin/kb/conversations/${conversationId}/compare`,
+    data,
+  )
+  return res.data.data
+}
+
+

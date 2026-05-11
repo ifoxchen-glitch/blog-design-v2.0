@@ -447,7 +447,55 @@ function migrate(db) {
 
     CREATE INDEX IF NOT EXISTS idx_kb_conv_created ON kb_conversations(created_at);
     CREATE INDEX IF NOT EXISTS idx_kb_tasks_status ON kb_tasks(status);
+
+    CREATE TABLE IF NOT EXISTS kb_prompt_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      command TEXT NOT NULL UNIQUE,
+      content TEXT NOT NULL,
+      variables TEXT NOT NULL DEFAULT '[]',
+      tags TEXT NOT NULL DEFAULT '[]',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      use_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_kb_tmpl_active ON kb_prompt_templates(is_active);
+
+    CREATE TABLE IF NOT EXISTS kb_conversation_branches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL REFERENCES kb_conversations(id) ON DELETE CASCADE,
+      model TEXT NOT NULL,
+      messages_snapshot TEXT NOT NULL DEFAULT '[]',
+      response_content TEXT,
+      response_provider TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','done','error')),
+      error_message TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_kb_branches_conv ON kb_conversation_branches(conversation_id);
   `);
+
+  // Seed default prompt templates
+  const tmplCount = db.prepare("SELECT COUNT(*) AS c FROM kb_prompt_templates").get().c;
+  if (tmplCount === 0) {
+    const now = nowIso();
+    const seedTemplates = [
+      { title: '总结摘要', command: '/summarize', content: '请用中文总结以下内容的要点：\n{{text}}', variables: JSON.stringify([{ name: 'text', label: '待总结内容', default: '' }]) },
+      { title: '翻译', command: '/translate', content: '请将以下内容翻译成{{lang}}：\n{{text}}', variables: JSON.stringify([{ name: 'lang', label: '目标语言', default: '中文' }, { name: 'text', label: '原文', default: '' }]) },
+      { title: '解释概念', command: '/explain', content: '用通俗易懂的语言解释以下概念：\n{{concept}}', variables: JSON.stringify([{ name: 'concept', label: '概念', default: '' }]) },
+      { title: '代码审查', command: '/review', content: '请审查以下代码，指出问题并提供改进建议：\n```\n{{code}}\n```', variables: JSON.stringify([{ name: 'code', label: '代码', default: '' }]) },
+      { title: '写作润色', command: '/writing', content: '请帮我润色以下文字，使表达更流畅：\n{{text}}', variables: JSON.stringify([{ name: 'text', label: '原文', default: '' }]) },
+      { title: '学习计划', command: '/plan', content: '请为「{{topic}}」制定一个学习计划，包括阶段划分和推荐资源。', variables: JSON.stringify([{ name: 'topic', label: '学习主题', default: '' }]) },
+    ];
+    const ins = db.prepare(`INSERT INTO kb_prompt_templates (title, command, content, variables, tags, is_active, use_count, created_at, updated_at) VALUES (?, ?, ?, ?, '[]', 1, 0, ?, ?)`);
+    for (const t of seedTemplates) ins.run(t.title, t.command, t.content, t.variables, now, now);
+  }
+
+
 
   // Seed default model config if empty
   const modelCount = db.prepare("SELECT COUNT(*) AS c FROM kb_model_config").get().c;

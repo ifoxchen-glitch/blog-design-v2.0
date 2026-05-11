@@ -186,4 +186,172 @@ module.exports = {
       next(e);
     }
   },
+
+  /**
+   * Streaming SSE — creates a user message, then streams the AI response.
+   * On completion, saves the full message pair to DB.
+   * GET /conversations/:id/messages/stream?content=...&temperature=...
+   */
+  async sendMessageStream(req, res, next) {
+    try {
+      const db = openDb();
+      const id = toInt(req.params.id);
+      const content = (req.query.content || '').trim();
+      const temperature = req.query.temperature ? parseFloat(req.query.temperature) : undefined;
+
+      if (!content) {
+        res.write('event: error\ndata: Content is required\n\n');
+        res.end();
+        return;
+      }
+
+      const row = db.prepare('SELECT * FROM kb_conversations WHERE id = ?').get(id);
+      if (!row) {
+        res.write('event: error\ndata: Conversation not found\n\n');
+        res.end();
+        return;
+      }
+
+      const now = nowIso();
+      const userMsg = { role: 'user', content, timestamp: now };
+      const messages = parseMessages(row.messages);
+
+      const aiMessages = [
+        { role: 'system', content: buildSystemPrompt() },
+        ...messages,
+        userMsg,
+      ];
+
+      // Send user message event to client
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering
+
+      res.write(`event: user_message\ndata: ${JSON.stringify(userMsg)}\n\n`);
+
+      let fullContent = '';
+
+      // Stream AI response and accumulate
+      await new Promise((resolve, reject) => {
+        // We need a writable-like wrapper around Express res for callAIStream
+        const streamRes = {
+          write(event, data) {
+            if (event === 'data') {
+              fullContent += data;
+              res.write(`data: ${data}\n\n`);
+            } else {
+              res.write(`event: ${event}\ndata: ${data}\n\n`);
+            }
+          },
+          end() {
+            res.end();
+            resolve();
+          },
+        };
+
+        modelsHandlers.callAIStream(row.model, aiMessages, null, temperature, streamRes).catch((err) => {
+          streamRes.write('error', err.message);
+          streamRes.end();
+          reject(err);
+        });
+      });
+
+      // Save completed messages to DB
+      const assistantMsg = { role: 'assistant', content: fullContent, timestamp: nowIso(), provider: 'ai' };
+      const updatedMessages = [...messages, userMsg, assistantMsg];
+      db.prepare('UPDATE kb_conversations SET messages = ?, updated_at = ? WHERE id = ?')
+        .run(JSON.stringify(updatedMessages), nowIso(), id);
+
+      res.write('event: done\ndata: \n\n');
+      res.end();
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  /**
+   * Multi-model comparison — send same message to multiple models in parallel.
+   * POST /conversations/:id/compare
+   * Body: { content: string, models: string[] }
+   * Returns: { branches: Array<{ model, content, provider, status }> }
+   */
+  async compareModels(req, res, next) {
+    try {
+      const db = openDb();
+      const id = toInt(req.params.id);
+      const { content, models: targetModels } = req.body;
+
+      if (!content?.trim()) return res.status(400).json({ code: 400, message: 'Content required' });
+      if (!Array.isArray(targetModels) || targetModels.length < 2) {
+        return res.status(400).json({ code: 400, message: 'At least 2 models required' });
+      }
+      if (targetModels.length > 4) {
+        return res.status(400).json({ code: 400, message: 'Max 4 models at once' });
+      }
+
+      const row = db.prepare('SELECT * FROM kb_conversations WHERE id = ?').get(id);
+      if (!row) return res.status(404).json({ code: 404, message: 'Conversation not found' });
+
+      const now = nowIso();
+      const userMsg = { role: 'user', content: content.trim(), timestamp: now };
+      const messages = parseMessages(row.messages);
+      const aiMessages = [
+        { role: 'system', content: buildSystemPrompt() },
+        ...messages,
+        userMsg,
+      ];
+
+      // Save user message to conversation
+      const updatedMessages = [...messages, userMsg];
+      db.prepare('UPDATE kb_conversations SET messages = ?, updated_at = ? WHERE id = ?')
+        .run(JSON.stringify(updatedMessages), now, id);
+
+      // Create branch records
+      const branchIds = [];
+      const insertBranch = db.prepare(`
+        INSERT INTO kb_conversation_branches (conversation_id, model, messages_snapshot, status, created_at, updated_at)
+        VALUES (?, ?, ?, 'pending', ?, ?)
+      `);
+      for (const model of targetModels) {
+        const r = insertBranch.run(id, model, JSON.stringify(aiMessages), now, now);
+        branchIds.push(r.lastInsertRowid);
+      }
+
+      // Call all models in parallel
+      const updateBranch = db.prepare(`
+        UPDATE kb_conversation_branches SET response_content = ?, response_provider = ?, status = 'done', updated_at = ? WHERE id = ?
+      `);
+      const updateBranchError = db.prepare(`
+        UPDATE kb_conversation_branches SET error_message = ?, status = 'error', updated_at = ? WHERE id = ?
+      `);
+
+      await Promise.allSettled(targetModels.map(async (model, i) => {
+        try {
+          const result = await modelsHandlers.callAI(model, aiMessages, null, undefined);
+          updateBranch.run(result.content, result.provider, nowIso(), branchIds[i]);
+        } catch (err) {
+          updateBranchError.run(String(err.message || err), nowIso(), branchIds[i]);
+        }
+      }));
+
+      // Fetch updated branches
+      const branches = db.prepare(
+        'SELECT * FROM kb_conversation_branches WHERE id IN (?, ?, ?, ?)'
+      ).all(...branchIds);
+
+      const response = branches.map(b => ({
+        branch_id: b.id,
+        model: b.model,
+        content: b.response_content || null,
+        provider: b.response_provider || null,
+        status: b.status,
+        error: b.error_message || null,
+      }));
+
+      res.json({ code: 0, message: 'ok', data: { branches: response } });
+    } catch (e) {
+      next(e);
+    }
+  },
 };
