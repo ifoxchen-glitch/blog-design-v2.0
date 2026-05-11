@@ -487,10 +487,10 @@ function migrate(db) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
-
-    -- Seed singleton row
-    db.prepare(`INSERT OR IGNORE INTO kb_web_search_config (id, provider, is_active, created_at, updated_at) VALUES (1, 'duckduckgo', 1, datetime('now'), datetime('now'))`).run();
   `);
+
+  // Seed singleton row for web search config
+  db.prepare(`INSERT OR IGNORE INTO kb_web_search_config (id, provider, is_active, created_at, updated_at) VALUES (1, 'duckduckgo', 1, datetime('now'), datetime('now'))`).run();
 
   // Seed default prompt templates
   const tmplCount = db.prepare("SELECT COUNT(*) AS c FROM kb_prompt_templates").get().c;
