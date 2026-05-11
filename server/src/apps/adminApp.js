@@ -17,6 +17,9 @@ const cmsRouter = require("./admin/cms/cmsRouter");
 const opsRouter = require("./admin/ops/opsRouter");
 const analyticsRouter = require("./admin/analytics/analyticsRouter");
 const kbRouter = require("./admin/kb/kbRouter");
+const modelsRouter = require("./admin/kb/modelsRouter");
+const conversationsRouter = require("./admin/kb/conversationsRouter");
+const tasksRouter = require("./admin/kb/tasksRouter");
 
 const app = express();
 
@@ -59,6 +62,9 @@ v2Router.use("/admin/ops", opsRouter);
 v2Router.use("/admin/analytics", analyticsRouter);
 v2Router.use("/admin/kb", kbRouter);
 app.use("/api/v2", v2Router);
+v2Router.use("/admin/kb/models", modelsRouter);
+v2Router.use("/admin/kb/conversations", conversationsRouter);
+v2Router.use("/admin/kb/tasks", tasksRouter);
 
 // SPA catch-all middleware (Express 5: bare * is invalid, use middleware instead)
 app.use((req, res, next) => {

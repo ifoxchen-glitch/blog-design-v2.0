@@ -62,6 +62,9 @@ const PERMISSIONS = [
   { code: "kb:delete",     resource: "kb",        action: "delete",  name: "删除知识库内容", description: "删除知识库文档或画布" },
   { code: "kb:sync",       resource: "kb",        action: "sync",    name: "同步 Obsidian",  description: "管理 Obsidian 双向同步" },
   { code: "kb:publish",    resource: "kb",        action: "publish", name: "发布到博客",     description: "将知识库文档发布为博客文章" },
+  { code: "ai:chat",       resource: "ai",         action: "chat",    name: "AI 对话",         description: "与 AI 模型对话" },
+  { code: "ai:model",      resource: "ai",         action: "model",  name: "管理 AI 模型",    description: "配置和管理 AI 模型" },
+  { code: "task:manage",   resource: "task",       action: "manage", name: "管理任务看板",     description: "创建、编辑、删除任务看板中的任务" },
 ];
 
 // ============================================================
@@ -99,9 +102,10 @@ const MENUS = [
     name: "我的工作台", path: null,            icon: "GridOutline",          permission: null,              sort: 2,
     children: [
       { name: "工作台",     path: "/cms/workspace",    icon: "PulseOutline",    permission: null },
+      { name: "AI对话",     path: "/cms/workspace/chat", icon: "ChatbubblesOutline", permission: null },
       { name: "看板工作室", path: "/cms/kanban",       icon: "BarChartOutline", permission: null },
       { name: "API配置",    path: "/cms/api-config",   icon: "LinkOutline",     permission: null },
-      { name: "Ai设置",     path: "/cms/ai-settings",  icon: "SparklesOutline", permission: null },
+      { name: "AI模型配置", path: "/cms/ai-settings",  icon: "SparklesOutline", permission: null },
       { name: "全局参数配置", path: "/cms/global-config", icon: "SettingsOutline", permission: null },
     ],
   },

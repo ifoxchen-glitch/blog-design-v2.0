@@ -578,3 +578,209 @@ export async function apiGetSyncedFiles(client: AxiosInstance = request): Promis
   const res = await client.get<ApiResponse<FileTreeData>>('/api/v2/admin/kb/sync/synced-files')
   return res.data.data
 }
+
+// ============================================================
+// AI Models
+// ============================================================
+
+export interface AiModel {
+  id: number
+  name: string
+  provider: 'openai' | 'anthropic' | 'ollama' | 'groq' | 'custom'
+  api_endpoint: string
+  api_key: string
+  has_api_key: boolean
+  model_name: string
+  max_tokens: number
+  temperature: number
+  is_default: boolean
+  is_active: boolean
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export async function apiListAiModels(client: AxiosInstance = request): Promise<AiModel[]> {
+  const res = await client.get<ApiResponse<AiModel[]>>('/api/v2/admin/kb/models')
+  return res.data.data
+}
+
+export interface CreateAiModelPayload {
+  name: string
+  provider: AiModel['provider']
+  api_endpoint: string
+  api_key: string
+  model_name: string
+  max_tokens?: number
+  temperature?: number
+  is_default?: boolean
+  is_active?: boolean
+  sort_order?: number
+}
+
+export async function apiCreateAiModel(data: CreateAiModelPayload, client: AxiosInstance = request): Promise<AiModel> {
+  const res = await client.post<ApiResponse<AiModel>>('/api/v2/admin/kb/models', data)
+  return res.data.data
+}
+
+export interface UpdateAiModelPayload {
+  name?: string
+  provider?: AiModel['provider']
+  api_endpoint?: string
+  api_key?: string
+  model_name?: string
+  max_tokens?: number
+  temperature?: number
+  is_default?: boolean
+  is_active?: boolean
+  sort_order?: number
+}
+
+export async function apiUpdateAiModel(id: number, data: UpdateAiModelPayload, client: AxiosInstance = request): Promise<AiModel> {
+  const res = await client.put<ApiResponse<AiModel>>(`/api/v2/admin/kb/models/${id}`, data)
+  return res.data.data
+}
+
+export async function apiDeleteAiModel(id: number, client: AxiosInstance = request): Promise<void> {
+  await client.delete<ApiResponse<void>>(`/api/v2/admin/kb/models/${id}`)
+}
+
+export interface TestModelResult { ok: boolean; response?: string; error?: string }
+
+export async function apiTestAiModel(id: number, client: AxiosInstance = request): Promise<TestModelResult> {
+  const res = await client.post<ApiResponse<TestModelResult>>(`/api/v2/admin/kb/models/${id}/test`)
+  return res.data.data
+}
+
+// ============================================================
+// AI Conversations
+// ============================================================
+
+export interface AiMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp: string
+  provider?: string
+}
+
+export interface AiConversation {
+  id: number
+  title: string
+  model: string
+  message_count: number
+  tokens_used: number
+  tags: string[]
+  is_starred: boolean
+  created_at: string
+  updated_at: string
+  messages?: AiMessage[]
+}
+
+export async function apiListAiConversations(
+  params?: { search?: string; model?: string; starred?: boolean; limit?: number; offset?: number },
+  client: AxiosInstance = request,
+): Promise<{ items: AiConversation[]; total: number }> {
+  const res = await client.get<ApiResponse<{ items: AiConversation[]; total: number }>>(
+    '/api/v2/admin/kb/conversations', { params }
+  )
+  return res.data.data
+}
+
+export async function apiCreateAiConversation(
+  data?: { title?: string; model?: string; tags?: string[] },
+  client: AxiosInstance = request,
+): Promise<AiConversation> {
+  const res = await client.post<ApiResponse<AiConversation>>('/api/v2/admin/kb/conversations', data || {})
+  return res.data.data
+}
+
+export async function apiGetAiConversation(id: number, client: AxiosInstance = request): Promise<AiConversation> {
+  const res = await client.get<ApiResponse<AiConversation>>(`/api/v2/admin/kb/conversations/${id}`)
+  return res.data.data
+}
+
+export interface UpdateAiConversationPayload {
+  title?: string
+  model?: string
+  tags?: string[]
+  is_starred?: boolean
+}
+
+export async function apiUpdateAiConversation(
+  id: number, data: UpdateAiConversationPayload, client: AxiosInstance = request
+): Promise<AiConversation> {
+  const res = await client.put<ApiResponse<AiConversation>>(`/api/v2/admin/kb/conversations/${id}`, data)
+  return res.data.data
+}
+
+export async function apiDeleteAiConversation(id: number, client: AxiosInstance = request): Promise<void> {
+  await client.delete<ApiResponse<void>>(`/api/v2/admin/kb/conversations/${id}`)
+}
+
+export interface SendAiMessagePayload {
+  content: string
+  temperature?: number
+}
+
+export async function apiSendAiMessage(
+  conversationId: number, data: SendAiMessagePayload, client: AxiosInstance = request
+): Promise<AiMessage> {
+  const res = await client.post<ApiResponse<AiMessage>>(
+    `/api/v2/admin/kb/conversations/${conversationId}/messages`, data
+  )
+  return res.data.data
+}
+
+export async function apiSaveAiConversationToKb(
+  conversationId: number, client: AxiosInstance = request
+): Promise<{ path: string }> {
+  const res = await client.post<ApiResponse<{ path: string }>>(
+    `/api/v2/admin/kb/conversations/${conversationId}/save-to-kb`
+  )
+  return res.data.data
+}
+
+// ============================================================
+// Tasks (Kanban)
+// ============================================================
+
+export interface KbTask {
+  id: number
+  title: string
+  description: string | null
+  status: 'todo' | 'in_progress' | 'done'
+  priority: number
+  due_date: string | null
+  tags: string[]
+  created_at: string
+  updated_at: string
+}
+
+export async function apiListKbTasks(
+  params?: { status?: KbTask['status'] }, client: AxiosInstance = request
+): Promise<KbTask[]> {
+  const res = await client.get<ApiResponse<KbTask[]>>('/api/v2/admin/kb/tasks', { params })
+  return res.data.data
+}
+
+export async function apiCreateKbTask(
+  data: { title: string; description?: string; status?: KbTask['status']; priority?: number; due_date?: string; tags?: string[] },
+  client: AxiosInstance = request,
+): Promise<KbTask> {
+  const res = await client.post<ApiResponse<KbTask>>('/api/v2/admin/kb/tasks', data)
+  return res.data.data
+}
+
+export async function apiUpdateKbTask(
+  id: number,
+  data: Partial<Omit<KbTask, 'id' | 'created_at' | 'updated_at'>>,
+  client: AxiosInstance = request,
+): Promise<KbTask> {
+  const res = await client.put<ApiResponse<KbTask>>(`/api/v2/admin/kb/tasks/${id}`, data)
+  return res.data.data
+}
+
+export async function apiDeleteKbTask(id: number, client: AxiosInstance = request): Promise<void> {
+  await client.delete<ApiResponse<void>>(`/api/v2/admin/kb/tasks/${id}`)
+}
+

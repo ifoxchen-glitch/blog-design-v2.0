@@ -401,6 +401,66 @@ function migrate(db) {
     }
   } catch { /* ignore migration failures */ }
 
+  // ============================================================
+  // Phase 8: KB Workbench — AI Chat + Tasks
+  // ============================================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS kb_model_config (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      provider TEXT NOT NULL CHECK (provider IN ('openai','anthropic','ollama','groq','custom')),
+      api_endpoint TEXT NOT NULL,
+      api_key TEXT NOT NULL,
+      model_name TEXT NOT NULL,
+      max_tokens INTEGER NOT NULL DEFAULT 4096,
+      temperature REAL NOT NULL DEFAULT 0.7,
+      is_default INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS kb_conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL DEFAULT '新对话',
+      model TEXT NOT NULL,
+      messages TEXT NOT NULL DEFAULT '[]',
+      tokens_used INTEGER NOT NULL DEFAULT 0,
+      tags TEXT NOT NULL DEFAULT '[]',
+      is_starred INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS kb_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo','in_progress','done')),
+      priority INTEGER NOT NULL DEFAULT 2,
+      due_date TEXT,
+      tags TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_kb_conv_created ON kb_conversations(created_at);
+    CREATE INDEX IF NOT EXISTS idx_kb_tasks_status ON kb_tasks(status);
+  `);
+
+  // Seed default model config if empty
+  const modelCount = db.prepare("SELECT COUNT(*) AS c FROM kb_model_config").get().c;
+  if (modelCount === 0) {
+    const now = nowIso();
+    db.prepare(`INSERT INTO kb_model_config (name, provider, api_endpoint, api_key, model_name, max_tokens, temperature, is_default, is_active, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      'GPT-4o', 'openai', 'https://api.openai.com/v1', '', 'gpt-4o', 4096, 0.7, 1, 1, 0, now, now
+    );
+    db.prepare(`INSERT INTO kb_model_config (name, provider, api_endpoint, api_key, model_name, max_tokens, temperature, is_default, is_active, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      'Claude 4 Opus', 'anthropic', 'https://api.anthropic.com/v1', '', 'claude-3-opus-20240229', 4096, 0.7, 0, 1, 1, now, now
+    );
+  }
+
 }
 
 function ensureSeed(db) {

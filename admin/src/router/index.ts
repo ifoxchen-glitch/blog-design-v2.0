@@ -52,6 +52,11 @@ const router = createRouter({
           component: () => import('../views/workspace/index.vue'),
         },
         {
+          path: '/cms/workspace/chat/:id?',
+          name: 'cms-workspace-chat',
+          component: () => import('../views/workspace/chat/index.vue'),
+        },
+        {
           path: '/cms/kanban',
           name: 'cms-kanban',
           component: () => import('../views/workspace/kanban.vue'),
