@@ -315,11 +315,21 @@ module.exports = {
         const streamRes = {
           write(event, data) {
             if (res.writableEnded) return;
-            if (event === 'data') {
+            if (data === undefined && typeof event === 'string') {
+              // Single-argument raw SSE line from callAIStream
+              res.write(event);
+              const lines = event.split('\n');
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const text = line.slice(6);
+                  if (text && text !== '[DONE]') fullContent += text;
+                }
+              }
+            } else if (event === 'data') {
               fullContent += data;
               res.write(`data: ${data}\n\n`);
             } else {
-              res.write(`event: ${event}\ndata: ${data}\n\n`);
+              res.write(`event: ${event}\ndata: ${data ?? ''}\n\n`);
             }
           },
           end() {
