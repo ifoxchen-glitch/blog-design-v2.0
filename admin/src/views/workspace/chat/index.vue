@@ -460,6 +460,9 @@ function handleInput() {
   }
 }
 
+// Naive UI NInput @input is unreliable; watch the ref instead
+watch(inputContent, handleInput)
+
 function handleSelectTemplate(t: PromptTemplate) {
   selectedTemplate.value = t
   showSlashMenu.value = false
