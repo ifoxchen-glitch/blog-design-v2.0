@@ -313,6 +313,10 @@ module.exports = {
       // Stream AI response and accumulate
       await new Promise((resolve, reject) => {
         const streamRes = {
+          // callAIStream may try to set SSE headers; forward to real res
+          setHeader(name, value) {
+            if (!res.writableEnded) res.setHeader(name, value);
+          },
           write(event, data) {
             if (res.writableEnded) return;
             if (data === undefined && typeof event === 'string') {
