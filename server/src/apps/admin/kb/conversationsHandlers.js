@@ -193,7 +193,9 @@ module.exports = {
       const db = openDb();
       const id = toInt(req.params.id);
       const { content, temperature, kbContext } = req.body;
-      if (!content || !content.trim()) {
+      const attachments = req.body.attachments || [];
+      const hasContent = content && content.trim();
+      if (!hasContent && attachments.length === 0) {
         return res.status(400).json({ code: 400, message: 'Message content is required' });
       }
 
@@ -201,8 +203,7 @@ module.exports = {
       if (!row) return res.status(404).json({ code: 404, message: 'Conversation not found' });
 
       const now = nowIso();
-      const attachments = req.body.attachments || [];
-      const userMsg = { role: 'user', content: content.trim(), timestamp: now, attachments };
+      const userMsg = { role: 'user', content: content ? content.trim() : '', timestamp: now, attachments };
       const messages = parseMessages(row.messages);
 
       // Build full message list for AI (with system prompt + optional KB context)
@@ -267,7 +268,12 @@ module.exports = {
         try { kbContext = JSON.parse(req.query.kbContext); } catch { /* ignore */ }
       }
 
-      if (!content) {
+      let attachments = [];
+      if (req.query.attachments) {
+        try { attachments = JSON.parse(req.query.attachments); } catch { /* ignore */ }
+      }
+
+      if (!content && attachments.length === 0) {
         res.write('event: error\ndata: Content is required\n\n');
         res.end();
         return;
@@ -278,11 +284,6 @@ module.exports = {
         res.write('event: error\ndata: Conversation not found\n\n');
         res.end();
         return;
-      }
-
-      let attachments = [];
-      if (req.query.attachments) {
-        try { attachments = JSON.parse(req.query.attachments); } catch { /* ignore */ }
       }
 
       const now = nowIso();

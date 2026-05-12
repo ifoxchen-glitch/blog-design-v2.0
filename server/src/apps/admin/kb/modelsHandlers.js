@@ -73,9 +73,13 @@ async function callAI(model, messages, maxTokens, temperature) {
   }));
 
   if (provider === 'anthropic') {
+    // Anthropic requires system prompt as a top-level field, not in messages
+    const systemTexts = normalizedMessages.filter(m => m.role === 'system').map(m => m.content);
+    const anthropicMessages = normalizedMessages.filter(m => m.role !== 'system');
     const body = {
       model: config.model_name,
-      messages: normalizedMessages,
+      system: systemTexts.join('\n\n'),
+      messages: anthropicMessages,
       max_tokens: maxTokens_,
     };
     const res = await fetch(`${baseUrl}/messages`, {
@@ -154,9 +158,12 @@ async function callAIStream(model, messages, maxTokens, temperature, res) {
   const commonHeaders = { 'content-type': 'application/json' };
 
   if (provider === 'anthropic') {
+    const systemTexts = normalizedMessages.filter(m => m.role === 'system').map(m => m.content);
+    const anthropicMessages = normalizedMessages.filter(m => m.role !== 'system');
     const body = {
       model: config.model_name,
-      messages: normalizedMessages,
+      system: systemTexts.join('\n\n'),
+      messages: anthropicMessages,
       max_tokens: maxTokens_,
       stream: true,
     };

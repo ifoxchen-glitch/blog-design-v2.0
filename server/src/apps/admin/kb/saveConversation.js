@@ -14,12 +14,13 @@ const RAW_DIR = "raw/ai-conversations";
  * Convert a conversation object + messages array into a Markdown file content.
  */
 function buildConversationMarkdown(conv, messages) {
+  const tags = parseTags(conv.tags);
   const lines = [
     "---",
     `title: "${escapeYaml(conv.title)}"`,
     `type: source`,
     `model: ${conv.model}`,
-    `tags: [${(conv.tags || []).map(t => `"${escapeYaml(t)}"`).join(", ")}]`,
+    `tags: [${tags.map(t => `"${escapeYaml(t)}"`).join(", ")}]`,
     `created_at: ${conv.created_at}`,
     `conversation_id: ${conv.id}`,
     "---",
@@ -37,7 +38,10 @@ function buildConversationMarkdown(conv, messages) {
       : "";
     lines.push(`**${role}** (${time}):`);
     lines.push("");
-    lines.push(msg.content);
+    const contentText = Array.isArray(msg.content)
+      ? msg.content.map(c => c.type === 'text' ? c.text : `[${c.type}]`).join('')
+      : msg.content;
+    lines.push(contentText || '');
     lines.push("");
   }
 
@@ -49,6 +53,12 @@ function escapeYaml(str) {
     .replace(/\\/g, "\\\\")
     .replace(/"/g, '\\"')
     .replace(/\n/g, " ");
+}
+
+function parseTags(v) {
+  if (!v) return [];
+  if (Array.isArray(v)) return v;
+  try { return JSON.parse(v); } catch { return []; }
 }
 
 /**
@@ -120,7 +130,7 @@ function upsertConversationDocument(db, conv, rawFilePath, messages) {
       excerpt,
       contentMarkdown,
       rawFilePath,
-      JSON.stringify(conv.tags || []),
+      JSON.stringify(parseTags(conv.tags)),
       now,
       now,
     );
