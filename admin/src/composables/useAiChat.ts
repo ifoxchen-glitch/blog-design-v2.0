@@ -143,7 +143,7 @@ export function useAiChat(): UseAiChatReturn {
       // User message already added above
     })
 
-    es.addEventListener('data', (e: MessageEvent) => {
+    es.addEventListener('message', (e: MessageEvent) => {
       if (cancelled) return
       // Accumulate streamed content into the assistant message
       const current = messages.value[assistantIdx]
