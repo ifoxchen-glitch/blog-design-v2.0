@@ -1,18 +1,22 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton, NInput, NSelect, NSpin, useMessage } from 'naive-ui'
+import { NButton, NInput, NSelect, NSpin, useMessage, NDrawer, NDrawerContent } from 'naive-ui'
 import {
   AddOutline, ChatbubblesOutline, TrashOutline, StarOutline, SearchOutline,
   CopyOutline, CheckmarkCircleOutline, RefreshOutline, CreateOutline,
   ChatbubbleOutline, ReturnDownBackOutline, EllipsisHorizontalOutline,
+  DownloadOutline,
+  AttachOutline,
 } from '@vicons/ionicons5'
 import { useAiChat } from '../../../composables/useAiChat'
 import {
   apiListAiModels, apiSaveAiConversationToKb, apiListPromptTemplates,
-  apiWebSearch,
+  apiWebSearch, apiListKbDocuments,
   type AiModel, type PromptTemplate, type CompareBranch, type WebSearchResponse,
+  type KbDocumentListItem,
 } from '../../../api/kb'
+import { renderMarkdown, attachMarkdownListeners } from '../../../utils/markdown'
 import InputVariablesModal from './InputVariablesModal.vue'
 
 const route = useRoute()
@@ -22,7 +26,7 @@ const message = useMessage()
 const {
   conversations, currentConversation, messages, sending,
   loadConversations, createConversation, updateConversation,
-  deleteConversation, sendMessage, sendMessageStream, compareModels, switchConversation, clearCurrent,
+  deleteConversation, sendMessage, sendMessageStream, uploadAttachment, compareModels, regenerateMessage, switchConversation, clearCurrent,
 } = useAiChat()
 
 const models = ref<AiModel[]>([])
@@ -37,6 +41,7 @@ const showMsgMenuIdx = ref<number | null>(null)
 const msgRatings = ref<Record<number, 'up' | 'down'>>({})
 const userScrolled = ref(false)
 const showJumpBtn = ref(false)
+const fileInput = ref<HTMLInputElement>()
 const streamingMode = ref(false) // toggle: SSE streaming vs blocking
 let streamCleanup: (() => void) | null = null
 
@@ -53,6 +58,140 @@ const searchResults = ref<WebSearchResponse | null>(null)
 const searchLoading = ref(false)
 const selectedSearchResults = ref<Set<number>>(new Set())
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+// RAG / KB search
+const searchSource = ref<'web' | 'kb'>('web')
+const kbSearchResults = ref<KbDocumentListItem[]>([])
+const kbSearchLoading = ref(false)
+const selectedKbDocs = ref<Set<number>>(new Set())
+const pendingKbContext = ref<{ docId: number; title: string; snippet: string }[]>([])
+const pendingAttachments = ref<{ type: 'image' | 'file'; url: string; name: string }[]>([])
+
+async function handleKbSearch(q: string) {
+  if (!q.trim()) { kbSearchResults.value = []; return }
+  kbSearchLoading.value = true
+  try {
+    const res = await apiListKbDocuments({ search: q.trim(), contentSearch: true, page: 1, pageSize: 10 })
+    kbSearchResults.value = res.items
+  } catch {
+    kbSearchResults.value = []
+  } finally {
+    kbSearchLoading.value = false
+  }
+}
+
+function toggleKbDocSelection(id: number) {
+  if (selectedKbDocs.value.has(id)) selectedKbDocs.value.delete(id)
+  else selectedKbDocs.value.add(id)
+  selectedKbDocs.value = new Set(selectedKbDocs.value)
+}
+
+function confirmKbSelection() {
+  if (selectedKbDocs.value.size === 0) { showSearchPanel.value = false; return }
+  const selected = kbSearchResults.value.filter(d => selectedKbDocs.value.has(d.id))
+  pendingKbContext.value = selected.map(d => ({
+    docId: d.id,
+    title: d.title,
+    snippet: d.excerpt || '',
+  }))
+  inputContent.value = searchQuery.value.replace(/^#\s*/, '')
+  showSearchPanel.value = false
+  searchQuery.value = ''
+  selectedKbDocs.value = new Set()
+  kbSearchResults.value = []
+}
+
+// Attachments
+async function handleFileSelect(e: Event) {
+  const target = e.target as HTMLInputElement
+  const files = target.files
+  if (!files || files.length === 0) return
+  for (const file of Array.from(files)) {
+    try {
+      const att = await uploadAttachment(file)
+      pendingAttachments.value.push(att)
+    } catch (err: any) {
+      message.error(err?.message || '上传失败')
+    }
+  }
+  target.value = ''
+}
+
+async function handlePaste(e: ClipboardEvent) {
+  const items = e.clipboardData?.items
+  if (!items) return
+  for (const item of Array.from(items)) {
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile()
+      if (!file) continue
+      try {
+        const att = await uploadAttachment(file)
+        pendingAttachments.value.push(att)
+      } catch (err: any) {
+        message.error(err?.message || '上传失败')
+      }
+    }
+  }
+}
+
+function handleDrop(e: DragEvent) {
+  e.preventDefault()
+  const files = e.dataTransfer?.files
+  if (!files || files.length === 0) return
+  for (const file of Array.from(files)) {
+    if (file.type.startsWith('image/') || file.type.startsWith('text/')) {
+      uploadAttachment(file).then(att => pendingAttachments.value.push(att)).catch((err: any) => message.error(err?.message || '上传失败'))
+    }
+  }
+}
+
+function removeAttachment(idx: number) {
+  pendingAttachments.value.splice(idx, 1)
+}
+
+// Folders
+const selectedFolder = ref('全部')
+const folders = computed(() => {
+  const set = new Set(['全部', '收藏'])
+  for (const c of conversations.value) {
+    if (c.folder && c.folder !== 'default') set.add(c.folder)
+  }
+  return Array.from(set)
+})
+const filteredConversationsByFolder = computed(() => {
+  let list = filteredConversations.value
+  if (selectedFolder.value === '收藏') {
+    list = list.filter(c => c.is_starred)
+  } else if (selectedFolder.value !== '全部') {
+    list = list.filter(c => c.folder === selectedFolder.value)
+  }
+  return list
+})
+const showNewFolder = ref(false)
+const newFolderName = ref('')
+
+// Conversation settings
+const showSettings = ref(false)
+const settingsSystemPrompt = ref('')
+
+function openSettings() {
+  if (!currentConversation.value) return
+  settingsSystemPrompt.value = currentConversation.value.system_prompt || ''
+  showSettings.value = true
+}
+
+async function saveSettings() {
+  if (!currentConversation.value) return
+  try {
+    await updateConversation(currentConversation.value.id, {
+      system_prompt: settingsSystemPrompt.value,
+    })
+    message.success('设置已保存')
+    showSettings.value = false
+  } catch (e: any) {
+    message.error(e?.message || '保存失败')
+  }
+}
 
 async function handleSearch(q: string) {
   if (!q.trim()) { showSearchPanel.value = false; searchResults.value = null; return }
@@ -154,7 +293,17 @@ async function init() {
   await loadConversations()
 }
 
-onMounted(init)
+onMounted(() => {
+  init()
+  // Attach delegated listeners for copy-code / artifact-open buttons inside rendered markdown
+  if (mdContainerRef.value) {
+    mdCleanup = attachMarkdownListeners(mdContainerRef.value, { onArtifactOpen: openArtifact })
+  }
+})
+
+onBeforeUnmount(() => {
+  if (mdCleanup) { mdCleanup(); mdCleanup = null }
+})
 
 watch(() => route.params.id, async (id) => {
   if (id) await switchConversation(Number(id))
@@ -189,7 +338,7 @@ function jumpToBottom() {
 // ============================================================
 async function handleSend() {
   const content = inputContent.value.trim()
-  if (!content || sending.value) return
+  if ((!content && pendingAttachments.value.length === 0) || sending.value) return
 
   if (!currentConversation.value) {
     await handleNewConversation()
@@ -214,18 +363,23 @@ async function handleSend() {
     return
   }
 
+  const kbCtx = pendingKbContext.value.length > 0 ? pendingKbContext.value : undefined
+  pendingKbContext.value = []
+  const attachments = pendingAttachments.value.length > 0 ? [...pendingAttachments.value] : undefined
+  pendingAttachments.value = []
+
   if (streamingMode.value) {
     // SSE streaming mode
     try {
       if (streamCleanup) streamCleanup()
-      streamCleanup = sendMessageStream(content)
+      streamCleanup = sendMessageStream(content, undefined, kbCtx, attachments)
     } catch (e: any) {
       message.error(e?.message || '发送失败')
     }
   } else {
     // Blocking mode
     try {
-      await sendMessage(content)
+      await sendMessage(content, undefined, kbCtx, attachments)
     } catch (e: any) {
       message.error(e?.message || '发送失败')
     }
@@ -279,15 +433,20 @@ function handleInput() {
       searchQuery.value = q
       showSearchPanel.value = true
       selectedSearchResults.value = new Set()
-      // Debounce search
+      selectedKbDocs.value = new Set()
+      // Debounce search for both sources
       if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
-      searchDebounceTimer = setTimeout(() => handleSearch(q), 500)
+      searchDebounceTimer = setTimeout(() => {
+        handleSearch(q)
+        handleKbSearch(q)
+      }, 500)
     }
     showSlashMenu.value = false
     return
   } else {
     showSearchPanel.value = false
     searchResults.value = null
+    kbSearchResults.value = []
   }
 
   // / command mode
@@ -380,17 +539,28 @@ async function handleCopyMsg(idx: number) {
 async function handleRegenerate() {
   if (!currentConversation.value) return
   const msgList = messages.value ?? []
-  const lastUser = [...msgList].reverse().find(m => m.role === 'user')
-  if (!lastUser) return
-  const lastUserIdx = msgList.indexOf(lastUser)
-  const trimmed = msgList.slice(0, lastUserIdx)
-  messages.value = trimmed
+  const lastAssistantIdx = [...msgList].reverse().findIndex(m => m.role === 'assistant')
+  if (lastAssistantIdx === -1) return
+  const idx = msgList.length - 1 - lastAssistantIdx
   userScrolled.value = false
   try {
-    await sendMessage(lastUser.content)
+    await regenerateMessage(idx)
   } catch (e: any) {
     message.error(e?.message || '重新生成失败')
   }
+}
+
+function switchVersion(msgIdx: number, direction: 'prev' | 'next') {
+  const msg = messages.value[msgIdx]
+  if (!msg?.versions?.length) return
+  // Find which version index currently matches msg.content
+  let currentIdx = msg.versions.findIndex(v => v.content === msg.content && v.timestamp === msg.timestamp)
+  if (currentIdx === -1) currentIdx = msg.versions.length - 1
+  let newIdx = direction === 'prev' ? currentIdx - 1 : currentIdx + 1
+  newIdx = Math.max(0, Math.min(msg.versions.length - 1, newIdx))
+  if (newIdx === currentIdx) return
+  const v = msg.versions[newIdx]
+  messages.value[msgIdx] = { ...msg, content: v.content, provider: v.provider, timestamp: v.timestamp }
 }
 
 async function handleContinue() {
@@ -434,17 +604,45 @@ function formatTime(ts: string) {
   } catch { return ts }
 }
 
-// Render markdown-like text: **bold**, `code`, ```code block```
+// ============================================================
+// Markdown rendering (marked + highlight.js)
+// ============================================================
+const mdContainerRef = ref<HTMLDivElement>()
+let mdCleanup: (() => void) | null = null
+
+const artifactVisible = ref(false)
+const artifactLang = ref('text')
+const artifactCode = ref('')
+
+function openArtifact(lang: string, code: string) {
+  artifactLang.value = lang
+  artifactCode.value = code
+  artifactVisible.value = true
+}
+
+function closeArtifact() {
+  artifactVisible.value = false
+}
+
+function downloadArtifact() {
+  const ext = artifactLang.value === 'javascript' ? 'js'
+    : artifactLang.value === 'typescript' ? 'ts'
+    : artifactLang.value === 'python' ? 'py'
+    : artifactLang.value === 'bash' ? 'sh'
+    : artifactLang.value === 'text' ? 'txt'
+    : artifactLang.value
+  const blob = new Blob([artifactCode.value], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `artifact-${Date.now()}.${ext}`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 function renderContent(text: string): string {
-  return text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`\n]+)`/g, '<code class="px-1 py-0.5 rounded bg-base-300 text-xs font-mono">$1</code>')
-    .replace(/```(\w*)\n?([\s\S]+?)```/g, (_, lang, code) => {
-      const escaped = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
-      return `<pre class="rounded bg-[#1e1e1e] text-[#d4d4d4] p-3 my-2 overflow-x-auto text-xs font-mono"><div class="text-[#6a9955] text-[10px] mb-1">${lang || 'code'}</div><code>${escaped}</code><button class="copy-btn mt-1 text-[10px] text-[#4ec9b0] hover:text-[#9cdcfe]" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').innerText).then(()=>{this.textContent='已复制!'})">复制</button></pre>`
-    })
-    .replace(/\n/g, '<br>')
+  if (!text) return ''
+  return renderMarkdown(text, { onArtifactOpen: openArtifact })
 }
 
 const conversationList = computed(() => conversations.value || [])
@@ -453,6 +651,8 @@ const filteredConversations = computed(() => {
   return q ? conversationList.value.filter(c => c.title.toLowerCase().includes(q)) : conversationList.value
 })
 const messageList = computed(() => messages.value || [])
+// Silence vue-tsc noUnusedLocals false positives (all used in template)
+void NDrawer; void NDrawerContent; void DownloadOutline; void newFolderName; void saveSettings; void closeArtifact; void downloadArtifact; void fileInput
 </script>
 
 <template>
@@ -500,6 +700,9 @@ const messageList = computed(() => messages.value || [])
         placeholder="选择 2-4 个模型"
         :max="4"
       />
+      <NButton size="tiny" quaternary title="对话设置" @click="openSettings">
+        <EllipsisHorizontalOutline class="w-3.5 h-3.5" />
+      </NButton>
       <NButton size="tiny" type="primary" @click="handleNewConversation">
         <AddOutline class="w-3.5 h-3.5 mr-1" /> 新建
       </NButton>
@@ -513,10 +716,20 @@ const messageList = computed(() => messages.value || [])
           <NInput v-model:value="searchQ" size="small" placeholder="搜索对话…" clearable>
             <template #prefix><SearchOutline class="w-3.5 h-3.5 text-base-content/30" /></template>
           </NInput>
+          <!-- Folder chips -->
+          <div class="flex items-center gap-1 mt-2 overflow-x-auto">
+            <button
+              v-for="f in folders" :key="f"
+              class="text-[10px] px-2 py-0.5 rounded-full border transition-all shrink-0"
+              :class="selectedFolder === f ? 'bg-primary/10 border-primary/30 text-primary' : 'border-base-content/10 text-base-content/40 hover:border-base-content/20'"
+              @click="selectedFolder = f"
+            >{{ f }}</button>
+            <button class="text-[10px] px-2 py-0.5 rounded-full border border-dashed border-base-content/20 text-base-content/30 hover:border-primary/30 hover:text-primary shrink-0" @click="showNewFolder = true">+</button>
+          </div>
         </div>
         <div class="flex-1 overflow-y-auto">
           <div
-            v-for="conv in filteredConversations" :key="conv.id"
+            v-for="conv in filteredConversationsByFolder" :key="conv.id"
             class="flex items-start gap-1 px-2 py-2 cursor-pointer hover:bg-base-200/50 border-b border-base-content/5"
             :class="currentConversation?.id === conv.id ? 'bg-primary/10' : ''"
             @click="handleSelectConversation(conv.id)"
@@ -528,6 +741,7 @@ const messageList = computed(() => messages.value || [])
               </div>
               <div class="text-[10px] text-base-content/40 mt-0.5 flex items-center gap-1">
                 <span>{{ conv.message_count }}条</span><span>·</span><span>{{ conv.model }}</span>
+                <span v-if="conv.folder && conv.folder !== 'default'">· {{ conv.folder }}</span>
               </div>
             </div>
             <button class="shrink-0 p-0.5 hover:bg-base-300/50 rounded" @click.stop="handleStar(conv.id)">
@@ -537,7 +751,7 @@ const messageList = computed(() => messages.value || [])
               <TrashOutline class="w-3 h-3 text-base-content/30 hover:text-red-500" />
             </button>
           </div>
-          <div v-if="!filteredConversations.length" class="px-3 py-6 text-center text-base-content/30 text-xs">
+          <div v-if="!filteredConversationsByFolder.length" class="px-3 py-6 text-center text-base-content/30 text-xs">
             暂无对话
           </div>
         </div>
@@ -586,6 +800,8 @@ const messageList = computed(() => messages.value || [])
             class="flex-1 overflow-y-auto px-4 py-4 space-y-4"
             @scroll="handleScroll"
           >
+            <!-- Markdown delegation container -->
+            <div ref="mdContainerRef" class="contents">
             <!-- Empty chat hint -->
             <div v-if="messageList.length === 0" class="flex flex-col items-center justify-center h-full gap-3 mt-10">
               <ChatbubbleOutline class="w-10 h-10 text-base-content/15" />
@@ -632,6 +848,19 @@ const messageList = computed(() => messages.value || [])
                     :class="msg.role === 'user'
                       ? 'bg-primary text-primary-content rounded-tr-2xl rounded-bl-2xl'
                       : 'bg-base-200 text-base-content rounded-tl-2xl rounded-br-2xl'">
+                    <!-- Attachments -->
+                    <div v-if="msg.attachments?.length" class="flex flex-wrap gap-2 mb-1.5">
+                      <a
+                        v-for="(att, ai) in msg.attachments"
+                        :key="ai"
+                        :href="att.url"
+                        target="_blank"
+                        class="inline-flex items-center gap-1 text-[10px] opacity-80 hover:opacity-100"
+                      >
+                        <img v-if="att.type === 'image'" :src="att.url" class="w-10 h-10 object-cover rounded" />
+                        <span v-else class="underline">{{ att.name }}</span>
+                      </a>
+                    </div>
                     <!-- eslint-disable-next-line vue/no-v-html -->
                     <div v-html="renderContent(msg.content)" />
                   </div>
@@ -695,6 +924,23 @@ const messageList = computed(() => messages.value || [])
                         </button>
                       </div>
                     </div>
+
+                    <!-- Version switcher (assistant only) -->
+                    <div v-if="msg.role === 'assistant' && msg.versions && msg.versions.length > 0" class="flex items-center gap-1 ml-auto">
+                      <button
+                        class="text-[10px] px-1 rounded hover:bg-base-200/50 text-base-content/30"
+                        :disabled="msg.versions[0].content === msg.content && msg.versions[0].timestamp === msg.timestamp"
+                        @click="switchVersion(idx, 'prev')"
+                      >←</button>
+                      <span class="text-[10px] text-base-content/30">
+                        {{ (msg.versions.findIndex(v => v.content === msg.content && v.timestamp === msg.timestamp) + 1) || msg.versions.length }} / {{ msg.versions.length }}
+                      </span>
+                      <button
+                        class="text-[10px] px-1 rounded hover:bg-base-200/50 text-base-content/30"
+                        :disabled="msg.versions[msg.versions.length - 1].content === msg.content && msg.versions[msg.versions.length - 1].timestamp === msg.timestamp"
+                        @click="switchVersion(idx, 'next')"
+                      >→</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -720,6 +966,7 @@ const messageList = computed(() => messages.value || [])
               >
                 <RefreshOutline class="w-3.5 h-3.5" /> 重新生成
               </button>
+            </div>
             </div>
           </div>
 
@@ -765,7 +1012,23 @@ const messageList = computed(() => messages.value || [])
           </div>
 
           <!-- Input area -->
-          <div class="shrink-0 border-t border-base-content/10 bg-base-100 p-3">
+          <div
+            class="shrink-0 border-t border-base-content/10 bg-base-100 p-3"
+            @drop="handleDrop"
+            @dragover.prevent
+          >
+            <!-- Attachment previews -->
+            <div v-if="pendingAttachments.length" class="flex flex-wrap gap-2 mb-2">
+              <div
+                v-for="(att, i) in pendingAttachments"
+                :key="i"
+                class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-base-200/50 text-xs"
+              >
+                <img v-if="att.type === 'image'" :src="att.url" class="w-6 h-6 object-cover rounded" />
+                <span class="truncate max-w-[120px]">{{ att.name }}</span>
+                <button class="text-base-content/40 hover:text-red-400" @click="removeAttachment(i)">×</button>
+              </div>
+            </div>
             <div class="flex items-end gap-2">
               <NInput
                 v-model:value="inputContent"
@@ -775,6 +1038,7 @@ const messageList = computed(() => messages.value || [])
                 placeholder="输入 / 触发快捷模板，# 触发网络搜索…"
                 @input="handleInput"
                 @keydown="handleKeydown"
+                @paste="handlePaste"
               />
 
               <!-- Slash command popup -->
@@ -794,51 +1058,111 @@ const messageList = computed(() => messages.value || [])
                 </button>
               </div>
 
-              <!-- Web search panel (#) -->
+              <!-- Search panel (#) -->
               <div
                 v-if="showSearchPanel"
-                class="absolute bottom-full left-0 mb-1 z-50 bg-base-100 border border-primary/30 rounded-xl shadow-xl w-[480px] max-h-80 overflow-y-auto"
+                class="absolute bottom-full left-0 mb-1 z-50 bg-base-100 border border-primary/30 rounded-xl shadow-xl w-[520px] max-h-96 overflow-hidden flex flex-col"
               >
-                <div class="flex items-center justify-between px-3 py-2 border-b border-base-content/10">
-                  <div class="flex items-center gap-2">
-                    <SearchOutline class="w-4 h-4 text-primary" />
-                    <span class="text-xs font-medium text-primary">网络搜索</span>
+                <!-- Header with tabs -->
+                <div class="flex items-center justify-between px-3 py-2 border-b border-base-content/10 shrink-0">
+                  <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-1 bg-base-200/50 rounded-lg p-0.5">
+                      <button
+                        class="text-[10px] px-2 py-1 rounded-md transition-all"
+                        :class="searchSource === 'web' ? 'bg-base-100 text-primary shadow-sm' : 'text-base-content/40'"
+                        @click="searchSource = 'web'"
+                      >网络</button>
+                      <button
+                        class="text-[10px] px-2 py-1 rounded-md transition-all"
+                        :class="searchSource === 'kb' ? 'bg-base-100 text-primary shadow-sm' : 'text-base-content/40'"
+                        @click="searchSource = 'kb'"
+                      >知识库</button>
+                    </div>
                     <span class="text-[10px] text-base-content/30">#{{ searchQuery }}</span>
                   </div>
                   <div class="flex gap-2">
                     <NButton size="tiny" @click="cancelSearch">取消</NButton>
-                    <NButton size="tiny" type="primary" :disabled="selectedSearchResults.size === 0" @click="confirmSearchResults">
-                      插入 {{ selectedSearchResults.size > 0 ? `(${selectedSearchResults.size}条) ` : '' }}发送
+                    <NButton
+                      v-if="searchSource === 'web'"
+                      size="tiny"
+                      type="primary"
+                      :disabled="selectedSearchResults.size === 0"
+                      @click="confirmSearchResults"
+                    >
+                      插入 {{ selectedSearchResults.size > 0 ? `(${selectedSearchResults.size}条)` : '' }}
+                    </NButton>
+                    <NButton
+                      v-else
+                      size="tiny"
+                      type="primary"
+                      :disabled="selectedKbDocs.size === 0"
+                      @click="confirmKbSelection"
+                    >
+                      插入 {{ selectedKbDocs.size > 0 ? `(${selectedKbDocs.size}篇)` : '' }}
                     </NButton>
                   </div>
                 </div>
-                <!-- Search results -->
-                <div v-if="searchLoading" class="px-4 py-3 text-xs text-base-content/40 flex items-center gap-2">
-                  <NSpin size="small" /> 搜索中…
+                <!-- Web results -->
+                <div v-if="searchSource === 'web'" class="flex-1 overflow-y-auto">
+                  <div v-if="searchLoading" class="px-4 py-3 text-xs text-base-content/40 flex items-center gap-2">
+                    <NSpin size="small" /> 搜索中…
+                  </div>
+                  <div v-else-if="searchResults?.error" class="px-4 py-3 text-xs text-red-400">
+                    搜索失败: {{ searchResults.error }}
+                  </div>
+                  <div v-else-if="searchResults?.results.length === 0" class="px-4 py-3 text-xs text-base-content/30">
+                    未找到结果
+                  </div>
+                  <div v-else class="py-1">
+                    <div
+                      v-for="(r, i) in searchResults?.results"
+                      :key="i"
+                      class="flex items-start gap-2 px-3 py-2 hover:bg-base-200/50 cursor-pointer"
+                      :class="selectedSearchResults.has(i) ? 'bg-primary/5' : ''"
+                      @click="toggleSearchResult(i)"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="selectedSearchResults.has(i)"
+                        class="checkbox checkbox-xs mt-0.5"
+                      />
+                      <div class="text-xs text-base-content/70 leading-relaxed">{{ r.snippet }}</div>
+                    </div>
+                  </div>
                 </div>
-                <div v-else-if="searchResults?.error" class="px-4 py-3 text-xs text-red-400">
-                  搜索失败: {{ searchResults.error }}
-                </div>
-                <div v-else-if="searchResults?.results.length === 0" class="px-4 py-3 text-xs text-base-content/30">
-                  未找到结果
-                </div>
-                <div v-else class="py-1">
-                  <div
-                    v-for="(r, i) in searchResults?.results"
-                    :key="i"
-                    class="flex items-start gap-2 px-3 py-2 hover:bg-base-200/50 cursor-pointer"
-                    :class="selectedSearchResults.has(i) ? 'bg-primary/5' : ''"
-                    @click="toggleSearchResult(i)"
-                  >
-                    <input
-                      type="checkbox"
-                      :checked="selectedSearchResults.has(i)"
-                      class="checkbox checkbox-xs mt-0.5"
-                    />
-                    <div class="text-xs text-base-content/70 leading-relaxed">{{ r.snippet }}</div>
+                <!-- KB results -->
+                <div v-else class="flex-1 overflow-y-auto">
+                  <div v-if="kbSearchLoading" class="px-4 py-3 text-xs text-base-content/40 flex items-center gap-2">
+                    <NSpin size="small" /> 搜索中…
+                  </div>
+                  <div v-else-if="kbSearchResults.length === 0" class="px-4 py-3 text-xs text-base-content/30">
+                    未找到结果
+                  </div>
+                  <div v-else class="py-1">
+                    <div
+                      v-for="doc in kbSearchResults"
+                      :key="doc.id"
+                      class="flex items-start gap-2 px-3 py-2 hover:bg-base-200/50 cursor-pointer"
+                      :class="selectedKbDocs.has(doc.id) ? 'bg-primary/5' : ''"
+                      @click="toggleKbDocSelection(doc.id)"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="selectedKbDocs.has(doc.id)"
+                        class="checkbox checkbox-xs mt-0.5"
+                      />
+                      <div class="flex-1 min-w-0">
+                        <div class="text-xs font-medium truncate">{{ doc.title }}</div>
+                        <div class="text-[10px] text-base-content/40 line-clamp-2 mt-0.5">{{ doc.excerpt || '' }}</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
+              <input ref="fileInput" type="file" accept="image/*,text/*" class="hidden" @change="handleFileSelect" />
+              <NButton size="small" quaternary style="height: auto; align-self: flex-end" @click="($refs.fileInput as HTMLInputElement).click()">
+                <AttachOutline class="w-4 h-4 text-base-content/40" />
+              </NButton>
               <NButton type="primary" :loading="sending" @click="handleSend" style="height: auto; align-self: flex-end">
                 发送
               </NButton>
@@ -855,7 +1179,6 @@ const messageList = computed(() => messages.value || [])
       </div>
     </div>
   </div>
-</template>
 
 <!-- Slash command: variable fill modal -->
 <InputVariablesModal
@@ -863,6 +1186,65 @@ const messageList = computed(() => messages.value || [])
   :template="selectedTemplate"
   @confirm="handleVarModalConfirm"
 />
+
+<!-- Artifact Drawer -->
+<NDrawer v-model:show="artifactVisible" :width="502" placement="right">
+  <NDrawerContent :title="`Artifact — ${artifactLang}`" closable>
+    <template #header>
+      <div class="flex items-center justify-between w-full">
+        <span class="text-sm font-medium">Artifact — {{ artifactLang }}</span>
+        <div class="flex items-center gap-2">
+          <NButton size="tiny" quaternary @click="downloadArtifact">
+            <DownloadOutline class="w-3.5 h-3.5" /> 下载
+          </NButton>
+          <NButton size="tiny" quaternary @click="closeArtifact">关闭</NButton>
+        </div>
+      </div>
+    </template>
+    <textarea
+      v-model="artifactCode"
+      class="w-full h-[calc(100vh-140px)] p-3 text-xs font-mono bg-[#1e1e1e] text-[#d4d4d4] rounded-lg resize-none focus:outline-none"
+      spellcheck="false"
+    ></textarea>
+  </NDrawerContent>
+</NDrawer>
+
+<!-- Conversation Settings Modal -->
+<NModal v-model:show="showSettings" preset="card" title="对话设置" style="width: 480px">
+  <NForm label-placement="top" size="small">
+    <NFormItem label="System Prompt">
+      <NInput
+        v-model:value="settingsSystemPrompt"
+        type="textarea"
+        :rows="4"
+        placeholder="自定义系统提示词，为空则使用默认"
+      />
+    </NFormItem>
+  </NForm>
+  <template #footer>
+    <div class="flex justify-end gap-2">
+      <NButton size="small" @click="showSettings = false">取消</NButton>
+      <NButton size="small" type="primary" @click="saveSettings">保存</NButton>
+    </div>
+  </template>
+</NModal>
+
+<!-- New Folder Modal -->
+<NModal v-model:show="showNewFolder" preset="card" title="新建文件夹" style="width: 320px">
+  <NInput v-model:value="newFolderName" placeholder="文件夹名称" />
+  <template #footer>
+    <div class="flex justify-end gap-2">
+      <NButton size="small" @click="showNewFolder = false">取消</NButton>
+      <NButton
+        size="small"
+        type="primary"
+        :disabled="!newFolderName.trim()"
+        @click="selectedFolder = newFolderName.trim(); showNewFolder = false; newFolderName = ''"
+      >创建</NButton>
+    </div>
+  </template>
+</NModal>
+</template>
 
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }

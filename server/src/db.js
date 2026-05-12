@@ -489,6 +489,10 @@ function migrate(db) {
     );
   `);
 
+  // Phase 8.1 migrations: add folder / system_prompt safely (ignore if already exists)
+  try { db.exec(`ALTER TABLE kb_conversations ADD COLUMN folder TEXT DEFAULT 'default'`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE kb_conversations ADD COLUMN system_prompt TEXT DEFAULT ''`); } catch { /* exists */ }
+
   // Seed singleton row for web search config
   db.prepare(`INSERT OR IGNORE INTO kb_web_search_config (id, provider, is_active, created_at, updated_at) VALUES (1, 'duckduckgo', 1, datetime('now'), datetime('now'))`).run();
 

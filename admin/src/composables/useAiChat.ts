@@ -1,34 +1,38 @@
-import { ref } from 'vue'
+import { ref, type Ref } from 'vue'
 import {
   apiListAiConversations,
   apiCreateAiConversation,
   apiGetAiConversation,
   apiCompareModels,
+  apiRegenerateMessage,
+  apiUploadAttachment,
   type CompareBranch,
-
   apiUpdateAiConversation,
   apiDeleteAiConversation,
   apiSendAiMessage,
   type AiConversation,
   type AiMessage,
+  type AiAttachment,
 } from '../api/kb'
 
 export interface UseAiChatReturn {
-  conversations: ReturnType<typeof ref<AiConversation[]>>
-  currentConversation: ReturnType<typeof ref<AiConversation | null>>
-  messages: ReturnType<typeof ref<AiMessage[]>>
-  loading: ReturnType<typeof ref<boolean>>
-  sending: ReturnType<typeof ref<boolean>>
-  total: ReturnType<typeof ref<number>>
+  conversations: Ref<AiConversation[]>
+  currentConversation: Ref<AiConversation | null>
+  messages: Ref<AiMessage[]>
+  loading: Ref<boolean>
+  sending: Ref<boolean>
+  total: Ref<number>
 
   loadConversations(opts?: { search?: string; model?: string }): Promise<void>
   loadConversation(id: number): Promise<void>
   createConversation(title?: string, model?: string): Promise<AiConversation>
   updateConversation(id: number, data: Parameters<typeof apiUpdateAiConversation>[1]): Promise<void>
   deleteConversation(id: number): Promise<void>
-  sendMessage(content: string, temperature?: number): Promise<AiMessage>
-  sendMessageStream(content: string, temperature?: number): () => void
+  sendMessage(content: string, temperature?: number, kbContext?: { docId: number; title: string; snippet: string }[], attachments?: AiAttachment[]): Promise<AiMessage>
+  sendMessageStream(content: string, temperature?: number, kbContext?: { docId: number; title: string; snippet: string }[], attachments?: AiAttachment[]): () => void
+  uploadAttachment(file: File): Promise<AiAttachment>
   compareModels(content: string, models: string[]): Promise<CompareBranch[]>
+  regenerateMessage(idx: number): Promise<void>
   switchConversation(id: number): Promise<void>
   clearCurrent(): void
 }
@@ -86,11 +90,11 @@ export function useAiChat(): UseAiChatReturn {
     if (currentConversation.value?.id === id) clearCurrent()
   }
 
-  async function sendMessage(content: string, temperature?: number): Promise<AiMessage> {
+  async function sendMessage(content: string, temperature?: number, kbContext?: { docId: number; title: string; snippet: string }[], attachments?: AiAttachment[]): Promise<AiMessage> {
     if (!currentConversation.value) throw new Error('No active conversation')
     sending.value = true
     try {
-      const reply = await apiSendAiMessage(currentConversation.value.id, { content, temperature })
+      const reply = await apiSendAiMessage(currentConversation.value.id, { content, temperature, kbContext, attachments })
       messages.value = [...messages.value, reply]
       // Update conversation title if it's still "新对话" and has first message exchange
       if (currentConversation.value.title === '新对话' && messages.value.length >= 2) {
@@ -110,11 +114,11 @@ export function useAiChat(): UseAiChatReturn {
    * Stream AI response via SSE — messages appear word-by-word.
    * Returns a cleanup function.
    */
-  function sendMessageStream(content: string, temperature?: number): () => void {
+  function sendMessageStream(content: string, temperature?: number, kbContext?: { docId: number; title: string; snippet: string }[], attachments?: AiAttachment[]): () => void {
     if (!currentConversation.value) throw new Error('No active conversation')
 
     // Append a placeholder user message immediately
-    const userMsg: AiMessage = { role: 'user', content, timestamp: new Date().toISOString() }
+    const userMsg: AiMessage = { role: 'user', content, timestamp: new Date().toISOString(), attachments }
     messages.value = [...messages.value, userMsg]
 
     // Append a streaming assistant message placeholder
@@ -127,7 +131,9 @@ export function useAiChat(): UseAiChatReturn {
 
     const url = `/api/v2/admin/kb/conversations/${currentConversation.value.id}/messages/stream` +
       `?content=${encodeURIComponent(content)}` +
-      (temperature !== undefined ? `&temperature=${temperature}` : '')
+      (temperature !== undefined ? `&temperature=${temperature}` : '') +
+      (kbContext ? `&kbContext=${encodeURIComponent(JSON.stringify(kbContext))}` : '') +
+      (attachments ? `&attachments=${encodeURIComponent(JSON.stringify(attachments))}` : '')
 
     // Use fetch + ReadableStream (not EventSource, since we need POST-like behaviour with SSE)
     // Actually, we use GET SSE via EventSource but pass content via query string
@@ -176,12 +182,50 @@ export function useAiChat(): UseAiChatReturn {
     }
   }
 
+  async function uploadAttachment(file: File): Promise<AiAttachment> {
+    if (!currentConversation.value) throw new Error('No active conversation')
+    return await apiUploadAttachment(currentConversation.value.id, file)
+  }
+
   async function compareModels(content: string, models: string[]): Promise<CompareBranch[]> {
     if (!currentConversation.value) throw new Error('No active conversation')
     sending.value = true
     try {
       const result = await apiCompareModels(currentConversation.value.id, { content, models })
       return result.branches
+    } finally {
+      sending.value = false
+    }
+  }
+
+  async function regenerateMessage(idx: number): Promise<void> {
+    if (!currentConversation.value) throw new Error('No active conversation')
+    const msgList = messages.value
+    if (idx < 0 || idx >= msgList.length || msgList[idx].role !== 'assistant') {
+      throw new Error('Invalid message index')
+    }
+
+    sending.value = true
+    try {
+      const newMsg = await apiRegenerateMessage(currentConversation.value.id, idx)
+      // Append new version to history; versions[] stores all prior responses in chronological order
+      messages.value = messages.value.map((m, i) => {
+        if (i !== idx) return m
+        const existingVersions = m.versions || []
+        // If first regeneration, archive current content into versions[0]
+        const versions = existingVersions.length === 0
+          ? [{ content: m.content, provider: m.provider, timestamp: m.timestamp }]
+          : existingVersions
+        // Push the newly generated response as the latest version
+        versions.push({ content: newMsg.content, provider: newMsg.provider, timestamp: newMsg.timestamp })
+        return {
+          ...m,
+          content: newMsg.content,
+          provider: newMsg.provider,
+          timestamp: newMsg.timestamp,
+          versions,
+        }
+      })
     } finally {
       sending.value = false
     }
@@ -210,7 +254,9 @@ export function useAiChat(): UseAiChatReturn {
     deleteConversation,
     sendMessage,
     sendMessageStream,
+    uploadAttachment,
     compareModels,
+    regenerateMessage,
     switchConversation,
     clearCurrent,
   }

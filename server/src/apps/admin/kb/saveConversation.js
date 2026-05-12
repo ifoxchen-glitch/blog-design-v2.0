@@ -83,14 +83,15 @@ function saveConversationToRaw(conv, messages, vaultPath) {
  * Upsert a KB document record for the saved conversation.
  * This links the .raw file to the KB document system.
  */
-function upsertConversationDocument(db, conv, rawFilePath) {
+function upsertConversationDocument(db, conv, rawFilePath, messages) {
   const now = nowIso();
   const existing = db.prepare(
     "SELECT id FROM kb_documents WHERE original_path = ?"
   ).get(rawFilePath);
 
-  const contentMarkdown = buildConversationMarkdown(conv, conv.messages || []);
-  const excerpt = (conv.messages || [])
+  const messageList = Array.isArray(messages) ? messages : [];
+  const contentMarkdown = buildConversationMarkdown(conv, messageList);
+  const excerpt = messageList
     .filter(m => m.role === "assistant")
     .map(m => m.content)
     .join("\n\n")
