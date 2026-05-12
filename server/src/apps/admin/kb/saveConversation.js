@@ -1,6 +1,6 @@
 /**
  * Save AI conversation to KB as a raw .md file.
- * Stored in the Obsidian vault's .raw/ai-conversations/ directory,
+ * Stored in the Obsidian vault's raw/ai-conversations/ directory,
  * with YAML front matter for metadata.
  */
 
@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const { nowIso } = require("../../../utils");
 
-const RAW_DIR = ".raw/ai-conversations";
+const RAW_DIR = "raw/ai-conversations";
 
 /**
  * Convert a conversation object + messages array into a Markdown file content.
