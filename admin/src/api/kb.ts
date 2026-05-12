@@ -656,11 +656,26 @@ export async function apiTestAiModel(id: number, client: AxiosInstance = request
 // AI Conversations
 // ============================================================
 
+export interface AiMessageVersion {
+  content: string
+  provider?: string
+  timestamp: string
+}
+
+export interface AiAttachment {
+  type: 'image' | 'file'
+  url: string
+  name: string
+}
+
 export interface AiMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: string
   provider?: string
+  versions?: AiMessageVersion[]
+  activeVersion?: number
+  attachments?: AiAttachment[]
 }
 
 export interface AiConversation {
@@ -671,13 +686,15 @@ export interface AiConversation {
   tokens_used: number
   tags: string[]
   is_starred: boolean
+  folder: string
+  system_prompt: string
   created_at: string
   updated_at: string
   messages?: AiMessage[]
 }
 
 export async function apiListAiConversations(
-  params?: { search?: string; model?: string; starred?: boolean; limit?: number; offset?: number },
+  params?: { search?: string; model?: string; starred?: boolean; folder?: string; limit?: number; offset?: number },
   client: AxiosInstance = request,
 ): Promise<{ items: AiConversation[]; total: number }> {
   const res = await client.get<ApiResponse<{ items: AiConversation[]; total: number }>>(
@@ -687,7 +704,7 @@ export async function apiListAiConversations(
 }
 
 export async function apiCreateAiConversation(
-  data?: { title?: string; model?: string; tags?: string[] },
+  data?: { title?: string; model?: string; tags?: string[]; folder?: string; system_prompt?: string },
   client: AxiosInstance = request,
 ): Promise<AiConversation> {
   const res = await client.post<ApiResponse<AiConversation>>('/api/v2/admin/kb/conversations', data || {})
@@ -704,6 +721,8 @@ export interface UpdateAiConversationPayload {
   model?: string
   tags?: string[]
   is_starred?: boolean
+  folder?: string
+  system_prompt?: string
 }
 
 export async function apiUpdateAiConversation(
@@ -720,6 +739,8 @@ export async function apiDeleteAiConversation(id: number, client: AxiosInstance 
 export interface SendAiMessagePayload {
   content: string
   temperature?: number
+  kbContext?: { docId: number; title: string; snippet: string }[]
+  attachments?: AiAttachment[]
 }
 
 export async function apiSendAiMessage(
@@ -731,11 +752,37 @@ export async function apiSendAiMessage(
   return res.data.data
 }
 
+export async function apiUploadAttachment(
+  conversationId: number,
+  file: File,
+  client: AxiosInstance = request,
+): Promise<AiAttachment> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await client.post<ApiResponse<AiAttachment>>(
+    `/api/v2/admin/kb/conversations/${conversationId}/attachments`,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  )
+  return res.data.data
+}
+
 export async function apiSaveAiConversationToKb(
   conversationId: number, client: AxiosInstance = request
 ): Promise<{ path: string }> {
   const res = await client.post<ApiResponse<{ path: string }>>(
     `/api/v2/admin/kb/conversations/${conversationId}/save-to-kb`
+  )
+  return res.data.data
+}
+
+export async function apiRegenerateMessage(
+  conversationId: number,
+  messageIndex: number,
+  client: AxiosInstance = request
+): Promise<AiMessage> {
+  const res = await client.post<ApiResponse<AiMessage>>(
+    `/api/v2/admin/kb/conversations/${conversationId}/messages/${messageIndex}/regenerate`
   )
   return res.data.data
 }

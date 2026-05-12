@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const { openDb } = require('../../../db');
 const { nowIso, toInt } = require('../../../utils');
 const modelsHandlers = require('./modelsHandlers');
@@ -18,6 +20,8 @@ function pickConversation(row) {
     tokens_used: row.tokens_used,
     tags: row.tags ? (tryParse(row.tags) || []) : [],
     is_starred: !!row.is_starred,
+    folder: row.folder || 'default',
+    system_prompt: row.system_prompt || '',
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -27,20 +31,61 @@ function tryParse(v) {
   try { return JSON.parse(v); } catch { return null; }
 }
 
-function buildSystemPrompt() {
+function buildSystemPrompt(conversationRow) {
+  if (conversationRow?.system_prompt?.trim()) {
+    return conversationRow.system_prompt.trim();
+  }
   return 'You are a helpful AI assistant. Respond clearly and concisely in the user\'s language.';
+}
+
+function buildKbContext(kbContext) {
+  if (!Array.isArray(kbContext) || kbContext.length === 0) return null;
+  const snippets = kbContext.map(c => `【${c.title}】\n${c.snippet || ''}`).join('\n\n');
+  return `以下是与用户问题相关的知识库文档片段：\n\n${snippets}`;
+}
+
+function isVisionModel(modelName) {
+  if (!modelName) return false;
+  const name = modelName.toLowerCase();
+  return name.includes('vision') || name.includes('gpt-4o') || name.includes('claude-3');
+}
+
+function buildUserMessage(content, attachments, modelName) {
+  const images = (attachments || []).filter(a => a.type === 'image');
+  if (images.length === 0 || !isVisionModel(modelName)) {
+    return { role: 'user', content: content.trim(), attachments };
+  }
+
+  // OpenAI-compatible vision format
+  const contentParts = [{ type: 'text', text: content.trim() }];
+  for (const img of images) {
+    try {
+      const filePath = path.join(__dirname, '..', '..', '..', 'public', img.url.replace(/^\/admin-static\//, ''));
+      const data = fs.readFileSync(filePath);
+      const base64 = data.toString('base64');
+      const mime = path.extname(filePath).toLowerCase() === '.png' ? 'image/png'
+        : path.extname(filePath).toLowerCase() === '.gif' ? 'image/gif'
+        : path.extname(filePath).toLowerCase() === '.webp' ? 'image/webp'
+        : 'image/jpeg';
+      contentParts.push({ type: 'image_url', image_url: { url: `data:${mime};base64,${base64}` } });
+    } catch {
+      // Skip unreadable images
+    }
+  }
+  return { role: 'user', content: contentParts, attachments };
 }
 
 module.exports = {
   listConversations(req, res, next) {
     try {
       const db = openDb();
-      const { search, model, starred } = req.query;
+      const { search, model, starred, folder } = req.query;
       let sql = 'SELECT * FROM kb_conversations WHERE 1=1';
       const params = [];
       if (search) { sql += ' AND title LIKE ?'; params.push(`%${search}%`); }
       if (model) { sql += ' AND model = ?'; params.push(model); }
       if (starred !== undefined) { sql += ' AND is_starred = ?'; params.push(starred ? 1 : 0); }
+      if (folder) { sql += ' AND folder = ?'; params.push(folder); }
       sql += ' ORDER BY updated_at DESC';
       const limit = toInt(req.query.limit) || 50;
       const offset = toInt(req.query.offset) || 0;
@@ -56,7 +101,7 @@ module.exports = {
   createConversation(req, res, next) {
     try {
       const db = openDb();
-      const { title, model, tags } = req.body;
+      const { title, model, tags, folder, system_prompt } = req.body;
       const now = nowIso();
       // Find default model
       const defaultModel = db.prepare(
@@ -64,9 +109,9 @@ module.exports = {
       ).get();
       const modelName = model || defaultModel?.model_name || 'gpt-4o';
       const result = db.prepare(`
-        INSERT INTO kb_conversations (title, model, messages, tokens_used, tags, is_starred, created_at, updated_at)
-        VALUES (?, ?, '[]', 0, ?, 0, ?, ?)
-      `).run(title || '新对话', modelName, tags ? JSON.stringify(tags) : '[]', now, now);
+        INSERT INTO kb_conversations (title, model, messages, tokens_used, tags, is_starred, folder, system_prompt, created_at, updated_at)
+        VALUES (?, ?, '[]', 0, ?, 0, ?, ?, ?, ?)
+      `).run(title || '新对话', modelName, tags ? JSON.stringify(tags) : '[]', folder || 'default', system_prompt || '', now, now);
       const row = db.prepare('SELECT * FROM kb_conversations WHERE id = ?').get(result.lastInsertRowid);
       res.json({ code: 0, message: 'ok', data: pickConversation(row) });
     } catch (e) {
@@ -98,16 +143,18 @@ module.exports = {
       const id = toInt(req.params.id);
       const existing = db.prepare('SELECT * FROM kb_conversations WHERE id = ?').get(id);
       if (!existing) return res.status(404).json({ code: 404, message: 'Conversation not found' });
-      const { title, model, tags, is_starred } = req.body;
+      const { title, model, tags, is_starred, folder, system_prompt } = req.body;
       const now = nowIso();
       db.prepare(`
-        UPDATE kb_conversations SET title = ?, model = ?, tags = ?, is_starred = ?, updated_at = ?
+        UPDATE kb_conversations SET title = ?, model = ?, tags = ?, is_starred = ?, folder = ?, system_prompt = ?, updated_at = ?
         WHERE id = ?
       `).run(
         title ?? existing.title,
         model ?? existing.model,
         tags ? JSON.stringify(tags) : existing.tags,
         is_starred !== undefined ? (is_starred ? 1 : 0) : existing.is_starred,
+        folder ?? existing.folder,
+        system_prompt !== undefined ? system_prompt : existing.system_prompt,
         now, id
       );
       const row = db.prepare('SELECT * FROM kb_conversations WHERE id = ?').get(id);
@@ -128,11 +175,24 @@ module.exports = {
     }
   },
 
+  uploadAttachment(req, res, next) {
+    try {
+      const id = toInt(req.params.id);
+      if (!req.file) {
+        return res.status(400).json({ code: 400, message: 'No file uploaded' });
+      }
+      const url = `/admin-static/uploads/chat/${id}/${req.file.filename}`;
+      res.json({ code: 0, message: 'ok', data: { url, name: req.file.originalname, type: req.file.mimetype.startsWith('image/') ? 'image' : 'file' } });
+    } catch (e) {
+      next(e);
+    }
+  },
+
   async sendMessage(req, res, next) {
     try {
       const db = openDb();
       const id = toInt(req.params.id);
-      const { content, temperature } = req.body;
+      const { content, temperature, kbContext } = req.body;
       if (!content || !content.trim()) {
         return res.status(400).json({ code: 400, message: 'Message content is required' });
       }
@@ -141,15 +201,19 @@ module.exports = {
       if (!row) return res.status(404).json({ code: 404, message: 'Conversation not found' });
 
       const now = nowIso();
-      const userMsg = { role: 'user', content: content.trim(), timestamp: now };
+      const attachments = req.body.attachments || [];
+      const userMsg = { role: 'user', content: content.trim(), timestamp: now, attachments };
       const messages = parseMessages(row.messages);
 
-      // Build full message list for AI (with system prompt)
+      // Build full message list for AI (with system prompt + optional KB context)
+      const visionUserMsg = buildUserMessage(content, attachments, row.model);
+      visionUserMsg.timestamp = now;
       const aiMessages = [
-        { role: 'system', content: buildSystemPrompt() },
-        ...messages,
-        userMsg,
+        { role: 'system', content: buildSystemPrompt(row) },
       ];
+      const kbCtx = buildKbContext(kbContext);
+      if (kbCtx) aiMessages.push({ role: 'system', content: kbCtx });
+      aiMessages.push(...messages, visionUserMsg);
 
       const aiResult = await modelsHandlers.callAI(row.model, aiMessages, null, temperature);
       const assistantMsg = { role: 'assistant', content: aiResult.content, timestamp: nowIso(), provider: aiResult.provider };
@@ -179,7 +243,7 @@ module.exports = {
 
       const messages = parseMessages(row.messages);
       const rawFilePath = saveConversationToRaw(row, messages, syncConfig.vault_path);
-      upsertConversationDocument(db, row, rawFilePath);
+      upsertConversationDocument(db, row, rawFilePath, messages);
 
       res.json({ code: 0, message: 'ok', data: { path: rawFilePath } });
     } catch (e) {
@@ -198,6 +262,10 @@ module.exports = {
       const id = toInt(req.params.id);
       const content = (req.query.content || '').trim();
       const temperature = req.query.temperature ? parseFloat(req.query.temperature) : undefined;
+      let kbContext = null;
+      if (req.query.kbContext) {
+        try { kbContext = JSON.parse(req.query.kbContext); } catch { /* ignore */ }
+      }
 
       if (!content) {
         res.write('event: error\ndata: Content is required\n\n');
@@ -212,15 +280,23 @@ module.exports = {
         return;
       }
 
+      let attachments = [];
+      if (req.query.attachments) {
+        try { attachments = JSON.parse(req.query.attachments); } catch { /* ignore */ }
+      }
+
       const now = nowIso();
-      const userMsg = { role: 'user', content, timestamp: now };
+      const userMsg = { role: 'user', content, timestamp: now, attachments };
       const messages = parseMessages(row.messages);
 
+      const visionUserMsg = buildUserMessage(content, attachments, row.model);
+      visionUserMsg.timestamp = now;
       const aiMessages = [
-        { role: 'system', content: buildSystemPrompt() },
-        ...messages,
-        userMsg,
+        { role: 'system', content: buildSystemPrompt(row) },
       ];
+      const kbCtx = buildKbContext(kbContext);
+      if (kbCtx) aiMessages.push({ role: 'system', content: kbCtx });
+      aiMessages.push(...messages, visionUserMsg);
 
       // Send user message event to client
       res.setHeader('Content-Type', 'text/event-stream');
@@ -231,12 +307,13 @@ module.exports = {
       res.write(`event: user_message\ndata: ${JSON.stringify(userMsg)}\n\n`);
 
       let fullContent = '';
+      let streamError = null;
 
       // Stream AI response and accumulate
       await new Promise((resolve, reject) => {
-        // We need a writable-like wrapper around Express res for callAIStream
         const streamRes = {
           write(event, data) {
+            if (res.writableEnded) return;
             if (event === 'data') {
               fullContent += data;
               res.write(`data: ${data}\n\n`);
@@ -245,26 +322,33 @@ module.exports = {
             }
           },
           end() {
-            res.end();
+            if (!res.writableEnded) res.end();
             resolve();
           },
         };
 
         modelsHandlers.callAIStream(row.model, aiMessages, null, temperature, streamRes).catch((err) => {
-          streamRes.write('error', err.message);
-          streamRes.end();
+          streamError = err;
+          if (!res.writableEnded) {
+            res.write(`event: error\ndata: ${err.message}\n\n`);
+            res.end();
+          }
           reject(err);
         });
+      }).catch(() => {
+        // swallow so we can still save partial content below
       });
 
-      // Save completed messages to DB
+      // Save completed messages to DB (even if stream errored, keep partial response)
       const assistantMsg = { role: 'assistant', content: fullContent, timestamp: nowIso(), provider: 'ai' };
       const updatedMessages = [...messages, userMsg, assistantMsg];
       db.prepare('UPDATE kb_conversations SET messages = ?, updated_at = ? WHERE id = ?')
         .run(JSON.stringify(updatedMessages), nowIso(), id);
 
-      res.write('event: done\ndata: \n\n');
-      res.end();
+      if (!res.writableEnded) {
+        res.write('event: done\ndata: \n\n');
+        res.end();
+      }
     } catch (e) {
       next(e);
     }
@@ -297,7 +381,7 @@ module.exports = {
       const userMsg = { role: 'user', content: content.trim(), timestamp: now };
       const messages = parseMessages(row.messages);
       const aiMessages = [
-        { role: 'system', content: buildSystemPrompt() },
+        { role: 'system', content: buildSystemPrompt(row) },
         ...messages,
         userMsg,
       ];
@@ -350,6 +434,60 @@ module.exports = {
       }));
 
       res.json({ code: 0, message: 'ok', data: { branches: response } });
+    } catch (e) {
+      next(e);
+    }
+  },
+
+  /**
+   * Regenerate a single assistant message at a given index.
+   * Preserves history: takes all messages up to (and including) the user message
+   * that triggered the target assistant response, then calls AI again.
+   * POST /conversations/:id/messages/:idx/regenerate
+   */
+  async regenerateMessage(req, res, next) {
+    try {
+      const db = openDb();
+      const id = toInt(req.params.id);
+      const idx = toInt(req.params.idx);
+
+      const row = db.prepare('SELECT * FROM kb_conversations WHERE id = ?').get(id);
+      if (!row) return res.status(404).json({ code: 404, message: 'Conversation not found' });
+
+      const messages = parseMessages(row.messages);
+      if (idx < 0 || idx >= messages.length || messages[idx].role !== 'assistant') {
+        return res.status(400).json({ code: 400, message: 'Invalid message index' });
+      }
+
+      // Find the user message that triggered this assistant response
+      let userIdx = -1;
+      for (let i = idx - 1; i >= 0; i--) {
+        if (messages[i].role === 'user') { userIdx = i; break; }
+      }
+      if (userIdx === -1) {
+        return res.status(400).json({ code: 400, message: 'No preceding user message found' });
+      }
+
+      // Build context: system + all messages up to and including the triggering user message
+      const contextMessages = [
+        { role: 'system', content: buildSystemPrompt(row) },
+        ...messages.slice(0, userIdx + 1),
+      ];
+
+      const aiResult = await modelsHandlers.callAI(row.model, contextMessages, null, undefined);
+      const assistantMsg = {
+        role: 'assistant',
+        content: aiResult.content,
+        timestamp: nowIso(),
+        provider: aiResult.provider,
+      };
+
+      // Update the target message in the array
+      messages[idx] = assistantMsg;
+      db.prepare('UPDATE kb_conversations SET messages = ?, updated_at = ? WHERE id = ?')
+        .run(JSON.stringify(messages), nowIso(), id);
+
+      res.json({ code: 0, message: 'ok', data: assistantMsg });
     } catch (e) {
       next(e);
     }
