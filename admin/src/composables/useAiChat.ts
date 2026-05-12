@@ -111,23 +111,23 @@ export function useAiChat(): UseAiChatReturn {
   }
 
   /**
-   * Stream AI response via SSE — messages appear word-by-word.
+   * Stream AI response via SSE using fetch + ReadableStream.
+   * EventSource cannot set Authorization headers, so we manually parse SSE.
    * Returns a cleanup function.
    */
   function sendMessageStream(content: string, temperature?: number, kbContext?: { docId: number; title: string; snippet: string }[], attachments?: AiAttachment[]): () => void {
     if (!currentConversation.value) throw new Error('No active conversation')
 
-    // Append a placeholder user message immediately
     const userMsg: AiMessage = { role: 'user', content, timestamp: new Date().toISOString(), attachments }
     messages.value = [...messages.value, userMsg]
 
-    // Append a streaming assistant message placeholder
     const assistantMsg: AiMessage = { role: 'assistant', content: '', timestamp: new Date().toISOString() }
     const assistantIdx = messages.value.length
     messages.value = [...messages.value, assistantMsg]
 
     sending.value = true
     let cancelled = false
+    let readerClosed = false
 
     const url = `/api/v2/admin/kb/conversations/${currentConversation.value.id}/messages/stream` +
       `?content=${encodeURIComponent(content)}` +
@@ -135,50 +135,93 @@ export function useAiChat(): UseAiChatReturn {
       (kbContext ? `&kbContext=${encodeURIComponent(JSON.stringify(kbContext))}` : '') +
       (attachments ? `&attachments=${encodeURIComponent(JSON.stringify(attachments))}` : '')
 
-    // Use fetch + ReadableStream (not EventSource, since we need POST-like behaviour with SSE)
-    // Actually, we use GET SSE via EventSource but pass content via query string
-    const es = new EventSource(url)
+    const token = localStorage.getItem('admin.access_token')
 
-    es.addEventListener('user_message', (_e: MessageEvent) => {
-      // User message already added above
-    })
-
-    es.addEventListener('message', (e: MessageEvent) => {
-      if (cancelled) return
-      // Accumulate streamed content into the assistant message
-      const current = messages.value[assistantIdx]
-      if (current?.role === 'assistant') {
-        messages.value = messages.value.map((m, i) =>
-          i === assistantIdx ? { ...m, content: m.content + e.data } : m
-        )
+    fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }).then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        console.error('[SSE] HTTP error', res.status, text)
+        sending.value = false
+        return
       }
-    })
+      if (!res.body) {
+        sending.value = false
+        return
+      }
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
 
-    es.addEventListener('done', async () => {
-      if (cancelled) return
-      sending.value = false
-      es.close()
-      // Update conversation title if needed
-      if (currentConversation.value?.title === '新对话' && messages.value.length >= 2) {
-        const firstUserMsg = messages.value.find(m => m.role === 'user')
-        if (firstUserMsg) {
-          const title = firstUserMsg.content.slice(0, 30) + (firstUserMsg.content.length > 30 ? '…' : '')
-          await updateConversation(currentConversation.value.id, { title })
+      try {
+        while (!cancelled) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+
+          // Parse SSE blocks separated by double newline
+          let idx: number
+          while ((idx = buffer.indexOf('\n\n')) !== -1) {
+            const block = buffer.slice(0, idx)
+            buffer = buffer.slice(idx + 2)
+
+            const lines = block.split('\n')
+            let eventName = 'message'
+            let dataText = ''
+            for (const line of lines) {
+              if (line.startsWith('event: ')) {
+                eventName = line.slice(7)
+              } else if (line.startsWith('data: ')) {
+                dataText = line.slice(6)
+              }
+            }
+
+            if (eventName === 'data' || eventName === 'message') {
+              if (!cancelled) {
+                const current = messages.value[assistantIdx]
+                if (current?.role === 'assistant') {
+                  messages.value = messages.value.map((m, i) =>
+                    i === assistantIdx ? { ...m, content: m.content + dataText } : m
+                  )
+                }
+              }
+            } else if (eventName === 'done') {
+              sending.value = false
+              readerClosed = true
+              reader.releaseLock()
+              if (currentConversation.value?.title === '新对话' && messages.value.length >= 2) {
+                const firstUserMsg = messages.value.find(m => m.role === 'user')
+                if (firstUserMsg) {
+                  const title = firstUserMsg.content.slice(0, 30) + (firstUserMsg.content.length > 30 ? '…' : '')
+                  updateConversation(currentConversation.value.id, { title })
+                }
+              }
+              return
+            } else if (eventName === 'error') {
+              console.error('[SSE] server error:', dataText)
+              sending.value = false
+            }
+          }
         }
+      } catch (err) {
+        if (!cancelled) console.error('[SSE] read error:', err)
+      } finally {
+        if (!readerClosed) {
+          try { reader.releaseLock() } catch { /* ignore */ }
+        }
+        sending.value = false
+      }
+    }).catch((err) => {
+      if (!cancelled) {
+        console.error('[SSE] fetch error:', err)
+        sending.value = false
       }
     })
 
-    es.addEventListener('error', (e: Event) => {
-      sending.value = false
-      es.close()
-      console.error('[SSE error]', e)
-    })
-
-    // Return cleanup function
     return () => {
       cancelled = true
       sending.value = false
-      es.close()
     }
   }
 
