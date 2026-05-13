@@ -58,6 +58,11 @@ const router = createRouter({
           component: () => import('../views/workspace/kanban.vue'),
         },
         {
+          path: '/cms/settings',
+          name: 'cms-settings',
+          component: () => import('../views/settings/index.vue'),
+        },
+        {
           path: '/cms/tags',
           name: 'cms-tags',
           component: () => import('../views/cms/tags/index.vue'),

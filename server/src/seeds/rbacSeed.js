@@ -105,6 +105,9 @@ const MENUS = [
     name: "看板", path: "/cms/kanban", icon: "BarChartOutline", permission: null, sort: 3,
   },
   {
+    name: "系统设置", path: "/cms/settings", icon: "SettingsOutline", permission: null, sort: 4,
+  },
+  {
     name: "博客管理", path: null,             icon: "DocumentTextOutline",  permission: "post:list",      sort: 3,
     children: [
       { name: "文章",   path: "/cms/posts",      icon: "DocumentOutline",   permission: "post:list" },
