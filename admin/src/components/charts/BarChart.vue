@@ -28,7 +28,13 @@ function init() {
   updateOption()
 }
 
-function getBarColor(color: string): any {
+const chartColors = [
+  '#60a5fa', '#f472b6', '#2dd4bf', '#30d158',
+  '#ff9f0a', '#64d2ff', '#a78bfa', '#fb7185',
+  '#34d399', '#fbbf24',
+]
+
+function getBarGradient(color: string): any {
   return new (echarts as any).graphic.LinearGradient(0, 0, 1, 0, [
     { offset: 0, color: color },
     { offset: 1, color: adjustColor(color, 40) },
@@ -36,7 +42,6 @@ function getBarColor(color: string): any {
 }
 
 function adjustColor(hex: string, amount: number): string {
-  // Lighten the color by blending with white
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
   const b = parseInt(hex.slice(5, 7), 16)
@@ -66,10 +71,10 @@ function updateOption() {
       {
         name: '数量',
         type: 'bar',
-        data: reversed.map((item) => ({
+        data: reversed.map((item, i) => ({
           value: item.value,
           itemStyle: {
-            color: getBarColor(props.color),
+            color: getBarGradient(chartColors[i % chartColors.length]),
             borderRadius: [0, 6, 6, 0],
           },
         })),
