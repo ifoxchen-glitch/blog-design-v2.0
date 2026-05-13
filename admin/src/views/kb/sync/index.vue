@@ -46,7 +46,6 @@ import {
   type FileTreeNode,
   type OpenWebUIStatus,
   type OpenWebUITestResult,
-  type OpenWebUISyncProgress,
 } from '../../../api/kb'
 import { usePermissionStore } from '../../../stores/permission'
 
@@ -194,7 +193,7 @@ async function handleSyncToOpenWebUI() {
             openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: `同步完成: ${p.synced} 个文档`, type: 'success' })
             message.success(`同步完成: ${p.synced} 个文档`)
           } else {
-            openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: `同步完成: ${p.synced} 成功, ${p.failed} 失败`, type: 'warning' })
+            openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: `同步完成: ${p.synced} 成功, ${p.failed} 失败`, type: 'error' })
             message.warning(`同步完成: ${p.synced} 成功, ${p.failed} 失败`)
           }
           loadLogs()
