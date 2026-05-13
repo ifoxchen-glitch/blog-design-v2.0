@@ -247,7 +247,7 @@ async function testConnection() {
   // Step 4: Test file upload (with a small dummy file)
   console.log("[KBSync] Step 4/4: Test file upload...");
   try {
-    const tempDir = path.join(__dirname, "..", "..", "tmp");
+    const tempDir = "/tmp";
     fs.mkdirSync(tempDir, { recursive: true });
     const tempFile = path.join(tempDir, `kb-test-connection.md`);
     fs.writeFileSync(tempFile, "# Test file for connection diagnostics\n", "utf8");
@@ -369,7 +369,7 @@ async function ensureKnowledgeBase(token) {
 async function uploadFileToOpenWebUI(doc, token) {
   try {
     const cfg = getOpenWebUIConfig();
-    const tempDir = path.join(__dirname, "..", "..", "tmp");
+    const tempDir = "/tmp";
     fs.mkdirSync(tempDir, { recursive: true });
     const tempFile = path.join(tempDir, `kb-sync-${doc.id}.md`);
     fs.writeFileSync(tempFile, doc.content_markdown || "", "utf8");
