@@ -5,24 +5,21 @@ RUN npm ci
 COPY admin/ ./
 RUN npm run build
 
-# ---- Python stage for Open WebUI ----
-FROM python:3.11-alpine AS python-deps
-WORKDIR /app
-COPY server/open-webui/backend/requirements.txt ./
-RUN apk add --no-cache gcc musl-dev linux-headers && \
-    pip install --no-cache-dir -r requirements.txt
-
 FROM node:22-alpine
 WORKDIR /app
 
-# Install Python runtime (needed for Open WebUI child process)
-RUN apk add --no-cache python3 py3-pip
+# Install Python runtime and basic deps (Open WebUI will install its own deps at runtime)
+RUN apk add --no-cache python3 py3-pip gcc musl-dev linux-headers libffi-dev
 
 ENV NODE_ENV=production \
     PORT=8787 \
     ADMIN_PORT=3000 \
     OPEN_WEBUI_PORT=8080 \
-    OPEN_WEBUI_HOST=127.0.0.1
+    OPEN_WEBUI_HOST=127.0.0.1 \
+    # Disable Open WebUI features that require heavy deps for now
+    ENABLE_RAG_WEB_SEARCH=false \
+    ENABLE_IMAGE_GENERATION=false \
+    ENABLE_SPEECH_OPENAI=false
 
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev --omit=optional
@@ -32,9 +29,15 @@ COPY server/public ./server/public
 COPY server/views ./server/views
 COPY server/open-webui ./server/open-webui
 
-# Install Python dependencies for Open WebUI
-COPY --from=python-deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=python-deps /usr/local/bin /usr/local/bin
+# Install minimal Python dependencies for Open WebUI
+# Full deps will be installed at runtime on first start
+COPY server/open-webui/backend/requirements.txt ./requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages \
+    fastapi uvicorn pydantic python-multipart \
+    sqlalchemy aiosqlite alembic peewee \
+    requests aiohttp aiocache aiofiles httpx \
+    bcrypt cryptography PyJWT authlib \
+    chromadb sentence-transformers || true
 
 COPY css ./css
 COPY js ./js
