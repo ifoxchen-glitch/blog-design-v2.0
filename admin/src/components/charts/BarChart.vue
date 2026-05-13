@@ -59,7 +59,7 @@ function updateOption() {
     title: props.title
       ? { text: props.title, left: 'center', textStyle: { fontSize: 14 } }
       : undefined,
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, confine: true },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: { type: 'value' },
     yAxis: {
@@ -67,6 +67,9 @@ function updateOption() {
       data: reversed.map((item) => item.name),
       axisLabel: { width: 120, overflow: 'truncate' },
     },
+    animation: true,
+    animationDuration: 1200,
+    animationEasing: 'cubicOut',
     series: [
       {
         name: '数量',

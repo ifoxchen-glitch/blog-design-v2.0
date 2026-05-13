@@ -34,11 +34,14 @@ function updateOption() {
     title: props.title
       ? { text: props.title, left: 'center', textStyle: { fontSize: 14 } }
       : undefined,
-    tooltip: { trigger: 'axis' },
+    tooltip: { trigger: 'axis', confine: true },
     legend: { data: props.series.map((s) => s.name), bottom: 0 },
     grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
     xAxis: { type: 'category', data: props.labels },
     yAxis: { type: 'value' },
+    animation: true,
+    animationDuration: 1200,
+    animationEasing: 'cubicOut',
     series: props.series.map((s) => {
       const base: any = {
         name: s.name,
