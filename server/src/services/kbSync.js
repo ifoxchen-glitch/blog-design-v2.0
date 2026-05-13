@@ -1,6 +1,11 @@
 /**
  * 知识库单向同步服务
  * 将 blog 的 kb_documents 同步到 Open WebUI 的向量库（Chroma）
+ *
+ * 使用方法：
+ * 1. 在 Open WebUI 中创建 API Key（Admin Panel > Settings > API Keys）
+ * 2. 将 API Key 设置到环境变量 OPEN_WEBUI_API_KEY
+ * 3. 文档的 CRUD 操作会自动触发同步
  */
 const http = require("http");
 const fs = require("fs");
@@ -12,20 +17,20 @@ const OPEN_WEBUI_PORT = parseInt(process.env.OPEN_WEBUI_PORT, 10) || 8080;
 const OPEN_WEBUI_HOST = process.env.OPEN_WEBUI_HOST || "127.0.0.1";
 const OPEN_WEBUI_URL = `http://${OPEN_WEBUI_HOST}:${OPEN_WEBUI_PORT}`;
 
-// Open WebUI 内部 API token（需要 admin 权限）
-// 实际使用时，应在 Open WebUI 启动后通过 API 获取
-let adminToken = null;
+// 从环境变量读取 Open WebUI API Key
+// 在 Open WebUI 的 Admin Panel > Settings > API Keys 中创建
+const API_KEY = process.env.OPEN_WEBUI_API_KEY || "";
 
-function getAdminToken() {
-  return adminToken;
+function getApiKey() {
+  return API_KEY;
 }
 
-function setAdminToken(token) {
-  adminToken = token;
+function isConfigured() {
+  return API_KEY.length > 0;
 }
 
 function makeRequest(path, method, body, token) {
-  return new Promise((resolve, reject) =>> {
+  return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
     const options = {
       hostname: OPEN_WEBUI_HOST,
@@ -175,11 +180,11 @@ async function syncDocument(doc, knowledgeBaseId, token) {
 
 // 全量同步
 async function fullSync() {
-  const token = getAdminToken();
-  if (!token) {
-    console.log("[KBSync] No admin token available, skipping sync");
-    return { synced: 0, failed: 0 };
+  if (!isConfigured()) {
+    console.log("[KBSync] OPEN_WEBUI_API_KEY not configured, skipping sync");
+    return { synced: 0, failed: 0, skipped: true, reason: "api_key_not_configured" };
   }
+  const token = getApiKey();
 
   const knowledgeBaseId = await ensureKnowledgeBase(token);
   if (!knowledgeBaseId) {
@@ -229,11 +234,11 @@ async function fullSync() {
 
 // 实时同步单个文档（在文档创建/更新时调用）
 async function syncDocumentById(docId) {
-  const token = getAdminToken();
-  if (!token) {
-    console.log("[KBSync] No admin token available, skipping real-time sync");
-    return false;
+  if (!isConfigured()) {
+    console.log("[KBSync] OPEN_WEBUI_API_KEY not configured, skipping real-time sync");
+    return { success: false, skipped: true, reason: "api_key_not_configured" };
   }
+  const token = getApiKey();
 
   const db = openDb();
   const doc = db
@@ -246,20 +251,71 @@ async function syncDocumentById(docId) {
 
   if (!doc || doc.status !== "active") {
     console.log(`[KBSync] Document ${docId} not found or not active`);
-    return false;
+    return { success: false, error: "document_not_found_or_inactive" };
   }
 
   const knowledgeBaseId = await ensureKnowledgeBase(token);
-  if (!knowledgeBaseId) return false;
+  if (!knowledgeBaseId) return { success: false, error: "knowledge_base_not_available" };
 
   const result = await syncDocument(doc, knowledgeBaseId, token);
-  return result.success;
+  return result;
+}
+
+// 从 Open WebUI 知识库中删除文档
+async function deleteDocumentFromKB(docId) {
+  if (!isConfigured()) {
+    console.log("[KBSync] OPEN_WEBUI_API_KEY not configured, skipping delete sync");
+    return { success: false, skipped: true, reason: "api_key_not_configured" };
+  }
+
+  const token = getApiKey();
+  const knowledgeBaseId = await ensureKnowledgeBase(token);
+  if (!knowledgeBaseId) return { success: false, error: "knowledge_base_not_available" };
+
+  try {
+    // 查询知识库中的文件列表，找到匹配的文档
+    const listRes = await makeRequest(`/api/v1/knowledge/${knowledgeBaseId}`, "GET", null, token);
+    if (listRes.status !== 200 || !listRes.data?.files) {
+      return { success: false, error: "failed_to_list_files" };
+    }
+
+    // 根据文件名匹配（我们上传时使用的文件名格式是 {slug}.md）
+    const db = openDb();
+    const doc = db.prepare("SELECT slug FROM kb_documents WHERE id = ?").get(docId);
+    if (!doc) return { success: false, error: "document_not_found" };
+
+    const targetFile = listRes.data.files.find(f => f.filename === `${doc.slug}.md` || f.meta?.name === doc.slug);
+    if (!targetFile) {
+      console.log(`[KBSync] Document ${docId} not found in knowledge base, nothing to delete`);
+      return { success: true, skipped: true };
+    }
+
+    // 删除文件
+    const deleteRes = await makeRequest(
+      `/api/v1/knowledge/${knowledgeBaseId}/file/delete`,
+      "POST",
+      { file_id: targetFile.id },
+      token
+    );
+
+    if (deleteRes.status === 200) {
+      console.log(`[KBSync] Deleted document ${docId} from knowledge base`);
+      return { success: true };
+    }
+
+    console.error(`[KBSync] Failed to delete document ${docId}:`, deleteRes.data);
+    return { success: false, error: deleteRes.data };
+  } catch (err) {
+    console.error(`[KBSync] deleteDocumentFromKB error ${docId}:`, err.message);
+    return { success: false, error: err.message };
+  }
 }
 
 module.exports = {
-  getAdminToken,
-  setAdminToken,
+  getApiKey,
+  isConfigured,
   fullSync,
   syncDocumentById,
+  deleteDocumentFromKB,
   ensureKnowledgeBase,
 };

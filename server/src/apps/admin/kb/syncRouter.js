@@ -16,4 +16,8 @@ router.get("/sync/remote-files", jwtAuth, requirePermission("kb:sync"), handlers
 router.get("/sync/synced-files", jwtAuth, requirePermission("kb:sync"), handlers.getSyncedFiles);
 router.delete("/sync/clear", jwtAuth, requirePermission("kb:sync"), handlers.clearSyncedData);
 
+// Open WebUI 知识库同步
+router.get("/sync/openwebui-status", jwtAuth, requirePermission("kb:sync"), handlers.getOpenWebUIStatus);
+router.post("/sync/openwebui-sync", jwtAuth, requirePermission("kb:sync"), handlers.triggerOpenWebUISync);
+
 module.exports = router;

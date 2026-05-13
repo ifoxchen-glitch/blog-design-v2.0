@@ -2,6 +2,7 @@ const fs = require("fs");
 const { openDb } = require("../../../db");
 const { nowIso, toInt } = require("../../../utils");
 const syncEngine = require("./syncEngine");
+const kbSync = require("../../../services/kbSync");
 
 function parseJsonArray(raw) {
   if (!raw) return [];
@@ -391,4 +392,42 @@ function clearSyncedData(req, res) {
   res.json({ code: 200, message: "已清空", data: { documentsDeleted: docResult.changes, logsDeleted: logResult.changes } });
 }
 
-module.exports = { getSyncConfig, updateSyncConfig, triggerImport, triggerExport, listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles, getSyncedFiles, clearSyncedData };
+// Open WebUI 知识库同步状态
+function getOpenWebUIStatus(_req, res) {
+  res.json({
+    code: 200,
+    data: {
+      configured: kbSync.isConfigured(),
+      api_key_set: !!process.env.OPEN_WEBUI_API_KEY,
+      open_webui_url: process.env.OPEN_WEBUI_URL || `http://${process.env.OPEN_WEBUI_HOST || "127.0.0.1"}:${process.env.OPEN_WEBUI_PORT || 8080}`,
+    },
+  });
+}
+
+// 触发全量同步到 Open WebUI
+async function triggerOpenWebUISync(req, res) {
+  const db = openDb();
+
+  if (!kbSync.isConfigured()) {
+    return res.status(400).json({
+      code: 400,
+      message: "未配置 OPEN_WEBUI_API_KEY，请在环境变量中设置",
+    });
+  }
+
+  auditLog(db, req, "trigger_openwebui_sync", null, "触发 Open WebUI 知识库全量同步");
+  res.status(202).json({ code: 202, message: "同步已启动", data: { status: "started" } });
+
+  try {
+    const result = await kbSync.fullSync();
+    console.log("[SyncHandler] Open WebUI full sync complete:", result);
+  } catch (err) {
+    console.error("[SyncHandler] Open WebUI full sync failed:", err.message);
+  }
+}
+
+module.exports = {
+  getSyncConfig, updateSyncConfig, triggerImport, triggerExport,
+  listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles,
+  getSyncedFiles, clearSyncedData, getOpenWebUIStatus, triggerOpenWebUISync,
+};

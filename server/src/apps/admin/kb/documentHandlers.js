@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const { openDb } = require("../../../db");
 const { nowIso, toInt, normalizeSlug, splitTags } = require("../../../utils");
+const kbSync = require("../../../services/kbSync");
 
 function computeChecksum(content) {
   return crypto.createHash("sha256").update(content, "utf8").digest("hex");
@@ -180,6 +181,21 @@ function createDocument(req, res) {
       .run({ title, slug, excerpt, content_markdown, tags: tagsJson, checksum, category, docType, connections, sources, docDate, reviewStatus, word_count, created_at: createdAt, updated_at: updatedAt });
 
     const row = db.prepare("SELECT * FROM kb_documents WHERE id = ?").get(info.lastInsertRowid);
+
+    // 异步同步到 Open WebUI 知识库（不阻塞响应）
+    const docId = info.lastInsertRowid;
+    kbSync.syncDocumentById(docId).then(result => {
+      if (result.success) {
+        console.log(`[DocumentHandler] Document ${docId} synced to Open WebUI KB`);
+      } else if (result.skipped) {
+        console.log(`[DocumentHandler] Document ${docId} sync skipped: ${result.reason}`);
+      } else {
+        console.error(`[DocumentHandler] Document ${docId} sync failed:`, result.error);
+      }
+    }).catch(err => {
+      console.error(`[DocumentHandler] Document ${docId} sync error:`, err.message);
+    });
+
     auditLog(db, req, "create", info.lastInsertRowid, `创建文档: ${title}`);
     return res.status(201).json({ code: 201, message: "success", data: pickDocumentPublic(row) });
   } catch (e) {
@@ -266,6 +282,20 @@ function updateDocument(req, res) {
     }
 
     const row = db.prepare("SELECT * FROM kb_documents WHERE id = ?").get(id);
+
+    // 异步同步到 Open WebUI 知识库（不阻塞响应）
+    kbSync.syncDocumentById(id).then(result => {
+      if (result.success) {
+        console.log(`[DocumentHandler] Document ${id} synced to Open WebUI KB`);
+      } else if (result.skipped) {
+        console.log(`[DocumentHandler] Document ${id} sync skipped: ${result.reason}`);
+      } else {
+        console.error(`[DocumentHandler] Document ${id} sync failed:`, result.error);
+      }
+    }).catch(err => {
+      console.error(`[DocumentHandler] Document ${id} sync error:`, err.message);
+    });
+
     auditLog(db, req, "update", id, `更新文档: ${title}`);
     return res.status(200).json({ code: 200, message: "success", data: pickDocumentPublic(row) });
   } catch (e) {
@@ -285,6 +315,19 @@ function deleteDocument(req, res) {
   const existing = db.prepare("SELECT title FROM kb_documents WHERE id = ?").get(id);
   const info = db.prepare("DELETE FROM kb_documents WHERE id = ?").run(id);
   if (info.changes === 0) return res.status(404).json({ code: 404, message: "Document not found" });
+
+  // 异步从 Open WebUI 知识库中删除（不阻塞响应）
+  kbSync.deleteDocumentFromKB(id).then(result => {
+    if (result.success) {
+      console.log(`[DocumentHandler] Document ${id} deleted from Open WebUI KB`);
+    } else if (result.skipped) {
+      console.log(`[DocumentHandler] Document ${id} delete sync skipped: ${result.reason}`);
+    } else {
+      console.error(`[DocumentHandler] Document ${id} delete sync failed:`, result.error);
+    }
+  }).catch(err => {
+    console.error(`[DocumentHandler] Document ${id} delete sync error:`, err.message);
+  });
 
   auditLog(db, req, "delete", id, `删除文档: ${existing.title}`);
   return res.status(200).json({ code: 200, message: "success", data: { deleted: true } });
