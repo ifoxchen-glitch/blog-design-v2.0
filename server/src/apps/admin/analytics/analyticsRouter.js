@@ -234,4 +234,26 @@ router.get("/hourly", (req, res) => {
   });
 });
 
+/**
+ * GET /api/v2/admin/analytics/recent-posts?limit=20
+ * 返回最近 N 篇新文章
+ */
+router.get("/recent-posts", (req, res) => {
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
+  const db = openDb();
+
+  const rows = db.prepare(`
+    SELECT id, title, createdAt
+    FROM posts
+    ORDER BY createdAt DESC
+    LIMIT ?
+  `).all(limit);
+
+  res.json({
+    code: 200,
+    message: "success",
+    data: { items: rows },
+  });
+});
+
 module.exports = router;

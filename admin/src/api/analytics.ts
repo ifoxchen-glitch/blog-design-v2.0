@@ -96,3 +96,19 @@ export async function apiGetHourly(
   const res = await client.get<ApiResponse<HourlyData>>('/api/v2/admin/analytics/hourly')
   return res.data.data
 }
+
+export interface RecentPost {
+  id: number
+  title: string
+  createdAt: string
+}
+
+export async function apiGetRecentPosts(
+  limit = 20,
+  client: AxiosInstance = request,
+): Promise<{ items: RecentPost[] }> {
+  const res = await client.get<ApiResponse<{ items: RecentPost[] }>>('/api/v2/admin/analytics/recent-posts', {
+    params: { limit },
+  })
+  return res.data.data
+}

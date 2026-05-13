@@ -8,6 +8,7 @@ import {
   apiGetDistribution,
   apiGetReferrers,
   apiGetHourly,
+  apiGetRecentPosts,
 } from '../../api/analytics'
 import LineChart from '../../components/charts/LineChart.vue'
 import BarChart from '../../components/charts/BarChart.vue'
@@ -39,6 +40,7 @@ const trendLabels = ref<string[]>([])
 const trendSeries = ref<Array<{ name: string; data: number[]; color?: string }>>([])
 
 const topPosts = ref<Array<{ name: string; value: number }>>([])
+const recentPosts = ref<Array<{ id: number; title: string; createdAt: string }>>([])
 const tagPieData = ref<Array<{ name: string; value: number }>>([])
 const catPieData = ref<Array<{ name: string; value: number }>>([])
 
@@ -50,13 +52,14 @@ const hourlySeries = ref<Array<{ name: string; data: number[]; color?: string }>
 async function loadAll() {
   loading.value = true
   try {
-    const [s, trend, posts, dist, refs, hourly] = await Promise.all([
+    const [s, trend, posts, dist, refs, hourly, recent] = await Promise.all([
       apiGetDashboardStats(),
       apiGetTrend(trendDays.value),
       apiGetTopPosts(10),
       apiGetDistribution(),
       apiGetReferrers(10),
       apiGetHourly(),
+      apiGetRecentPosts(20),
     ])
     stats.value = s
 
@@ -67,6 +70,7 @@ async function loadAll() {
     ]
 
     topPosts.value = posts.items.map((i) => ({ name: i.title, value: i.viewCount }))
+    recentPosts.value = recent.items
     tagPieData.value = dist.tags.filter((t) => t.count > 0).map((t) => ({ name: t.name, value: t.count }))
     catPieData.value = dist.categories.filter((c) => c.count > 0).map((c) => ({ name: c.name, value: c.count }))
 
@@ -373,8 +377,8 @@ const dayOptions = [
     </div>
 
     <!-- Charts Row 3 -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
-      <div class="lg:col-span-2 base-container p-5">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+      <div class="base-container p-5">
         <div class="mb-4">
           <h3 class="text-sm font-semibold text-base-content">访问来源 Top 10</h3>
           <p class="text-xs text-base-content/40 mt-0.5">Referrer 域名统计</p>
@@ -383,14 +387,34 @@ const dayOptions = [
       </div>
       <div class="base-container p-5">
         <div class="mb-4">
-          <h3 class="text-sm font-semibold text-base-content">今日时段分布</h3>
-          <p class="text-xs text-base-content/40 mt-0.5">24 小时 PV 分布</p>
+          <h3 class="text-sm font-semibold text-base-content">新增文章</h3>
+          <p class="text-xs text-base-content/40 mt-0.5">最近 20 篇文章</p>
         </div>
-        <LineChart :labels="hourlyLabels" :series="hourlySeries" :height="260" :fill="false" />
+        <div class="overflow-hidden" :style="{ height: '260px' }">
+          <div class="marquee-container">
+            <div v-for="(post, idx) in recentPosts" :key="post.id" class="flex items-center gap-3 py-2 border-b border-[var(--color-base-border)] last:border-0">
+              <span class="text-xs text-base-content/40 w-6 shrink-0">{{ idx + 1 }}</span>
+              <span class="text-sm text-base-content truncate flex-1">{{ post.title }}</span>
+              <span class="text-xs text-base-content/40 shrink-0">{{ new Date(post.createdAt).toLocaleDateString('zh-CN') }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- System Footer -->
+    <style scoped>
+.marquee-container {
+  animation: marquee 30s linear infinite;
+}
+.marquee-container:hover {
+  animation-play-state: paused;
+}
+@keyframes marquee {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+</style>
     <div class="border-t border-[var(--color-base-border)] py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-base-content/40">
       <div class="flex items-center gap-2 flex-wrap">
         <span>系统</span>
