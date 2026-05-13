@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NInput, NButton, NCard, NForm, NFormItem, NSpace, NAlert, NInputGroup } from 'naive-ui'
+import { NInput, NButton, NCard, NForm, NFormItem, NSpace, NAlert } from 'naive-ui'
 import PageHeader from '../../components/common/PageHeader.vue'
 
 const openWebUIUrl = ref('')
