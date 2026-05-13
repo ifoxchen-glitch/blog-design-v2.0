@@ -113,7 +113,7 @@ function finishSyncProgress() {
   syncProgress.currentDoc = null;
 }
 
-function makeRequest(targetPath, method, body, token) {
+function makeRequest(targetPath, method, body, token, timeoutMs = 10000) {
   const cfg = getOpenWebUIConfig();
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
@@ -127,13 +127,16 @@ function makeRequest(targetPath, method, body, token) {
         ...(data ? { "Content-Length": Buffer.byteLength(data) } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      timeout: 30000,
     };
+
+    console.log(`[KBSync] ${method} ${targetPath} -> ${cfg.host}:${cfg.port} (timeout ${timeoutMs}ms)`);
 
     const req = http.request(options, (res) => {
       let responseData = "";
       res.on("data", (chunk) => (responseData += chunk));
       res.on("end", () => {
+        clearTimeout(timer);
+        console.log(`[KBSync] ${method} ${targetPath} response HTTP ${res.statusCode}`);
         try {
           const json = JSON.parse(responseData);
           resolve({ status: res.statusCode, data: json });
@@ -143,10 +146,18 @@ function makeRequest(targetPath, method, body, token) {
       });
     });
 
-    req.on("error", reject);
-    req.on("timeout", () => {
-      req.destroy();
-      reject(new Error(`Request timeout to ${cfg.host}:${cfg.port}`));
+    // Connection-level timeout: abort if socket cannot connect within timeoutMs
+    const timer = setTimeout(() => {
+      const timeoutErr = new Error(`Connection timeout (${timeoutMs}ms) to ${cfg.host}:${cfg.port}${targetPath}`);
+      console.error(`[KBSync] ${method} ${targetPath} timed out`);
+      req.destroy(timeoutErr);
+      reject(timeoutErr);
+    }, timeoutMs);
+
+    req.on("error", (err) => {
+      clearTimeout(timer);
+      console.error(`[KBSync] ${method} ${targetPath} error: ${err.message}`);
+      reject(err);
     });
 
     if (data) req.write(data);
@@ -168,7 +179,10 @@ async function testConnection() {
     ok: false,
   };
 
+  console.log(`[KBSync] Starting connection test to ${cfg.url}`);
+
   // Step 1: Health check
+  console.log("[KBSync] Step 1/4: Health check...");
   try {
     const healthRes = await makeRequest("/health", "GET", null, null);
     results.steps.push({
@@ -178,11 +192,13 @@ async function testConnection() {
       response: typeof healthRes.data === "string" ? healthRes.data.substring(0, 200) : healthRes.data,
     });
   } catch (err) {
+    console.error(`[KBSync] Step 1 failed: ${err.message}`);
     results.steps.push({ name: "health_check", status: "fail", error: err.message });
     return results;
   }
 
   // Step 2: Auth check
+  console.log("[KBSync] Step 2/4: Auth check...");
   try {
     const meRes = await makeRequest("/api/v1/auths/me", "GET", null, token);
     const authed = meRes.status >= 200 && meRes.status < 300;
@@ -194,11 +210,13 @@ async function testConnection() {
     });
     if (!authed) return results;
   } catch (err) {
+    console.error(`[KBSync] Step 2 failed: ${err.message}`);
     results.steps.push({ name: "auth_check", status: "fail", error: err.message });
     return results;
   }
 
   // Step 3: List knowledge bases
+  console.log("[KBSync] Step 3/4: List knowledge bases...");
   try {
     const kbRes = await makeRequest("/api/v1/knowledge/", "GET", null, token);
     const kbOk = kbRes.status >= 200 && kbRes.status < 300;
@@ -210,10 +228,12 @@ async function testConnection() {
       response: !kbOk ? (typeof kbRes.data === "string" ? kbRes.data.substring(0, 500) : kbRes.data) : undefined,
     });
   } catch (err) {
+    console.error(`[KBSync] Step 3 failed: ${err.message}`);
     results.steps.push({ name: "list_knowledge_bases", status: "fail", error: err.message });
   }
 
   // Step 4: Test file upload (with a small dummy file)
+  console.log("[KBSync] Step 4/4: Test file upload...");
   try {
     const tempDir = path.join(__dirname, "..", "..", "tmp");
     fs.mkdirSync(tempDir, { recursive: true });
@@ -238,19 +258,34 @@ async function testConnection() {
         "Content-Type": `multipart/form-data; boundary=${boundary}`,
         "Content-Length": body.length,
       },
-      timeout: 30000,
     };
 
     const uploadRes = await new Promise((resolve, reject) => {
+      console.log(`[KBSync] Uploading test file to ${cfg.host}:${cfg.port}/api/v1/files/`);
       const req = http.request(options, (res) => {
         let data = "";
         res.on("data", (chunk) => (data += chunk));
         res.on("end", () => {
+          clearTimeout(uploadTimer);
+          console.log(`[KBSync] Upload response HTTP ${res.statusCode}`);
           try { resolve({ status: res.statusCode, data: JSON.parse(data) }); } catch { resolve({ status: res.statusCode, data }); }
         });
       });
-      req.on("error", reject);
-      req.on("timeout", () => { req.destroy(); reject(new Error("Upload timeout")); });
+
+      // Connection-level timeout for upload (10s)
+      const uploadTimer = setTimeout(() => {
+        const timeoutErr = new Error(`Upload connection timeout (10000ms) to ${cfg.host}:${cfg.port}`);
+        console.error("[KBSync] Upload timed out");
+        req.destroy(timeoutErr);
+        reject(timeoutErr);
+      }, 10000);
+
+      req.on("error", (err) => {
+        clearTimeout(uploadTimer);
+        console.error(`[KBSync] Upload error: ${err.message}`);
+        reject(err);
+      });
+
       req.write(body);
       req.end();
     });
@@ -273,10 +308,12 @@ async function testConnection() {
       } catch { /* ignore cleanup failure */ }
     }
   } catch (err) {
+    console.error(`[KBSync] Step 4 failed: ${err.message}`);
     results.steps.push({ name: "upload_file", status: "fail", error: err.message });
   }
 
   results.ok = results.steps.every((s) => s.status === "ok");
+  console.log(`[KBSync] Connection test complete. ok=${results.ok}`);
   return results;
 }
 
