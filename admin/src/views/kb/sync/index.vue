@@ -20,6 +20,7 @@ import {
   SwapHorizontalOutline,
   SettingsOutline,
   CloudOutline,
+  FlashOutline,
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import SyncFileTree from '../../../components/kb/SyncFileTree.vue'
@@ -37,11 +38,13 @@ import {
   apiGetSyncedFiles,
   apiGetOpenWebUIStatus,
   apiTriggerOpenWebUISync,
+  apiTestOpenWebUIConnection,
   type SyncConfig,
   type SyncLogEntry,
   type FileTreeData,
   type FileTreeNode,
   type OpenWebUIStatus,
+  type OpenWebUITestResult,
 } from '../../../api/kb'
 import { usePermissionStore } from '../../../stores/permission'
 
@@ -112,11 +115,33 @@ const openWebUISyncing = ref(false)
 const openWebUISyncProgress = ref(0)
 const openWebUISyncLogs = ref<Array<{ time: string; message: string; type: 'info' | 'success' | 'error' }>>([])
 const openWebUILogsCollapsed = ref(false)
+const openWebUITesting = ref(false)
+const openWebUITestResult = ref<OpenWebUITestResult | null>(null)
 
 async function loadOpenWebUIStatus() {
   try {
     openWebUIStatus.value = await apiGetOpenWebUIStatus()
   } catch { /* ignore */ }
+}
+
+async function handleTestOpenWebUI() {
+  openWebUITesting.value = true
+  openWebUITestResult.value = null
+  try {
+    const result = await apiTestOpenWebUIConnection()
+    openWebUITestResult.value = result
+    if (result.ok) {
+      message.success('Open WebUI 连接测试全部通过')
+    } else {
+      const failedStep = result.steps.find(s => s.status === 'fail')
+      message.error(`连接测试失败: ${failedStep?.name || 'unknown'}`)
+    }
+  } catch (err: unknown) {
+    const error = err as { message?: string }
+    message.error(`测试失败: ${error?.message || '未知错误'}`)
+  } finally {
+    openWebUITesting.value = false
+  }
 }
 
 async function handleSyncToOpenWebUI() {
@@ -750,6 +775,16 @@ onMounted(() => {
             </div>
             <NButton
               size="small"
+              secondary
+              :loading="openWebUITesting"
+              :disabled="!hasSyncPerm"
+              @click="handleTestOpenWebUI"
+            >
+              <template #icon><FlashOutline class="w-4 h-4" /></template>
+              测试连接
+            </NButton>
+            <NButton
+              size="small"
               type="primary"
               :loading="openWebUISyncing"
               :disabled="!hasSyncPerm"
@@ -776,6 +811,27 @@ onMounted(() => {
             :show-indicator="true"
             status="success"
           />
+        </div>
+
+        <!-- Test result -->
+        <div v-if="openWebUITestResult" class="px-4 py-3 border-b border-base-content/5">
+          <div class="text-xs font-medium mb-2" :class="openWebUITestResult.ok ? 'text-green-500' : 'text-red-500'">
+            {{ openWebUITestResult.ok ? '连接测试通过' : '连接测试失败' }}
+          </div>
+          <div class="space-y-1">
+            <div v-for="step in openWebUITestResult.steps" :key="step.name" class="flex items-center gap-2 text-xs">
+              <span
+                class="inline-block w-1.5 h-1.5 rounded-full"
+                :class="step.status === 'ok' ? 'bg-green-500' : 'bg-red-500'"
+              />
+              <span class="text-base-content/60">{{ step.name }}</span>
+              <span v-if="step.httpStatus" class="text-base-content/30">(HTTP {{ step.httpStatus }})</span>
+              <span v-if="step.error" class="text-red-400">{{ step.error }}</span>
+            </div>
+          </div>
+          <div v-if="!openWebUITestResult.ok && openWebUITestResult.steps.some(s => s.status === 'fail' && s.response)" class="mt-2 bg-base-200/50 rounded p-2 text-[10px] text-base-content/40 overflow-x-auto">
+            <pre>{{ JSON.stringify(openWebUITestResult.steps.find(s => s.status === 'fail')?.response, null, 2) }}</pre>
+          </div>
         </div>
 
         <!-- Sync logs -->

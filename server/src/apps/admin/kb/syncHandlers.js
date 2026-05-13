@@ -429,8 +429,19 @@ async function triggerOpenWebUISync(req, res) {
   }
 }
 
+// 测试 Open WebUI 连接（逐步诊断）
+async function testOpenWebUIConnection(req, res) {
+  try {
+    const result = await kbSync.testConnection();
+    res.json({ code: 200, data: result });
+  } catch (err) {
+    res.status(500).json({ code: 500, message: err.message });
+  }
+}
+
 module.exports = {
   getSyncConfig, updateSyncConfig, triggerImport, triggerExport,
   listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles,
   getSyncedFiles, clearSyncedData, getOpenWebUIStatus, triggerOpenWebUISync,
+  testOpenWebUIConnection,
 };

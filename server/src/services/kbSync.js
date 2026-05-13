@@ -18,7 +18,6 @@ const DEFAULT_PORT = parseInt(process.env.OPEN_WEBUI_PORT, 10) || 8080;
 const ENV_API_KEY = process.env.OPEN_WEBUI_API_KEY || "";
 
 function getOpenWebUIConfig() {
-  // 优先从数据库读取，其次环境变量 OPEN_WEBUI_URL，最后默认 127.0.0.1:8080
   let urlStr = "";
   try {
     const db = openDb();
@@ -41,7 +40,6 @@ function getOpenWebUIConfig() {
       protocol: parsed.protocol,
     };
   } catch {
-    // fallback if URL is malformed
     return { url: `http://${DEFAULT_HOST}:${DEFAULT_PORT}`, host: DEFAULT_HOST, port: DEFAULT_PORT, protocol: "http:" };
   }
 }
@@ -102,10 +100,135 @@ function makeRequest(targetPath, method, body, token) {
   });
 }
 
+// 测试 Open WebUI 连接
+async function testConnection() {
+  const cfg = getOpenWebUIConfig();
+  const token = getApiKey();
+  const results = {
+    url: cfg.url,
+    host: cfg.host,
+    port: cfg.port,
+    apiKeyConfigured: token.length > 0,
+    apiKeyPrefix: token ? token.substring(0, 4) + "..." : null,
+    steps: [],
+    ok: false,
+  };
+
+  // Step 1: Health check
+  try {
+    const healthRes = await makeRequest("/health", "GET", null, null);
+    results.steps.push({
+      name: "health_check",
+      status: healthRes.status >= 200 && healthRes.status < 300 ? "ok" : "fail",
+      httpStatus: healthRes.status,
+      response: typeof healthRes.data === "string" ? healthRes.data.substring(0, 200) : healthRes.data,
+    });
+  } catch (err) {
+    results.steps.push({ name: "health_check", status: "fail", error: err.message });
+    return results;
+  }
+
+  // Step 2: Auth check
+  try {
+    const meRes = await makeRequest("/api/v1/auths/me", "GET", null, token);
+    const authed = meRes.status >= 200 && meRes.status < 300;
+    results.steps.push({
+      name: "auth_check",
+      status: authed ? "ok" : "fail",
+      httpStatus: meRes.status,
+      response: typeof meRes.data === "string" ? meRes.data.substring(0, 500) : meRes.data,
+    });
+    if (!authed) return results;
+  } catch (err) {
+    results.steps.push({ name: "auth_check", status: "fail", error: err.message });
+    return results;
+  }
+
+  // Step 3: List knowledge bases
+  try {
+    const kbRes = await makeRequest("/api/v1/knowledge/", "GET", null, token);
+    const kbOk = kbRes.status >= 200 && kbRes.status < 300;
+    results.steps.push({
+      name: "list_knowledge_bases",
+      status: kbOk ? "ok" : "fail",
+      httpStatus: kbRes.status,
+      count: Array.isArray(kbRes.data?.items) ? kbRes.data.items.length : null,
+      response: !kbOk ? (typeof kbRes.data === "string" ? kbRes.data.substring(0, 500) : kbRes.data) : undefined,
+    });
+  } catch (err) {
+    results.steps.push({ name: "list_knowledge_bases", status: "fail", error: err.message });
+  }
+
+  // Step 4: Test file upload (with a small dummy file)
+  try {
+    const tempDir = path.join(__dirname, "..", "..", "tmp");
+    fs.mkdirSync(tempDir, { recursive: true });
+    const tempFile = path.join(tempDir, `kb-test-connection.md`);
+    fs.writeFileSync(tempFile, "# Test file for connection diagnostics\n", "utf8");
+
+    const boundary = `----FormBoundary${Date.now()}`;
+    const fileContent = fs.readFileSync(tempFile);
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="test.md"\r\nContent-Type: text/markdown\r\n\r\n`),
+      fileContent,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+
+    const options = {
+      hostname: cfg.host,
+      port: cfg.port,
+      path: "/api/v1/files/",
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        "Content-Length": body.length,
+      },
+      timeout: 30000,
+    };
+
+    const uploadRes = await new Promise((resolve, reject) => {
+      const req = http.request(options, (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try { resolve({ status: res.statusCode, data: JSON.parse(data) }); } catch { resolve({ status: res.statusCode, data }); }
+        });
+      });
+      req.on("error", reject);
+      req.on("timeout", () => { req.destroy(); reject(new Error("Upload timeout")); });
+      req.write(body);
+      req.end();
+    });
+
+    try { fs.unlinkSync(tempFile); } catch {}
+
+    const uploadOk = uploadRes.status >= 200 && uploadRes.status < 300;
+    results.steps.push({
+      name: "upload_file",
+      status: uploadOk ? "ok" : "fail",
+      httpStatus: uploadRes.status,
+      fileId: uploadRes.data?.id || null,
+      response: !uploadOk ? (typeof uploadRes.data === "string" ? uploadRes.data.substring(0, 500) : uploadRes.data) : undefined,
+    });
+
+    // Clean up test file from Open WebUI
+    if (uploadOk && uploadRes.data?.id) {
+      try {
+        await makeRequest(`/api/v1/files/${uploadRes.data.id}`, "DELETE", null, token);
+      } catch { /* ignore cleanup failure */ }
+    }
+  } catch (err) {
+    results.steps.push({ name: "upload_file", status: "fail", error: err.message });
+  }
+
+  results.ok = results.steps.every((s) => s.status === "ok");
+  return results;
+}
+
 // 确保知识库集合存在
 async function ensureKnowledgeBase(token) {
   try {
-    const cfg = getOpenWebUIConfig();
     const listRes = await makeRequest("/api/v1/knowledge/", "GET", null, token);
     if (listRes.status >= 200 && listRes.status < 300) {
       const items = listRes.data?.items || listRes.data;
@@ -146,7 +269,7 @@ async function uploadFileToOpenWebUI(doc, token) {
     const tempDir = path.join(__dirname, "..", "..", "tmp");
     fs.mkdirSync(tempDir, { recursive: true });
     const tempFile = path.join(tempDir, `kb-sync-${doc.id}.md`);
-    fs.writeFileSync(tempFile, doc.content_markdown, "utf8");
+    fs.writeFileSync(tempFile, doc.content_markdown || "", "utf8");
 
     const boundary = `----FormBoundary${Date.now()}`;
     const fileContent = fs.readFileSync(tempFile);
@@ -375,7 +498,7 @@ async function deleteDocumentFromKB(docId) {
     }
 
     const deleteRes = await makeRequest(
-      `/api/v1/knowledge/${knowledgeBaseId}/file/delete`,
+      `/api/v1/knowledge/${knowledgeBaseId}/file/remove`,
       "POST",
       { file_id: targetFile.id },
       token
@@ -401,4 +524,5 @@ module.exports = {
   syncDocumentById,
   deleteDocumentFromKB,
   ensureKnowledgeBase,
+  testConnection,
 };
