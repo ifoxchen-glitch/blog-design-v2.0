@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, h, type Component } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import {
   apiGetDashboardStats,
@@ -15,8 +16,11 @@ import BarChart from '../../components/charts/BarChart.vue'
 import PieChart from '../../components/charts/PieChart.vue'
 
 const auth = useAuthStore()
+const router = useRouter()
 
 const loading = ref(false)
+const scrollContainer = ref<HTMLElement | null>(null)
+const pauseScroll = ref(false)
 const stats = ref({
   postCount: 0,
   tagCount: 0,
@@ -106,9 +110,37 @@ function exportCsv() {
   URL.revokeObjectURL(url)
 }
 
+let scrollTimer: ReturnType<typeof setInterval> | null = null
+
+watch(pauseScroll, (paused) => {
+  if (paused) {
+    scrollTimer && clearInterval(scrollTimer)
+  } else {
+    startAutoScroll()
+  }
+})
+
+function startAutoScroll() {
+  scrollTimer && clearInterval(scrollTimer)
+  scrollTimer = setInterval(() => {
+    if (!scrollContainer.value || pauseScroll.value) return
+    const el = scrollContainer.value
+    el.scrollTop += 1
+    if (el.scrollTop >= el.scrollHeight - el.clientHeight) {
+      el.scrollTop = 0
+    }
+  }, 50)
+}
+
+onMounted(() => {
+  loadAll()
+  startAutoScroll()
+})
+
 watch(trendDays, loadAll)
-onMounted(loadAll)
 watch(() => auth.user, loadAll)
+
+// auto scroll
 
 // ---- Number animation ----
 const animatedNumbers = ref<Record<string, number>>({})
@@ -231,7 +263,9 @@ const secondaryItems: SecondaryItem[] = [
   { label: '前端用户', key: 'frontUserCount', icon: IconUserGroup, color: 'text-accent', bg: 'bg-accent/10' },
 ]
 
-const dayOptions = [
+function goToPost(postId: number) {
+  router.push(`/cms/posts/edit?id=${postId}`)
+}
   { label: '7天', value: 7 },
   { label: '14天', value: 14 },
   { label: '30天', value: 30 },
@@ -390,31 +424,28 @@ const dayOptions = [
           <h3 class="text-sm font-semibold text-base-content">新增文章</h3>
           <p class="text-xs text-base-content/40 mt-0.5">最近 20 篇文章</p>
         </div>
-        <div class="overflow-hidden" :style="{ height: '260px' }">
-          <div class="marquee-container">
-            <div v-for="(post, idx) in recentPosts" :key="post.id" class="flex items-center gap-3 py-2 border-b border-[var(--color-base-border)] last:border-0">
-              <span class="text-xs text-base-content/40 w-6 shrink-0">{{ idx + 1 }}</span>
-              <span class="text-sm text-base-content truncate flex-1">{{ post.title }}</span>
-              <span class="text-xs text-base-content/40 shrink-0">{{ new Date(post.createdAt).toLocaleDateString('zh-CN') }}</span>
-            </div>
+        <div
+          ref="scrollContainer"
+          class="overflow-y-auto"
+          :style="{ height: '260px' }"
+          @mouseenter="pauseScroll = true"
+          @mouseleave="pauseScroll = false"
+        >
+          <div
+            v-for="(post, idx) in recentPosts"
+            :key="post.id"
+            class="flex items-center gap-3 py-2.5 px-1 border-b border-[var(--color-base-border)] last:border-0 cursor-pointer hover:bg-primary/5 rounded transition-colors"
+            @click="goToPost(post.id)"
+          >
+            <span class="text-xs text-base-content/40 w-6 shrink-0">{{ idx + 1 }}</span>
+            <span class="text-sm text-base-content truncate flex-1">{{ post.title }}</span>
+            <span class="text-xs text-base-content/40 shrink-0">{{ new Date(post.createdAt).toLocaleDateString('zh-CN') }}</span>
           </div>
         </div>
       </div>
     </div>
 
     <!-- System Footer -->
-    <style scoped>
-.marquee-container {
-  animation: marquee 30s linear infinite;
-}
-.marquee-container:hover {
-  animation-play-state: paused;
-}
-@keyframes marquee {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-50%); }
-}
-</style>
     <div class="border-t border-[var(--color-base-border)] py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-base-content/40">
       <div class="flex items-center gap-2 flex-wrap">
         <span>系统</span>
