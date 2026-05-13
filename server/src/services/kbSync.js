@@ -516,6 +516,22 @@ async function fullSync() {
   for (const doc of docs) {
     const result = await syncDocument(doc, knowledgeBaseId, token);
     updateSyncProgress(doc, result.success, result.error || result.status);
+    // Write per-document log entry
+    try {
+      db.prepare(
+        `INSERT INTO kb_sync_logs (direction, document_id, file_path, status, detail, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).run(
+        "export",
+        doc.id,
+        doc.slug + ".md",
+        result.success ? "success" : "error",
+        result.fileId ? `file_id=${result.fileId}` : (result.error || result.status || "unknown"),
+        nowIso()
+      );
+    } catch (err) {
+      console.error(`[KBSync] Failed to write log for doc ${doc.id}:`, err.message);
+    }
   }
 
   const { synced, failed, errors } = syncProgress;
@@ -569,7 +585,25 @@ async function syncDocumentById(docId) {
   const knowledgeBaseId = await ensureKnowledgeBase(token);
   if (!knowledgeBaseId) return { success: false, error: "knowledge_base_not_available" };
 
-  return await syncDocument(doc, knowledgeBaseId, token);
+  const result = await syncDocument(doc, knowledgeBaseId, token);
+  // Write per-document log entry
+  try {
+    const db = openDb();
+    db.prepare(
+      `INSERT INTO kb_sync_logs (direction, document_id, file_path, status, detail, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(
+      "export",
+      doc.id,
+      doc.slug + ".md",
+      result.success ? "success" : "error",
+      result.fileId ? `file_id=${result.fileId}` : (result.error || result.status || "unknown"),
+      nowIso()
+    );
+  } catch (err) {
+    console.error(`[KBSync] Failed to write log for doc ${doc.id}:`, err.message);
+  }
+  return result;
 }
 
 // 从 Open WebUI 知识库中删除文档
