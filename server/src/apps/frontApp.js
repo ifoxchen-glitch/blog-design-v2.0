@@ -88,26 +88,37 @@ const TRANSPARENT_GIF = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAA
 
 app.get("/api/pv", (req, res) => {
   try {
-    const db = openDb();
-    const path = String(req.query.path ?? "").slice(0, 512);
-    const referrer = String(req.query.ref ?? "").slice(0, 1024);
-    const ip = req.ip || req.connection?.remoteAddress || null;
-    const userAgent = req.headers["user-agent"] || null;
-    const sessionId = req.sessionID || null;
+    const db = openDb()
+    const path = String(req.query.path ?? "").slice(0, 512)
+    const referrer = String(req.query.ref ?? "").slice(0, 1024)
+    const ip = req.ip || req.connection?.remoteAddress || null
+    const userAgent = req.headers["user-agent"] || null
+
+    // Cookie-based session ID (no session middleware needed)
+    let sessionId = null
+    const cookieHeader = req.headers.cookie || ""
+    const match = cookieHeader.match(/(?:^|;\s*)blog_sid=([^;]+)/)
+    if (match) {
+      sessionId = match[1]
+    }
+    if (!sessionId) {
+      sessionId = crypto.randomUUID()
+      res.setHeader("Set-Cookie", `blog_sid=${sessionId}; Path=/; Max-Age=86400; SameSite=Lax`)
+    }
 
     db.prepare(
       `INSERT INTO page_views (path, referrer, ip, user_agent, session_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(path, referrer || null, ip, userAgent, sessionId, nowIso());
+    ).run(path, referrer || null, ip, userAgent, sessionId, nowIso())
   } catch (err) {
     // PV tracking must never break the page
-    console.error("[pv] insert failed:", err.message);
+    console.error("[pv] insert failed:", err.message)
   }
 
-  res.setHeader("Content-Type", "image/gif");
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-  res.setHeader("Pragma", "no-cache");
-  res.setHeader("Expires", "0");
-  res.end(TRANSPARENT_GIF);
+  res.setHeader("Content-Type", "image/gif")
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+  res.setHeader("Pragma", "no-cache")
+  res.setHeader("Expires", "0")
+  res.end(TRANSPARENT_GIF)
 });
 
 // -----------------------
