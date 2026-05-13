@@ -17,6 +17,8 @@ const props = withDefaults(defineProps<{
   donut: true,
 })
 
+const palette = ['#60a5fa', '#2dd4bf', '#f472b6', '#30d158', '#ff9f0a', '#64d2ff', '#a78bfa', '#fb7185', '#34d399', '#fbbf24']
+
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
 
@@ -38,10 +40,12 @@ function updateOption() {
         type: 'pie',
         radius: props.donut ? ['40%', '70%'] : '60%',
         avoidLabelOverlap: false,
-        itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+        itemStyle: { borderRadius: 4, borderColor: '#1d232a', borderWidth: 2 },
         label: { show: false },
         emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
-        data: props.data.filter((d) => d.value > 0),
+        data: props.data
+          .filter((d) => d.value > 0)
+          .map((d, i) => ({ ...d, itemStyle: { color: palette[i % palette.length] } })),
       },
     ],
   }, true)

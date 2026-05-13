@@ -13,8 +13,10 @@ const props = withDefaults(defineProps<{
   labels: string[]
   series: LineSeries[]
   height?: number
+  fill?: boolean
 }>(), {
   height: 320,
+  fill: false,
 })
 
 const chartRef = ref<HTMLDivElement | null>(null)
@@ -37,13 +39,27 @@ function updateOption() {
     grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
     xAxis: { type: 'category', data: props.labels },
     yAxis: { type: 'value' },
-    series: props.series.map((s) => ({
-      name: s.name,
-      type: 'line',
-      smooth: true,
-      data: s.data,
-      itemStyle: { color: s.color },
-    })),
+    series: props.series.map((s) => {
+      const base: any = {
+        name: s.name,
+        type: 'line',
+        smooth: true,
+        data: s.data,
+        itemStyle: { color: s.color },
+        lineStyle: { width: 2.5 },
+        symbol: 'none',
+      }
+      if (props.fill && s.color) {
+        base.areaStyle = {
+          opacity: 0.12,
+          color: new (echarts as any).graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: s.color },
+            { offset: 1, color: 'rgba(0,0,0,0)' },
+          ]),
+        }
+      }
+      return base
+    }),
   }, true)
 }
 
