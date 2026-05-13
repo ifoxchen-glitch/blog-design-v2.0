@@ -79,12 +79,19 @@ async function start() {
     return { port: OPEN_WEBUI_PORT, host: OPEN_WEBUI_HOST };
   }
 
-  const pythonCmd = process.platform === "win32" ? "python" : "python3";
-  const scriptPath = path.join(BACKEND_DIR, "start.sh");
+  // Windows 上尝试多个 Python 路径
+  const pythonCmd = process.platform === "win32"
+    ? (process.env.PYTHON_PATH || "python")
+    : "python3";
 
   // 使用 start.sh 或直接启动 main.py
   const args = [path.join(BACKEND_DIR, "open_webui", "main.py")];
   const env = getOpenWebUIEnv();
+  // 确保 Python 能找到 open_webui 模块
+  const pythonPath = [
+    BACKEND_DIR,
+    env.PYTHONPATH || "",
+  ].join(process.platform === "win32" ? ";" : ":");
 
   console.log(
     `[OpenWebUI] Starting on http://${OPEN_WEBUI_HOST}:${OPEN_WEBUI_PORT}`
@@ -92,7 +99,7 @@ async function start() {
 
   childProcess = spawn(pythonCmd, args, {
     cwd: BACKEND_DIR,
-    env,
+    env: { ...env, PYTHONPATH: pythonPath },
     stdio: ["ignore", "pipe", "pipe"],
     detached: false,
   });
@@ -125,12 +132,13 @@ async function start() {
     isReady = false;
   });
 
-  // 等待健康检查
+  // 等待健康检查（首次启动可能需要更长时间下载模型）
   try {
-    await checkHealth();
+    await checkHealth(120, 2000); // 120次尝试，每次2秒 = 4分钟超时
     console.log(`[OpenWebUI] Ready at http://${OPEN_WEBUI_HOST}:${OPEN_WEBUI_PORT}`);
   } catch (err) {
     console.error(`[OpenWebUI] Health check failed: ${err.message}`);
+    console.log(`[OpenWebUI] Process may still be starting in background`);
     // 不抛出错误，让 Express 继续启动，/workbench 会显示维护页面
   }
 
