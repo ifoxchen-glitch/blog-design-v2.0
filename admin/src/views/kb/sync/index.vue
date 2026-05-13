@@ -39,12 +39,14 @@ import {
   apiGetOpenWebUIStatus,
   apiTriggerOpenWebUISync,
   apiTestOpenWebUIConnection,
+  apiGetOpenWebUISyncProgress,
   type SyncConfig,
   type SyncLogEntry,
   type FileTreeData,
   type FileTreeNode,
   type OpenWebUIStatus,
   type OpenWebUITestResult,
+  type OpenWebUISyncProgress,
 } from '../../../api/kb'
 import { usePermissionStore } from '../../../stores/permission'
 
@@ -144,6 +146,15 @@ async function handleTestOpenWebUI() {
   }
 }
 
+let _openWebUIPollTimer: ReturnType<typeof setInterval> | null = null
+
+function stopOpenWebUIPolling() {
+  if (_openWebUIPollTimer) {
+    clearInterval(_openWebUIPollTimer)
+    _openWebUIPollTimer = null
+  }
+}
+
 async function handleSyncToOpenWebUI() {
   if (!openWebUIStatus.value.configured) {
     message.warning('请先在系统设置中配置 Open WebUI API Key')
@@ -152,20 +163,51 @@ async function handleSyncToOpenWebUI() {
   openWebUISyncing.value = true
   openWebUISyncProgress.value = 0
   openWebUISyncLogs.value = [{ time: new Date().toLocaleTimeString(), message: '开始同步到 Open WebUI...', type: 'info' }]
+  stopOpenWebUIPolling()
+
   try {
     await apiTriggerOpenWebUISync()
     openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: '同步任务已启动，正在处理...', type: 'info' })
-    openWebUISyncProgress.value = 30
-    // Poll for completion
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    openWebUISyncProgress.value = 100
-    openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: '同步完成', type: 'success' })
-    message.success('同步已启动，请查看日志了解详情')
+
+    // Poll real progress every 1.5s
+    _openWebUIPollTimer = setInterval(async () => {
+      try {
+        const p = await apiGetOpenWebUISyncProgress()
+        openWebUISyncProgress.value = p.percentage
+        if (p.currentDoc) {
+          // Update last log line instead of flooding
+          const lastLog = openWebUISyncLogs.value[openWebUISyncLogs.value.length - 1]
+          if (lastLog && lastLog.type === 'info' && lastLog.message.startsWith('正在同步')) {
+            lastLog.message = `正在同步: ${p.currentDoc} (${p.synced + p.failed}/${p.total})`
+          } else {
+            openWebUISyncLogs.value.push({
+              time: new Date().toLocaleTimeString(),
+              message: `正在同步: ${p.currentDoc} (${p.synced + p.failed}/${p.total})`,
+              type: 'info',
+            })
+          }
+        }
+        if (!p.running) {
+          stopOpenWebUIPolling()
+          openWebUISyncing.value = false
+          if (p.failed === 0) {
+            openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: `同步完成: ${p.synced} 个文档`, type: 'success' })
+            message.success(`同步完成: ${p.synced} 个文档`)
+          } else {
+            openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: `同步完成: ${p.synced} 成功, ${p.failed} 失败`, type: 'warning' })
+            message.warning(`同步完成: ${p.synced} 成功, ${p.failed} 失败`)
+          }
+          loadLogs()
+        }
+      } catch {
+        // ignore polling errors
+      }
+    }, 1500)
   } catch (err: unknown) {
+    stopOpenWebUIPolling()
     const error = err as { message?: string }
     openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: `同步失败: ${error?.message || '未知错误'}`, type: 'error' })
     message.error('同步启动失败')
-  } finally {
     openWebUISyncing.value = false
   }
 }
@@ -382,7 +424,10 @@ function stopPolling() {
 }
 
 import { onBeforeUnmount } from 'vue'
-onBeforeUnmount(stopPolling)
+onBeforeUnmount(() => {
+  stopPolling()
+  stopOpenWebUIPolling()
+})
 
 /**
  * Flatten a file tree into a map of path → { checksum, documentId } for files only.

@@ -604,6 +604,20 @@ export async function apiTestOpenWebUIConnection(client: AxiosInstance = request
   return res.data.data
 }
 
+export interface OpenWebUISyncProgress {
+  running: boolean
+  total: number
+  synced: number
+  failed: number
+  currentDoc: string | null
+  percentage: number
+}
+
+export async function apiGetOpenWebUISyncProgress(client: AxiosInstance = request): Promise<OpenWebUISyncProgress> {
+  const res = await client.get<ApiResponse<OpenWebUISyncProgress>>('/api/v2/admin/kb/sync/openwebui-progress')
+  return res.data.data
+}
+
 // ============================================================
 // File Tree
 // ============================================================

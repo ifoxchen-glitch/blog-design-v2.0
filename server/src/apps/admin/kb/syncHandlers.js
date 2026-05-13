@@ -439,9 +439,25 @@ async function testOpenWebUIConnection(req, res) {
   }
 }
 
+// 查询 Open WebUI 同步实时进度
+function getOpenWebUISyncProgress(_req, res) {
+  const progress = kbSync.getSyncProgress();
+  res.json({
+    code: 200,
+    data: {
+      running: progress.running,
+      total: progress.total,
+      synced: progress.synced,
+      failed: progress.failed,
+      currentDoc: progress.currentDoc,
+      percentage: progress.total > 0 ? Math.round(((progress.synced + progress.failed) / progress.total) * 100) : 0,
+    },
+  });
+}
+
 module.exports = {
   getSyncConfig, updateSyncConfig, triggerImport, triggerExport,
   listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles,
   getSyncedFiles, clearSyncedData, getOpenWebUIStatus, triggerOpenWebUISync,
-  testOpenWebUIConnection,
+  testOpenWebUIConnection, getOpenWebUISyncProgress,
 };
