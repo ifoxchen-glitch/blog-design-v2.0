@@ -10,7 +10,7 @@ router.use(jwtAuth, requirePermission("analytics:view"));
 
 /**
  * GET /api/v2/admin/analytics/dashboard
- * 返回：文章数、标签数、分类数、今日 PV、今日 UV
+ * 返回：文章数、标签数、分类数、今日 PV、今日 UV、用户数、角色数、权限数、外链数、总 PV、本周新增文章、知识库文档数
  */
 router.get("/dashboard", (req, res) => {
   const db = openDb();
@@ -24,10 +24,31 @@ router.get("/dashboard", (req, res) => {
   const todayUv = db.prepare(`SELECT COUNT(DISTINCT session_id) as c FROM page_views WHERE created_at >= ? AND created_at < ?`)
     .get(`${today}T00:00:00.000Z`, `${today}T23:59:59.999Z`)?.c || 0;
 
+  const userCount = db.prepare(`SELECT COUNT(*) as c FROM users`).get()?.c || 0;
+  const roleCount = db.prepare(`SELECT COUNT(*) as c FROM roles`).get()?.c || 0;
+  const permissionCount = db.prepare(`SELECT COUNT(*) as c FROM permissions`).get()?.c || 0;
+  const linkCount = db.prepare(`SELECT COUNT(*) as c FROM external_links`).get()?.c || 0;
+  const totalPv = db.prepare(`SELECT COUNT(*) as c FROM page_views`).get()?.c || 0;
+  const avgViewsPerPost = postCount > 0 ? Math.round(totalPv / postCount) : 0;
+
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 6);
+  const weekStart = `${weekAgo.toISOString().slice(0, 10)}T00:00:00.000Z`;
+  const newPostsThisWeek = db.prepare(`SELECT COUNT(*) as c FROM posts WHERE createdAt >= ?`).get(weekStart)?.c || 0;
+
+  const kbDocCount = db.prepare(`SELECT COUNT(*) as c FROM kb_documents`).get()?.c || 0;
+  const kbCanvasCount = db.prepare(`SELECT COUNT(*) as c FROM kb_canvases`).get()?.c || 0;
+  const frontUserCount = db.prepare(`SELECT COUNT(*) as c FROM front_users`).get()?.c || 0;
+
   res.json({
     code: 200,
     message: "success",
-    data: { postCount, tagCount, categoryCount, todayPv, todayUv },
+    data: {
+      postCount, tagCount, categoryCount, todayPv, todayUv,
+      userCount, roleCount, permissionCount, linkCount,
+      totalPv, avgViewsPerPost, newPostsThisWeek,
+      kbDocCount, kbCanvasCount, frontUserCount,
+    },
   });
 });
 

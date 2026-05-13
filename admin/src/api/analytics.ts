@@ -7,6 +7,16 @@ export interface DashboardStats {
   categoryCount: number
   todayPv: number
   todayUv: number
+  userCount: number
+  roleCount: number
+  permissionCount: number
+  linkCount: number
+  totalPv: number
+  avgViewsPerPost: number
+  newPostsThisWeek: number
+  kbDocCount: number
+  kbCanvasCount: number
+  frontUserCount: number
 }
 
 export interface TrendData {
