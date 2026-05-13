@@ -99,15 +99,10 @@ const ROLES = [
 const MENUS = [
   { name: "仪表盘",   path: "/cms/dashboard", icon: "DashboardOutline",     permission: null,              sort: 1 },
   {
-    name: "我的工作台", path: null,            icon: "GridOutline",          permission: null,              sort: 2,
-    children: [
-      { name: "工作台",     path: "/cms/workspace",    icon: "PulseOutline",    permission: null },
-      { name: "AI对话",     path: "/cms/workspace/chat", icon: "ChatbubblesOutline", permission: null },
-      { name: "看板工作室", path: "/cms/kanban",       icon: "BarChartOutline", permission: null },
-      { name: "API配置",    path: "/cms/api-config",   icon: "LinkOutline",     permission: null },
-      { name: "AI模型配置", path: "/cms/ai-settings",  icon: "SparklesOutline", permission: null },
-      { name: "全局参数配置", path: "/cms/global-config", icon: "SettingsOutline", permission: null },
-    ],
+    name: "工作台", path: "/cms/workspace", icon: "GridOutline", permission: null, sort: 2,
+  },
+  {
+    name: "看板", path: "/cms/kanban", icon: "BarChartOutline", permission: null, sort: 3,
   },
   {
     name: "博客管理", path: null,             icon: "DocumentTextOutline",  permission: "post:list",      sort: 3,

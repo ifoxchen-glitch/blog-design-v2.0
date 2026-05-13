@@ -59,10 +59,18 @@ ensureRbacSeed(db, {
 
 const frontApp = require("./apps/frontApp");
 const adminApp = require("./apps/adminApp");
+const openWebUILauncher = require("./openwebui/launcher");
 
 const FRONT_PORT = parseInt(process.env.PORT, 10) || 8787;
 const ADMIN_PORT = parseInt(process.env.ADMIN_PORT, 10) || 3000;
 const BIND_HOST = process.env.BIND_HOST || "0.0.0.0";
+
+// Start Open WebUI as a child process
+openWebUILauncher.start().then((info) => {
+  console.log(`[OpenWebUI] Launcher ready: ${info.host}:${info.port}`);
+}).catch((err) => {
+  console.error("[OpenWebUI] Launcher failed:", err.message);
+});
 
 frontApp.listen(FRONT_PORT, BIND_HOST, () => {
   console.log(`Front blog : http://${BIND_HOST}:${FRONT_PORT}`);

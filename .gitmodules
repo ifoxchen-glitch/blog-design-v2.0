@@ -1,0 +1,3 @@
+[submodule "server/open-webui"]
+	path = server/open-webui
+	url = https://github.com/open-webui/open-webui.git

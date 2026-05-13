@@ -1,8 +1,10 @@
 const path = require("node:path");
 const express = require("express");
+const { createProxyMiddleware } = require("http-proxy-middleware");
 const devCors = require("../middleware/cors");
 const auditLogger = require("../middleware/auditLogger");
 const { loginLimiter, generalLimiter } = require("../middleware/rateLimits");
+const openWebUIAuth = require("../middleware/openWebUIAuth");
 const authRouter = require("./admin/auth/authRouter");
 const usersRouter = require("./admin/rbac/usersRouter");
 const rolesRouter = require("./admin/rbac/rolesRouter");
@@ -24,6 +26,10 @@ const templatesRouter = require("./admin/kb/templatesRouter");
 const webSearchRouter = require("./admin/kb/webSearchRouter");
 
 const app = express();
+
+const OPEN_WEBUI_PORT = parseInt(process.env.OPEN_WEBUI_PORT, 10) || 8080;
+const OPEN_WEBUI_HOST = process.env.OPEN_WEBUI_HOST || "127.0.0.1";
+const OPEN_WEBUI_URL = `http://${OPEN_WEBUI_HOST}:${OPEN_WEBUI_PORT}`;
 
 // Serve admin SPA (built from admin/dist) at root
 const adminDist = path.join(__dirname, "..", "..", "..", "admin", "dist");
@@ -70,10 +76,64 @@ v2Router.use("/admin/kb/tasks", tasksRouter);
 v2Router.use("/admin/kb/templates", templatesRouter);
 v2Router.use("/admin/kb/search", webSearchRouter);
 
+// ---- Open WebUI 代理配置 ----
+// 代理 API 请求到 Open WebUI FastAPI 后端
+const openWebUIProxy = createProxyMiddleware({
+  target: OPEN_WEBUI_URL,
+  changeOrigin: true,
+  ws: true, // 支持 WebSocket（实时对话）
+  pathRewrite: {
+    "^/workbench/api": "/api", // /workbench/api/v1/* → /api/v1/*
+  },
+  onProxyReq: (proxyReq, req) => {
+    // 注入 Open WebUI 认证 token
+    if (req.openWebUIAuth?.token) {
+      proxyReq.setHeader("Authorization", `Bearer ${req.openWebUIAuth.token}`);
+    }
+  },
+  onError: (err, req, res) => {
+    console.error("[OpenWebUI Proxy] Error:", err.message);
+    if (!res.headersSent) {
+      res.status(503).json({
+        code: 503,
+        message: "Workbench service temporarily unavailable",
+      });
+    }
+  },
+});
+
+// 代理静态文件请求到 Open WebUI 前端构建产物
+const openWebUIStaticProxy = createProxyMiddleware({
+  target: OPEN_WEBUI_URL,
+  changeOrigin: true,
+  onError: (err, req, res) => {
+    console.error("[OpenWebUI Static] Error:", err.message);
+    if (!res.headersSent) {
+      res.status(503).send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Workbench Maintenance</title></head>
+        <body style="font-family:sans-serif;text-align:center;padding:50px;">
+          <h1>🔧 Workbench Maintenance</h1>
+          <p>The AI workbench is currently unavailable.</p>
+          <p>Please try again later or contact the administrator.</p>
+        </body>
+        </html>
+      `);
+    }
+  },
+});
+
+// 认证 + 代理路由
+app.use("/workbench/api", openWebUIAuth, openWebUIProxy);
+app.use("/workbench/ws", openWebUIAuth, openWebUIProxy); // WebSocket
+app.use("/workbench", openWebUIAuth, openWebUIStaticProxy);
+
 // SPA catch-all middleware (Express 5: bare * is invalid, use middleware instead)
 app.use((req, res, next) => {
   if (req.method !== "GET") return next();
   if (req.path.startsWith("/api/")) return next();
+  if (req.path.startsWith("/workbench")) return next();
   res.sendFile(path.join(adminDist, "index.html"));
 });
 
