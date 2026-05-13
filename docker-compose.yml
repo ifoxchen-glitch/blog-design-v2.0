@@ -15,9 +15,16 @@ services:
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - JWT_SECRET=${JWT_SECRET:-dev-secret-key-change-in-production}
+      - OPEN_WEBUI_PORT=${OPEN_WEBUI_PORT:-8080}
+      - OPEN_WEBUI_HOST=${OPEN_WEBUI_HOST:-127.0.0.1}
+      - VECTOR_DB=${VECTOR_DB:-chroma}
+      - SCARF_NO_ANALYTICS=true
+      - DO_NOT_TRACK=true
+      - ANONYMOUS_TELEMETRY=false
     volumes:
       - blog-data:/app/server/db
       - blog-uploads:/app/server/public/uploads
+      - openwebui-data:/app/server/open-webui/backend/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8787/health"]
@@ -25,6 +32,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+
+volumes:
+  blog-data:
+  blog-uploads:
+  openwebui-data:
 
 volumes:
   blog-data:
