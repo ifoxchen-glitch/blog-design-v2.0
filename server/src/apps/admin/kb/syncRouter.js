@@ -20,5 +20,6 @@ router.delete("/sync/clear", jwtAuth, requirePermission("kb:sync"), handlers.cle
 router.get("/sync/openwebui-status", jwtAuth, requirePermission("kb:sync"), handlers.getOpenWebUIStatus);
 router.post("/sync/openwebui-sync", jwtAuth, requirePermission("kb:sync"), handlers.triggerOpenWebUISync);
 router.post("/sync/openwebui-test", jwtAuth, requirePermission("kb:sync"), handlers.testOpenWebUIConnection);
+router.get("/sync/openwebui-progress", jwtAuth, requirePermission("kb:sync"), handlers.getOpenWebUISyncProgress);
 
 module.exports = router;

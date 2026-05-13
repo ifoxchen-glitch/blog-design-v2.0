@@ -59,6 +59,60 @@ function isConfigured() {
   return getApiKey().length > 0;
 }
 
+// ---- In-memory sync progress tracking ----
+let syncProgress = {
+  running: false,
+  startedAt: null,
+  total: 0,
+  synced: 0,
+  failed: 0,
+  currentDoc: null,
+  errors: [],
+};
+
+function getSyncProgress() {
+  return { ...syncProgress };
+}
+
+function resetSyncProgress() {
+  syncProgress = {
+    running: false,
+    startedAt: null,
+    total: 0,
+    synced: 0,
+    failed: 0,
+    currentDoc: null,
+    errors: [],
+  };
+}
+
+function startSyncProgress(total) {
+  syncProgress = {
+    running: true,
+    startedAt: Date.now(),
+    total,
+    synced: 0,
+    failed: 0,
+    currentDoc: null,
+    errors: [],
+  };
+}
+
+function updateSyncProgress(doc, success, error) {
+  if (success) {
+    syncProgress.synced++;
+  } else {
+    syncProgress.failed++;
+    syncProgress.errors.push({ title: doc.title, id: doc.id, error: error || "unknown" });
+  }
+  syncProgress.currentDoc = doc.title;
+}
+
+function finishSyncProgress() {
+  syncProgress.running = false;
+  syncProgress.currentDoc = null;
+}
+
 function makeRequest(targetPath, method, body, token) {
   const cfg = getOpenWebUIConfig();
   return new Promise((resolve, reject) => {
@@ -380,6 +434,8 @@ async function syncDocument(doc, knowledgeBaseId, token) {
 
 // 全量同步
 async function fullSync() {
+  resetSyncProgress();
+
   if (!isConfigured()) {
     console.log("[KBSync] OPEN_WEBUI_API_KEY not configured, skipping sync");
     return { synced: 0, failed: 0, skipped: true, reason: "api_key_not_configured" };
@@ -392,6 +448,7 @@ async function fullSync() {
   const knowledgeBaseId = await ensureKnowledgeBase(token);
   if (!knowledgeBaseId) {
     console.error("[KBSync] Knowledge base not available");
+    finishSyncProgress();
     return { synced: 0, failed: 0 };
   }
 
@@ -405,19 +462,15 @@ async function fullSync() {
     )
     .all();
 
-  let synced = 0;
-  let failed = 0;
+  startSyncProgress(docs.length);
 
-  const errors = [];
   for (const doc of docs) {
     const result = await syncDocument(doc, knowledgeBaseId, token);
-    if (result.success) {
-      synced++;
-    } else {
-      failed++;
-      errors.push({ title: doc.title, id: doc.id, error: result.error || result.status || "unknown" });
-    }
+    updateSyncProgress(doc, result.success, result.error || result.status);
   }
+
+  const { synced, failed, errors } = syncProgress;
+  finishSyncProgress();
 
   const detailObj = { synced, failed, total: docs.length };
   if (errors.length > 0) {
@@ -525,4 +578,5 @@ module.exports = {
   deleteDocumentFromKB,
   ensureKnowledgeBase,
   testConnection,
+  getSyncProgress,
 };
