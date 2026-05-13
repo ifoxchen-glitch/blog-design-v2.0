@@ -410,6 +410,7 @@ function getOpenWebUIStatus(_req, res) {
 // 触发全量同步到 Open WebUI
 async function triggerOpenWebUISync(req, res) {
   const db = openDb();
+  const kbName = req.body?.kbName || "blog-kb";
 
   if (!kbSync.isConfigured()) {
     return res.status(400).json({
@@ -418,11 +419,11 @@ async function triggerOpenWebUISync(req, res) {
     });
   }
 
-  auditLog(db, req, "trigger_openwebui_sync", null, "触发 Open WebUI 知识库全量同步");
+  auditLog(db, req, "trigger_openwebui_sync", null, `触发 Open WebUI 知识库全量同步 (目标: ${kbName})`);
   res.status(202).json({ code: 202, message: "同步已启动", data: { status: "started" } });
 
   try {
-    const result = await kbSync.fullSync();
+    const result = await kbSync.fullSync(kbName);
     console.log("[SyncHandler] Open WebUI full sync complete:", result);
   } catch (err) {
     console.error("[SyncHandler] Open WebUI full sync failed:", err.message);
@@ -455,9 +456,19 @@ function getOpenWebUISyncProgress(_req, res) {
   });
 }
 
+// 获取知识库列表（供前端下拉选择）
+async function getKnowledgeBases(_req, res) {
+  if (!kbSync.isConfigured()) {
+    return res.json({ code: 200, data: [] });
+  }
+  const token = kbSync.getApiKey();
+  const kbs = await kbSync.listKnowledgeBases(token);
+  res.json({ code: 200, data: kbs });
+}
+
 module.exports = {
   getSyncConfig, updateSyncConfig, triggerImport, triggerExport,
   listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles,
   getSyncedFiles, clearSyncedData, getOpenWebUIStatus, triggerOpenWebUISync,
-  testOpenWebUIConnection, getOpenWebUISyncProgress,
+  testOpenWebUIConnection, getOpenWebUISyncProgress, getKnowledgeBases,
 };

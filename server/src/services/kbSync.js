@@ -330,13 +330,13 @@ async function testConnection() {
 }
 
 // 确保知识库集合存在
-async function ensureKnowledgeBase(token) {
+async function ensureKnowledgeBase(token, kbName = "blog-kb") {
   try {
     const listRes = await makeRequest("/api/v1/knowledge/", "GET", null, token);
     if (listRes.status >= 200 && listRes.status < 300) {
       const items = listRes.data?.items || listRes.data;
       if (Array.isArray(items)) {
-        const existing = items.find((kb) => kb.name === "blog-kb");
+        const existing = items.find((kb) => kb.name === kbName);
         if (existing) return existing.id;
       }
     }
@@ -345,8 +345,8 @@ async function ensureKnowledgeBase(token) {
       "/api/v1/knowledge/create",
       "POST",
       {
-        name: "blog-kb",
-        description: "Blog knowledge base documents",
+        name: kbName,
+        description: `Knowledge base: ${kbName}`,
         data: {},
       },
       token
@@ -362,6 +362,23 @@ async function ensureKnowledgeBase(token) {
   } catch (err) {
     console.error("[KBSync] ensureKnowledgeBase error:", err.message);
     return null;
+  }
+}
+
+// 获取所有知识库列表
+async function listKnowledgeBases(token) {
+  try {
+    const listRes = await makeRequest("/api/v1/knowledge/", "GET", null, token);
+    if (listRes.status >= 200 && listRes.status < 300) {
+      const items = listRes.data?.items || listRes.data;
+      if (Array.isArray(items)) {
+        return items.map((kb) => ({ id: kb.id, name: kb.name, description: kb.description || "" }));
+      }
+    }
+    return [];
+  } catch (err) {
+    console.error("[KBSync] listKnowledgeBases error:", err.message);
+    return [];
   }
 }
 
@@ -482,7 +499,7 @@ async function syncDocument(doc, knowledgeBaseId, token) {
 }
 
 // 全量同步
-async function fullSync() {
+async function fullSync(kbName = "blog-kb") {
   resetSyncProgress();
 
   if (!isConfigured()) {
@@ -492,13 +509,13 @@ async function fullSync() {
 
   const token = getApiKey();
   const cfg = getOpenWebUIConfig();
-  console.log(`[KBSync] Starting full sync to ${cfg.url}`);
+  console.log(`[KBSync] Starting full sync to ${cfg.url} (kb=${kbName})`);
 
-  const knowledgeBaseId = await ensureKnowledgeBase(token);
+  const knowledgeBaseId = await ensureKnowledgeBase(token, kbName);
   if (!knowledgeBaseId) {
     console.error("[KBSync] Knowledge base not available");
     finishSyncProgress();
-    return { synced: 0, failed: 0 };
+    return { synced: 0, failed: 0, kbName };
   }
 
   const db = openDb();
@@ -537,7 +554,7 @@ async function fullSync() {
   const { synced, failed, errors } = syncProgress;
   finishSyncProgress();
 
-  const detailObj = { synced, failed, total: docs.length };
+  const detailObj = { synced, failed, total: docs.length, kbName };
   if (errors.length > 0) {
     detailObj.errors = errors.slice(0, 5);
   }
@@ -561,7 +578,7 @@ async function fullSync() {
 }
 
 // 实时同步单个文档（在文档创建/更新时调用）
-async function syncDocumentById(docId) {
+async function syncDocumentById(docId, kbName = "blog-kb") {
   if (!isConfigured()) {
     console.log("[KBSync] OPEN_WEBUI_API_KEY not configured, skipping real-time sync");
     return { success: false, skipped: true, reason: "api_key_not_configured" };
@@ -582,13 +599,12 @@ async function syncDocumentById(docId) {
     return { success: false, error: "document_not_found_or_inactive" };
   }
 
-  const knowledgeBaseId = await ensureKnowledgeBase(token);
+  const knowledgeBaseId = await ensureKnowledgeBase(token, kbName);
   if (!knowledgeBaseId) return { success: false, error: "knowledge_base_not_available" };
 
   const result = await syncDocument(doc, knowledgeBaseId, token);
   // Write per-document log entry
   try {
-    const db = openDb();
     db.prepare(
       `INSERT INTO kb_sync_logs (direction, document_id, file_path, status, detail, created_at)
        VALUES (?, ?, ?, ?, ?, ?)`

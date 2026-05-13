@@ -18,6 +18,7 @@ router.delete("/sync/clear", jwtAuth, requirePermission("kb:sync"), handlers.cle
 
 // Open WebUI 知识库同步
 router.get("/sync/openwebui-status", jwtAuth, requirePermission("kb:sync"), handlers.getOpenWebUIStatus);
+router.get("/sync/knowledge-bases", jwtAuth, requirePermission("kb:sync"), handlers.getKnowledgeBases);
 router.post("/sync/openwebui-sync", jwtAuth, requirePermission("kb:sync"), handlers.triggerOpenWebUISync);
 router.post("/sync/openwebui-test", jwtAuth, requirePermission("kb:sync"), handlers.testOpenWebUIConnection);
 router.get("/sync/openwebui-progress", jwtAuth, requirePermission("kb:sync"), handlers.getOpenWebUISyncProgress);

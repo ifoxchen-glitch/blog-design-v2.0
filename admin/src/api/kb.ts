@@ -574,8 +574,19 @@ export async function apiGetOpenWebUIStatus(client: AxiosInstance = request): Pr
   return res.data.data
 }
 
-export async function apiTriggerOpenWebUISync(client: AxiosInstance = request): Promise<{ status: string }> {
-  const res = await client.post<ApiResponse<{ status: string }>>('/api/v2/admin/kb/sync/openwebui-sync')
+export interface KnowledgeBase {
+  id: string
+  name: string
+  description: string
+}
+
+export async function apiGetKnowledgeBases(client: AxiosInstance = request): Promise<KnowledgeBase[]> {
+  const res = await client.get<ApiResponse<KnowledgeBase[]>>('/api/v2/admin/kb/sync/knowledge-bases')
+  return res.data.data
+}
+
+export async function apiTriggerOpenWebUISync(kbName?: string, client: AxiosInstance = request): Promise<{ status: string }> {
+  const res = await client.post<ApiResponse<{ status: string }>>('/api/v2/admin/kb/sync/openwebui-sync', kbName ? { kbName } : {})
   return res.data.data
 }
 

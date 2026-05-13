@@ -40,12 +40,14 @@ import {
   apiTriggerOpenWebUISync,
   apiTestOpenWebUIConnection,
   apiGetOpenWebUISyncProgress,
+  apiGetKnowledgeBases,
   type SyncConfig,
   type SyncLogEntry,
   type FileTreeData,
   type FileTreeNode,
   type OpenWebUIStatus,
   type OpenWebUITestResult,
+  type KnowledgeBase,
 } from '../../../api/kb'
 import { usePermissionStore } from '../../../stores/permission'
 
@@ -118,10 +120,18 @@ const openWebUISyncLogs = ref<Array<{ time: string; message: string; type: 'info
 const openWebUILogsCollapsed = ref(false)
 const openWebUITesting = ref(false)
 const openWebUITestResult = ref<OpenWebUITestResult | null>(null)
+const knowledgeBases = ref<KnowledgeBase[]>([])
+const selectedKB = ref('blog-kb')
 
 async function loadOpenWebUIStatus() {
   try {
     openWebUIStatus.value = await apiGetOpenWebUIStatus()
+    if (openWebUIStatus.value.configured) {
+      knowledgeBases.value = await apiGetKnowledgeBases()
+      if (knowledgeBases.value.length > 0 && !knowledgeBases.value.find(k => k.name === selectedKB.value)) {
+        selectedKB.value = knowledgeBases.value[0].name
+      }
+    }
   } catch { /* ignore */ }
 }
 
@@ -161,12 +171,12 @@ async function handleSyncToOpenWebUI() {
   }
   openWebUISyncing.value = true
   openWebUISyncProgress.value = 0
-  openWebUISyncLogs.value = [{ time: new Date().toLocaleTimeString(), message: '开始同步到 Open WebUI...', type: 'info' }]
+  openWebUISyncLogs.value = [{ time: new Date().toLocaleTimeString(), message: `开始同步到 Open WebUI (${selectedKB.value})...`, type: 'info' }]
   stopOpenWebUIPolling()
 
   try {
-    await apiTriggerOpenWebUISync()
-    openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: '同步任务已启动，正在处理...', type: 'info' })
+    await apiTriggerOpenWebUISync(selectedKB.value)
+    openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: `同步任务已启动 → ${selectedKB.value}...`, type: 'info' })
 
     // Poll real progress every 1.5s
     _openWebUIPollTimer = setInterval(async () => {
@@ -816,27 +826,37 @@ onMounted(() => {
               <NTag v-if="openWebUIStatus.configured" type="success" size="tiny">已配置</NTag>
               <NTag v-else type="warning" size="tiny">未配置</NTag>
               <span class="text-xs text-base-content/40">{{ openWebUIStatus.open_webui_url }}</span>
+              </div>
+            <div class="flex items-center gap-2">
+              <NSelect
+                v-if="knowledgeBases.length > 0"
+                v-model:value="selectedKB"
+                :options="knowledgeBases.map(k => ({ label: k.name, value: k.name }))"
+                size="tiny"
+                style="width: 140px"
+                placeholder="选择文件集"
+              />
+              <NButton
+                size="small"
+                secondary
+                :loading="openWebUITesting"
+                :disabled="!hasSyncPerm"
+                @click="handleTestOpenWebUI"
+              >
+                <template #icon><FlashOutline class="w-4 h-4" /></template>
+                测试连接
+              </NButton>
+              <NButton
+                size="small"
+                type="primary"
+                :loading="openWebUISyncing"
+                :disabled="!hasSyncPerm"
+                @click="handleSyncToOpenWebUI"
+              >
+                <template #icon><CloudOutline class="w-4 h-4" /></template>
+                同步知识库
+              </NButton>
             </div>
-            <NButton
-              size="small"
-              secondary
-              :loading="openWebUITesting"
-              :disabled="!hasSyncPerm"
-              @click="handleTestOpenWebUI"
-            >
-              <template #icon><FlashOutline class="w-4 h-4" /></template>
-              测试连接
-            </NButton>
-            <NButton
-              size="small"
-              type="primary"
-              :loading="openWebUISyncing"
-              :disabled="!hasSyncPerm"
-              @click="handleSyncToOpenWebUI"
-            >
-              <template #icon><CloudOutline class="w-4 h-4" /></template>
-              同步知识库
-            </NButton>
           </div>
         </div>
 
