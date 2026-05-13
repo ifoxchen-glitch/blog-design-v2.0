@@ -3,8 +3,8 @@
  * 将 blog 的 kb_documents 同步到 Open WebUI 的向量库（Chroma）
  *
  * 使用方法：
- * 1. 在 Open WebUI 界面点击左下角用户头像 → Settings → Account → API Keys → Generate New API Key
- * 2. 将 API Key 设置到环境变量 OPEN_WEBUI_API_KEY
+ * 1. 在 Open WebUI 页面按 F12 → Console → 输入 localStorage.getItem('token') 获取 JWT Token
+ * 2. 在系统设置中配置 Open WebUI API Key（JWT Token 或 API Key）
  * 3. 文档的 CRUD 操作会自动触发同步
  */
 const http = require("http");
@@ -17,16 +17,24 @@ const OPEN_WEBUI_PORT = parseInt(process.env.OPEN_WEBUI_PORT, 10) || 8080;
 const OPEN_WEBUI_HOST = process.env.OPEN_WEBUI_HOST || "127.0.0.1";
 const OPEN_WEBUI_URL = `http://${OPEN_WEBUI_HOST}:${OPEN_WEBUI_PORT}`;
 
-// 从环境变量读取 Open WebUI API Key
-// 在 Open WebUI 的 Admin Panel > Settings > API Keys 中创建
-const API_KEY = process.env.OPEN_WEBUI_API_KEY || "";
+// 环境变量中的 API Key（备选）
+const ENV_API_KEY = process.env.OPEN_WEBUI_API_KEY || "";
 
 function getApiKey() {
-  return API_KEY;
+  // 优先从数据库的系统设置中读取
+  try {
+    const db = openDb();
+    const settings = db.prepare("SELECT open_webui_api_key FROM system_settings WHERE id = 1").get();
+    if (settings?.open_webui_api_key?.trim()) {
+      return settings.open_webui_api_key.trim();
+    }
+  } catch { /* ignore */ }
+  // 回退到环境变量
+  return ENV_API_KEY;
 }
 
 function isConfigured() {
-  return API_KEY.length > 0;
+  return getApiKey().length > 0;
 }
 
 function makeRequest(path, method, body, token) {

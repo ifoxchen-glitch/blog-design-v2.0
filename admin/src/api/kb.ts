@@ -544,6 +544,42 @@ export async function apiGetSyncStatus(client: AxiosInstance = request): Promise
 }
 
 // ============================================================
+// Open WebUI Sync
+// ============================================================
+
+export interface OpenWebUIStatus {
+  configured: boolean
+  api_key_set: boolean
+  open_webui_url: string
+}
+
+export interface OpenWebUISyncResult {
+  synced: number
+  failed: number
+  total: number
+  skipped?: boolean
+  reason?: string
+}
+
+export interface OpenWebUISyncLog {
+  id: number
+  action: string
+  details: string | null
+  status: string
+  created_at: string
+}
+
+export async function apiGetOpenWebUIStatus(client: AxiosInstance = request): Promise<OpenWebUIStatus> {
+  const res = await client.get<ApiResponse<OpenWebUIStatus>>('/api/v2/admin/kb/sync/openwebui-status')
+  return res.data.data
+}
+
+export async function apiTriggerOpenWebUISync(client: AxiosInstance = request): Promise<{ status: string }> {
+  const res = await client.post<ApiResponse<{ status: string }>>('/api/v2/admin/kb/sync/openwebui-sync')
+  return res.data.data
+}
+
+// ============================================================
 // File Tree
 // ============================================================
 

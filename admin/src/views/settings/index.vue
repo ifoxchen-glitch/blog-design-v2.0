@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NInput, NButton, NCard, NForm, NFormItem, NSpace, NAlert } from 'naive-ui'
+import { NInput, NButton, NCard, NForm, NFormItem, NSpace, NAlert, NInputGroup } from 'naive-ui'
 import PageHeader from '../../components/common/PageHeader.vue'
 
 const openWebUIUrl = ref('')
+const openWebUIApiKey = ref('')
 const loading = ref(false)
 const saving = ref(false)
 const message = ref('')
@@ -16,6 +17,7 @@ async function loadSettings() {
     const data = await res.json()
     if (data.code === 0) {
       openWebUIUrl.value = data.data?.open_webui_url || ''
+      openWebUIApiKey.value = data.data?.open_webui_api_key || ''
     }
   } catch (err) {
     console.error('Failed to load settings:', err)
@@ -31,7 +33,10 @@ async function saveSettings() {
     const res = await fetch('/api/v2/admin/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ open_webui_url: openWebUIUrl.value }),
+      body: JSON.stringify({
+        open_webui_url: openWebUIUrl.value,
+        open_webui_api_key: openWebUIApiKey.value,
+      }),
     })
     const data = await res.json()
     if (data.code === 0) {
@@ -82,13 +87,28 @@ onMounted(() => {
           />
         </NFormItem>
 
+        <NFormItem label="Open WebUI API Key">
+          <NInput
+            v-model:value="openWebUIApiKey"
+            placeholder="JWT Token 或 API Key（用于知识库同步）"
+            type="password"
+            show-password-on="click"
+            :loading="loading"
+          />
+          <template #feedback>
+            <div class="text-xs text-gray-400 mt-1">
+              在 Open WebUI 页面按 F12 → Console → 输入 <code class="bg-gray-100 px-1 rounded">localStorage.getItem('token')</code> 获取 JWT Token
+            </div>
+          </template>
+        </NFormItem>
+
         <NFormItem>
           <template #label>
             <span class="text-gray-500">说明</span>
           </template>
           <div class="text-sm text-gray-500">
-            <p>设置外部 Open WebUI 服务的地址，用于在工作台中嵌入 AI 对话界面。</p>
-            <p class="mt-1">留空则使用默认地址（http://127.0.0.1:8080）。</p>
+            <p>设置外部 Open WebUI 服务的地址和认证信息，用于在工作台中嵌入 AI 对话界面，以及同步知识库到 Open WebUI。</p>
+            <p class="mt-1">API Key 用于知识库同步功能，确保文档创建/更新时自动同步到 Open WebUI。</p>
           </div>
         </NFormItem>
 

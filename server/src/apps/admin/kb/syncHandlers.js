@@ -394,12 +394,15 @@ function clearSyncedData(req, res) {
 
 // Open WebUI 知识库同步状态
 function getOpenWebUIStatus(_req, res) {
+  const db = openDb();
+  const settings = db.prepare("SELECT open_webui_api_key, open_webui_url FROM system_settings WHERE id = 1").get();
+
   res.json({
     code: 200,
     data: {
-      configured: kbSync.isConfigured(),
-      api_key_set: !!process.env.OPEN_WEBUI_API_KEY,
-      open_webui_url: process.env.OPEN_WEBUI_URL || `http://${process.env.OPEN_WEBUI_HOST || "127.0.0.1"}:${process.env.OPEN_WEBUI_PORT || 8080}`,
+      configured: !!settings?.open_webui_api_key?.trim(),
+      api_key_set: !!settings?.open_webui_api_key?.trim(),
+      open_webui_url: settings?.open_webui_url || process.env.OPEN_WEBUI_URL || `http://${process.env.OPEN_WEBUI_HOST || "192.168.3.100"}:${process.env.OPEN_WEBUI_PORT || 8080}`,
     },
   });
 }

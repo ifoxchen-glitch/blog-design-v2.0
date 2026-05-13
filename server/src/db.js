@@ -501,11 +501,14 @@ function migrate(db) {
     CREATE TABLE IF NOT EXISTS system_settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       open_webui_url TEXT NOT NULL DEFAULT '',
+      open_webui_api_key TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
   `);
-  db.prepare(`INSERT OR IGNORE INTO system_settings (id, open_webui_url, created_at, updated_at) VALUES (1, '', datetime('now'), datetime('now'))`).run();
+  // Add open_webui_api_key column if not exists (migration for existing DBs)
+  try { db.exec(`ALTER TABLE system_settings ADD COLUMN open_webui_api_key TEXT NOT NULL DEFAULT ''`); } catch { /* exists */ }
+  db.prepare(`INSERT OR IGNORE INTO system_settings (id, open_webui_url, open_webui_api_key, created_at, updated_at) VALUES (1, '', '', datetime('now'), datetime('now'))`).run();
 
   // Seed default prompt templates
   const tmplCount = db.prepare("SELECT COUNT(*) AS c FROM kb_prompt_templates").get().c;

@@ -19,6 +19,7 @@ import {
   DownloadOutline,
   SwapHorizontalOutline,
   SettingsOutline,
+  CloudOutline,
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import SyncFileTree from '../../../components/kb/SyncFileTree.vue'
@@ -34,10 +35,13 @@ import {
   apiClearSyncedData,
   apiGetRemoteFiles,
   apiGetSyncedFiles,
+  apiGetOpenWebUIStatus,
+  apiTriggerOpenWebUISync,
   type SyncConfig,
   type SyncLogEntry,
   type FileTreeData,
   type FileTreeNode,
+  type OpenWebUIStatus,
 } from '../../../api/kb'
 import { usePermissionStore } from '../../../stores/permission'
 
@@ -97,6 +101,49 @@ const status = ref<SyncStatus>({
   last_sync_at: null,
   last_result: null,
 })
+
+// ---- Open WebUI Sync ----
+const openWebUIStatus = ref<OpenWebUIStatus>({
+  configured: false,
+  api_key_set: false,
+  open_webui_url: '',
+})
+const openWebUISyncing = ref(false)
+const openWebUISyncProgress = ref(0)
+const openWebUISyncLogs = ref<Array<{ time: string; message: string; type: 'info' | 'success' | 'error' }>>([])
+const openWebUILogsCollapsed = ref(false)
+
+async function loadOpenWebUIStatus() {
+  try {
+    openWebUIStatus.value = await apiGetOpenWebUIStatus()
+  } catch { /* ignore */ }
+}
+
+async function handleSyncToOpenWebUI() {
+  if (!openWebUIStatus.value.configured) {
+    message.warning('请先在系统设置中配置 Open WebUI API Key')
+    return
+  }
+  openWebUISyncing.value = true
+  openWebUISyncProgress.value = 0
+  openWebUISyncLogs.value = [{ time: new Date().toLocaleTimeString(), message: '开始同步到 Open WebUI...', type: 'info' }]
+  try {
+    await apiTriggerOpenWebUISync()
+    openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: '同步任务已启动，正在处理...', type: 'info' })
+    openWebUISyncProgress.value = 30
+    // Poll for completion
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    openWebUISyncProgress.value = 100
+    openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: '同步完成', type: 'success' })
+    message.success('同步已启动，请查看日志了解详情')
+  } catch (err: unknown) {
+    const error = err as { message?: string }
+    openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: `同步失败: ${error?.message || '未知错误'}`, type: 'error' })
+    message.error('同步启动失败')
+  } finally {
+    openWebUISyncing.value = false
+  }
+}
 
 // ---- loading states ----
 const loading = ref(false)
@@ -429,6 +476,7 @@ onMounted(() => {
   loadStatus()
   loadFileTrees()
   loadLogs()
+  loadOpenWebUIStatus()
 })
 </script>
 
@@ -687,6 +735,86 @@ onMounted(() => {
               </div>
             </div>
           </NSpin>
+        </div>
+      </div>
+
+      <!-- Open WebUI 知识库同步 -->
+      <div class="bg-base-100 rounded-xl border border-base-content/5 mb-4">
+        <div class="px-4 py-3 border-b border-base-content/5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <h3 class="font-medium text-sm">同步到 Open WebUI</h3>
+              <NTag v-if="openWebUIStatus.configured" type="success" size="tiny">已配置</NTag>
+              <NTag v-else type="warning" size="tiny">未配置</NTag>
+              <span class="text-xs text-base-content/40">{{ openWebUIStatus.open_webui_url }}</span>
+            </div>
+            <NButton
+              size="small"
+              type="primary"
+              :loading="openWebUISyncing"
+              :disabled="!hasSyncPerm"
+              @click="handleSyncToOpenWebUI"
+            >
+              <template #icon><CloudOutline class="w-4 h-4" /></template>
+              同步知识库
+            </NButton>
+          </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div v-if="openWebUISyncing" class="px-4 py-3 border-b border-base-content/5">
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="text-base-content/60">同步进度</span>
+            <span class="text-base-content/40">{{ openWebUISyncProgress }}%</span>
+          </div>
+          <NProgress
+            type="line"
+            :percentage="openWebUISyncProgress"
+            :height="8"
+            :border-radius="4"
+            :fill-border-radius="4"
+            :show-indicator="true"
+            status="success"
+          />
+        </div>
+
+        <!-- Sync logs -->
+        <div
+          class="px-4 py-3 cursor-pointer hover:bg-base-200/30"
+          @click="openWebUILogsCollapsed = !openWebUILogsCollapsed"
+        >
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-base-content/60">同步日志</span>
+            <svg class="w-4 h-4 text-base-content/30 transition-transform" :class="openWebUILogsCollapsed ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+
+        <div v-if="!openWebUILogsCollapsed" class="px-4 pb-4">
+          <div class="bg-base-200/50 rounded-lg p-3 max-h-48 overflow-y-auto">
+            <div v-if="openWebUISyncLogs.length === 0" class="text-xs text-base-content/30 text-center py-4">
+              暂无同步日志
+            </div>
+            <div v-else class="space-y-1.5">
+              <div
+                v-for="(log, idx) in openWebUISyncLogs"
+                :key="idx"
+                class="flex items-start gap-2 text-xs"
+              >
+                <span class="text-base-content/30 whitespace-nowrap">{{ log.time }}</span>
+                <span
+                  class="whitespace-nowrap"
+                  :class="{
+                    'text-blue-500': log.type === 'info',
+                    'text-green-500': log.type === 'success',
+                    'text-red-500': log.type === 'error',
+                  }"
+                >{{ log.type === 'info' ? 'ℹ' : log.type === 'success' ? '✓' : '✗' }}</span>
+                <span class="text-base-content/60">{{ log.message }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
