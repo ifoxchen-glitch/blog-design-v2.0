@@ -193,7 +193,19 @@ async function testConnection() {
     });
   } catch (err) {
     console.error(`[KBSync] Step 1 failed: ${err.message}`);
-    results.steps.push({ name: "health_check", status: "fail", error: err.message });
+    // Provide actionable hint for Docker/container environments
+    let hint = "";
+    const msg = err.message || "";
+    if (
+      msg.includes("timeout") ||
+      msg.includes("ETIMEDOUT") ||
+      msg.includes("ECONNREFUSED") ||
+      msg.includes("ENOTFOUND") ||
+      msg.includes("EHOSTUNREACH")
+    ) {
+      hint = " (提示: 请确保 Open WebUI 地址在容器内可访问。如 blog 运行在 Docker 中，请使用 http://host.docker.internal:8080 或将两容器加入同一自定义网络)";
+    }
+    results.steps.push({ name: "health_check", status: "fail", error: err.message + hint });
     return results;
   }
 
