@@ -28,7 +28,7 @@ function getApiKey() {
     if (settings?.open_webui_api_key?.trim()) {
       return settings.open_webui_api_key.trim();
     }
-  } catch { /* ignore */ }
+  } catch { /* 表不存在或列不存在，使用环境变量 */ }
   // 回退到环境变量
   return ENV_API_KEY;
 }
