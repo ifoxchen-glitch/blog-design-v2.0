@@ -1,6 +1,8 @@
 /**
- * Open WebUI 子进程启动器
- * 由 Express 主进程管理，绑定到 127.0.0.1:8080（仅本地）
+ * Open WebUI 启动器
+ * 支持两种模式：
+ * 1. 内嵌模式：启动本地 Python 进程（开发环境）
+ * 2. 外部模式：连接到独立容器（Docker 生产环境）
  */
 const { spawn } = require("child_process");
 const path = require("path");
@@ -8,11 +10,13 @@ const http = require("http");
 
 const OPEN_WEBUI_PORT = parseInt(process.env.OPEN_WEBUI_PORT, 10) || 8080;
 const OPEN_WEBUI_HOST = process.env.OPEN_WEBUI_HOST || "127.0.0.1";
+const OPEN_WEBUI_URL = process.env.OPEN_WEBUI_URL || `http://${OPEN_WEBUI_HOST}:${OPEN_WEBUI_PORT}`;
 const OPEN_WEBUI_DIR = path.join(__dirname, "..", "..", "open-webui");
 const BACKEND_DIR = path.join(OPEN_WEBUI_DIR, "backend");
 
 let childProcess = null;
 let isReady = false;
+let useExternal = false;
 
 function getOpenWebUIEnv() {
   const dataDir = path.join(BACKEND_DIR, "data");
@@ -77,6 +81,14 @@ async function start() {
   if (childProcess) {
     console.log("[OpenWebUI] Already running");
     return { port: OPEN_WEBUI_PORT, host: OPEN_WEBUI_HOST };
+  }
+
+  // 检查是否使用外部 Open WebUI（Docker 模式）
+  if (process.env.OPEN_WEBUI_URL) {
+    console.log(`[OpenWebUI] Using external instance at ${OPEN_WEBUI_URL}`);
+    useExternal = true;
+    isReady = true;
+    return { port: OPEN_WEBUI_PORT, host: OPEN_WEBUI_HOST, external: true };
   }
 
   // Windows 上尝试多个 Python 路径
@@ -146,6 +158,10 @@ async function start() {
 }
 
 function stop() {
+  if (useExternal) {
+    console.log("[OpenWebUI] External instance, not stopping");
+    return;
+  }
   if (!childProcess) return;
   console.log("[OpenWebUI] Stopping...");
   childProcess.kill("SIGTERM");
@@ -158,11 +174,13 @@ function stop() {
 
 function getStatus() {
   return {
-    running: !!childProcess,
+    running: useExternal || !!childProcess,
     ready: isReady,
+    external: useExternal,
     pid: childProcess?.pid || null,
     port: OPEN_WEBUI_PORT,
     host: OPEN_WEBUI_HOST,
+    url: OPEN_WEBUI_URL,
   };
 }
 

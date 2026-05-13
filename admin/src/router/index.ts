@@ -51,16 +51,11 @@ const router = createRouter({
           name: 'cms-workspace',
           component: () => import('../views/workspace/index.vue'),
         },
-        // 保留知识库管理（文档源头仍在 blog）
+        // 保留看板
         {
           path: '/cms/kanban',
           name: 'cms-kanban',
           component: () => import('../views/workspace/kanban.vue'),
-        },
-        {
-          path: '/cms/ai-settings',
-          name: 'cms-ai-settings',
-          component: () => import('../views/workspace/aiSettings.vue'),
         },
         {
           path: '/cms/tags',

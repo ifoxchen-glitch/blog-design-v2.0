@@ -15,17 +15,14 @@ services:
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - JWT_SECRET=${JWT_SECRET:-dev-secret-key-change-in-production}
-      - OPEN_WEBUI_PORT=${OPEN_WEBUI_PORT:-8080}
-      - OPEN_WEBUI_HOST=${OPEN_WEBUI_HOST:-127.0.0.1}
-      - VECTOR_DB=${VECTOR_DB:-chroma}
-      - SCARF_NO_ANALYTICS=true
-      - DO_NOT_TRACK=true
-      - ANONYMOUS_TELEMETRY=false
+      # Open WebUI 外部服务地址
+      - OPEN_WEBUI_URL=http://open-webui:8080
     volumes:
       - blog-data:/app/server/db
       - blog-uploads:/app/server/public/uploads
-      - openwebui-data:/app/server/open-webui/backend/data
     restart: unless-stopped
+    depends_on:
+      - open-webui
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8787/health"]
       interval: 30s
@@ -33,11 +30,26 @@ services:
       retries: 3
       start_period: 15s
 
-volumes:
-  blog-data:
-  blog-uploads:
-  openwebui-data:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - HOST=0.0.0.0
+      - DATA_DIR=/app/backend/data
+      - VECTOR_DB=${VECTOR_DB:-chroma}
+      - SCARF_NO_ANALYTICS=true
+      - DO_NOT_TRACK=true
+      - ANONYMOUS_TELEMETRY=false
+      # 禁用内置认证，由 blog 代理处理
+      - WEBUI_AUTH=false
+    volumes:
+      - openwebui-data:/app/backend/data
+    restart: unless-stopped
 
 volumes:
   blog-data:
   blog-uploads:
+  openwebui-data:

@@ -29,7 +29,7 @@ const app = express();
 
 const OPEN_WEBUI_PORT = parseInt(process.env.OPEN_WEBUI_PORT, 10) || 8080;
 const OPEN_WEBUI_HOST = process.env.OPEN_WEBUI_HOST || "127.0.0.1";
-const OPEN_WEBUI_URL = `http://${OPEN_WEBUI_HOST}:${OPEN_WEBUI_PORT}`;
+const OPEN_WEBUI_URL = process.env.OPEN_WEBUI_URL || `http://${OPEN_WEBUI_HOST}:${OPEN_WEBUI_PORT}`;
 
 // Serve admin SPA (built from admin/dist) at root
 const adminDist = path.join(__dirname, "..", "..", "..", "admin", "dist");
