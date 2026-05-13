@@ -88,6 +88,7 @@ async function loadAll() {
     console.error('Dashboard load failed:', e)
   } finally {
     loading.value = false
+    lastUpdated.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
   }
 }
 
@@ -132,9 +133,12 @@ function startAutoScroll() {
   }, 50)
 }
 
+const lastUpdated = ref('')
+
 onMounted(() => {
   loadAll()
   startAutoScroll()
+  lastUpdated.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 })
 
 watch(trendDays, loadAll)
@@ -284,6 +288,7 @@ const dayOptions = [
         </h1>
         <p class="text-sm text-base-content/50 mt-0.5">
           Dashboard 数据概览，所有统计实时来自数据库。
+          <span v-if="lastUpdated" class="text-base-content/30 ml-2">更新于 {{ lastUpdated }}</span>
         </p>
       </div>
       <div class="flex items-center gap-2">
@@ -308,11 +313,11 @@ const dayOptions = [
     </div>
 
     <!-- Hero KPIs -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-5">
       <div
         v-for="item in heroItems"
         :key="item.key"
-        class="base-container p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+        class="base-container p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border-l-2 border-transparent hover:border-primary"
       >
         <div class="flex items-center justify-between">
           <div class="rounded-lg p-2" :class="[item.bg, item.color]">
@@ -361,7 +366,7 @@ const dayOptions = [
       <div
         v-for="(item, idx) in secondaryItems"
         :key="item.key"
-        class="bg-base-200/40 hover:bg-base-200/60 transition-colors rounded-xl p-4 flex items-center gap-3"
+        class="bg-base-200/40 hover:bg-base-200/60 hover:shadow-md transition-all rounded-xl p-4 flex items-center gap-3"
         :style="{ animationDelay: `${idx * 50}ms` }"
       >
         <div class="rounded-lg p-2 shrink-0" :class="[item.bg, item.color]">
@@ -377,8 +382,8 @@ const dayOptions = [
     </div>
 
     <!-- Charts Row 1 -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
-      <div class="lg:col-span-2 base-container p-5">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+      <div class="base-container p-5">
         <div class="mb-4">
           <h3 class="text-sm font-semibold text-base-content">访问趋势</h3>
           <p class="text-xs text-base-content/40 mt-0.5">PV / UV 对比</p>
