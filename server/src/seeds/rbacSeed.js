@@ -255,7 +255,31 @@ function seedSuperAdmin(db, { adminEmail, adminPassword, adminPasswordHash, now 
 // ----- menus -----
 // 增量写入：检查每个顶级菜单是否存在，不存在则插入。已有数据时不会重写。
 // 支持后续版本添加新菜单到已有数据库。
+// 同时清理已废弃的菜单项（如旧版"我的工作台"及其子菜单）。
 function seedMenus(db, now) {
+  // 1) 清理已废弃的菜单
+  const obsoleteParentNames = ["我的工作台"];
+  const obsoleteChildrenNames = ["工作台", "看板工作室", "AI对话", "API配置", "Ai设置", "全局参数配置", "AI模型配置"];
+
+  const findParent = db.prepare(`SELECT id FROM menus WHERE parent_id IS NULL AND name = ?`);
+  const deleteChildren = db.prepare(`DELETE FROM menus WHERE parent_id = ?`);
+  const deleteParent = db.prepare(`DELETE FROM menus WHERE id = ?`);
+
+  for (const parentName of obsoleteParentNames) {
+    const parent = findParent.get(parentName);
+    if (parent) {
+      deleteChildren.run(parent.id);
+      deleteParent.run(parent.id);
+    }
+  }
+
+  // 清理可能残留的孤立子菜单
+  const deleteOrphanChildren = db.prepare(
+    `DELETE FROM menus WHERE name IN (${obsoleteChildrenNames.map(() => '?').join(',')})`
+  );
+  deleteOrphanChildren.run(...obsoleteChildrenNames);
+
+  // 2) 插入/更新当前菜单
   const insert = db.prepare(`
     INSERT INTO menus (parent_id, name, path, icon, permission_code, sort_order, status, created_at)
     VALUES (@parent_id, @name, @path, @icon, @permission_code, @sort_order, 'active', @created_at)
