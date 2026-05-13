@@ -59,14 +59,14 @@ function updateOption() {
     xAxis: { type: 'value' },
     yAxis: {
       type: 'category',
-      data: reversed.map((i) => i.name),
+      data: reversed.map((item) => item.name),
       axisLabel: { width: 120, overflow: 'truncate' },
     },
     series: [
       {
         name: '数量',
         type: 'bar',
-        data: reversed.map((item, i) => ({
+        data: reversed.map((item) => ({
           value: item.value,
           itemStyle: {
             color: getBarColor(props.color),
