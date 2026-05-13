@@ -16,7 +16,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   height: 320,
   color: '#f0a020',
-  barWidth: 20,
+  barWidth: 24,
 })
 
 const chartRef = ref<HTMLDivElement | null>(null)
@@ -49,7 +49,7 @@ function updateOption() {
         type: 'bar',
         data: reversed.map((i) => i.value),
         barWidth: props.barWidth,
-        itemStyle: { color: props.color, borderRadius: [0, 4, 4, 0] },
+        itemStyle: { color: props.color, borderRadius: [0, 6, 6, 0] },
       },
     ],
   }, true)
