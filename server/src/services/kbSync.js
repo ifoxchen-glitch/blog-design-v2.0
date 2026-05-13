@@ -3,7 +3,7 @@
  * 将 blog 的 kb_documents 同步到 Open WebUI 的向量库（Chroma）
  *
  * 使用方法：
- * 1. 在 Open WebUI 中创建 API Key（Admin Panel > Settings > API Keys）
+ * 1. 在 Open WebUI 界面点击左下角用户头像 → Settings → Account → API Keys → Generate New API Key
  * 2. 将 API Key 设置到环境变量 OPEN_WEBUI_API_KEY
  * 3. 文档的 CRUD 操作会自动触发同步
  */
@@ -74,9 +74,12 @@ async function ensureKnowledgeBase(token) {
   try {
     // 查询现有知识库
     const listRes = await makeRequest("/api/v1/knowledge/", "GET", null, token);
-    if (listRes.status === 200 && Array.isArray(listRes.data)) {
-      const existing = listRes.data.find((kb) => kb.name === "blog-kb");
-      if (existing) return existing.id;
+    if (listRes.status === 200) {
+      const items = listRes.data?.items || listRes.data;
+      if (Array.isArray(items)) {
+        const existing = items.find((kb) => kb.name === "blog-kb");
+        if (existing) return existing.id;
+      }
     }
 
     // 创建新知识库
@@ -104,34 +107,27 @@ async function ensureKnowledgeBase(token) {
   }
 }
 
-// 同步单个文档
-async function syncDocument(doc, knowledgeBaseId, token) {
+// 上传文件到 Open WebUI 文件系统
+async function uploadFileToOpenWebUI(doc, token) {
   try {
-    // 将文档内容写入临时文件
     const tempDir = path.join(__dirname, "..", "..", "tmp");
     fs.mkdirSync(tempDir, { recursive: true });
     const tempFile = path.join(tempDir, `kb-sync-${doc.id}.md`);
     fs.writeFileSync(tempFile, doc.content_markdown, "utf8");
 
-    // 构建文件上传请求（使用 multipart/form-data）
     const boundary = `----FormBoundary${Date.now()}`;
     const fileContent = fs.readFileSync(tempFile);
-    const metadata = JSON.stringify({
-      name: doc.title,
-      description: doc.excerpt || "",
-      tags: doc.tags,
-    });
 
     const body = Buffer.concat([
       Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${doc.slug}.md"\r\nContent-Type: text/markdown\r\n\r\n`),
       fileContent,
-      Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="meta"\r\n\r\n${metadata}\r\n--${boundary}--\r\n`),
+      Buffer.from(`\r\n--${boundary}--\r\n`),
     ]);
 
     const options = {
       hostname: OPEN_WEBUI_HOST,
       port: OPEN_WEBUI_PORT,
-      path: `/api/v1/knowledge/${knowledgeBaseId}/file/add`,
+      path: "/api/v1/files/",
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -162,16 +158,59 @@ async function syncDocument(doc, knowledgeBaseId, token) {
       req.end();
     });
 
-    // 清理临时文件
     try { fs.unlinkSync(tempFile); } catch {}
 
-    if (result.status === 200) {
-      console.log(`[KBSync] Synced document: ${doc.title} (${doc.id})`);
-      return { success: true, fileId: result.data?.id };
+    if (result.status === 200 && result.data?.id) {
+      return { success: true, fileId: result.data.id };
     }
 
-    console.error(`[KBSync] Failed to sync document ${doc.id}:`, result.data);
+    console.error(`[KBSync] Failed to upload file for doc ${doc.id}:`, result.data);
     return { success: false, error: result.data };
+  } catch (err) {
+    console.error(`[KBSync] uploadFileToOpenWebUI error ${doc.id}:`, err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// 将文件添加到知识库
+async function addFileToKnowledgeBase(fileId, knowledgeBaseId, token) {
+  try {
+    const result = await makeRequest(
+      `/api/v1/knowledge/${knowledgeBaseId}/file/add`,
+      "POST",
+      { file_id: fileId },
+      token
+    );
+
+    if (result.status === 200) {
+      return { success: true };
+    }
+
+    console.error(`[KBSync] Failed to add file ${fileId} to knowledge base:`, result.data);
+    return { success: false, error: result.data };
+  } catch (err) {
+    console.error(`[KBSync] addFileToKnowledgeBase error:`, err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// 同步单个文档
+async function syncDocument(doc, knowledgeBaseId, token) {
+  try {
+    // 第一步：上传文件到 Open WebUI
+    const uploadResult = await uploadFileToOpenWebUI(doc, token);
+    if (!uploadResult.success) {
+      return uploadResult;
+    }
+
+    // 第二步：将文件添加到知识库
+    const addResult = await addFileToKnowledgeBase(uploadResult.fileId, knowledgeBaseId, token);
+    if (addResult.success) {
+      console.log(`[KBSync] Synced document: ${doc.title} (${doc.id})`);
+      return { success: true, fileId: uploadResult.fileId };
+    }
+
+    return addResult;
   } catch (err) {
     console.error(`[KBSync] syncDocument error ${doc.id}:`, err.message);
     return { success: false, error: err.message };
