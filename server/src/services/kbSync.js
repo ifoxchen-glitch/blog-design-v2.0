@@ -13,23 +13,47 @@ const path = require("path");
 const { openDb } = require("../db");
 const { nowIso } = require("../utils");
 
-const OPEN_WEBUI_PORT = parseInt(process.env.OPEN_WEBUI_PORT, 10) || 8080;
-const OPEN_WEBUI_HOST = process.env.OPEN_WEBUI_HOST || "127.0.0.1";
-const OPEN_WEBUI_URL = `http://${OPEN_WEBUI_HOST}:${OPEN_WEBUI_PORT}`;
-
-// 环境变量中的 API Key（备选）
+const DEFAULT_HOST = process.env.OPEN_WEBUI_HOST || "127.0.0.1";
+const DEFAULT_PORT = parseInt(process.env.OPEN_WEBUI_PORT, 10) || 8080;
 const ENV_API_KEY = process.env.OPEN_WEBUI_API_KEY || "";
 
+function getOpenWebUIConfig() {
+  // 优先从数据库读取，其次环境变量 OPEN_WEBUI_URL，最后默认 127.0.0.1:8080
+  let urlStr = "";
+  try {
+    const db = openDb();
+    const settings = db.prepare("SELECT open_webui_url, open_webui_api_key FROM system_settings WHERE id = 1").get();
+    if (settings?.open_webui_url?.trim()) {
+      urlStr = settings.open_webui_url.trim();
+    }
+  } catch { /* ignore */ }
+
+  if (!urlStr) {
+    urlStr = process.env.OPEN_WEBUI_URL || `http://${DEFAULT_HOST}:${DEFAULT_PORT}`;
+  }
+
+  try {
+    const parsed = new URL(urlStr);
+    return {
+      url: urlStr,
+      host: parsed.hostname,
+      port: parseInt(parsed.port, 10) || (parsed.protocol === "https:" ? 443 : 80),
+      protocol: parsed.protocol,
+    };
+  } catch {
+    // fallback if URL is malformed
+    return { url: `http://${DEFAULT_HOST}:${DEFAULT_PORT}`, host: DEFAULT_HOST, port: DEFAULT_PORT, protocol: "http:" };
+  }
+}
+
 function getApiKey() {
-  // 优先从数据库的系统设置中读取
   try {
     const db = openDb();
     const settings = db.prepare("SELECT open_webui_api_key FROM system_settings WHERE id = 1").get();
     if (settings?.open_webui_api_key?.trim()) {
       return settings.open_webui_api_key.trim();
     }
-  } catch { /* 表不存在或列不存在，使用环境变量 */ }
-  // 回退到环境变量
+  } catch { /* ignore */ }
   return ENV_API_KEY;
 }
 
@@ -37,13 +61,14 @@ function isConfigured() {
   return getApiKey().length > 0;
 }
 
-function makeRequest(path, method, body, token) {
+function makeRequest(targetPath, method, body, token) {
+  const cfg = getOpenWebUIConfig();
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
     const options = {
-      hostname: OPEN_WEBUI_HOST,
-      port: OPEN_WEBUI_PORT,
-      path,
+      hostname: cfg.host,
+      port: cfg.port,
+      path: targetPath,
       method,
       headers: {
         "Content-Type": "application/json",
@@ -69,7 +94,7 @@ function makeRequest(path, method, body, token) {
     req.on("error", reject);
     req.on("timeout", () => {
       req.destroy();
-      reject(new Error("Request timeout"));
+      reject(new Error(`Request timeout to ${cfg.host}:${cfg.port}`));
     });
 
     if (data) req.write(data);
@@ -80,9 +105,9 @@ function makeRequest(path, method, body, token) {
 // 确保知识库集合存在
 async function ensureKnowledgeBase(token) {
   try {
-    // 查询现有知识库
+    const cfg = getOpenWebUIConfig();
     const listRes = await makeRequest("/api/v1/knowledge/", "GET", null, token);
-    if (listRes.status === 200) {
+    if (listRes.status >= 200 && listRes.status < 300) {
       const items = listRes.data?.items || listRes.data;
       if (Array.isArray(items)) {
         const existing = items.find((kb) => kb.name === "blog-kb");
@@ -90,7 +115,6 @@ async function ensureKnowledgeBase(token) {
       }
     }
 
-    // 创建新知识库
     const createRes = await makeRequest(
       "/api/v1/knowledge/create",
       "POST",
@@ -102,7 +126,7 @@ async function ensureKnowledgeBase(token) {
       token
     );
 
-    if (createRes.status === 200 && createRes.data?.id) {
+    if (createRes.status >= 200 && createRes.status < 300 && createRes.data?.id) {
       console.log(`[KBSync] Created knowledge base: ${createRes.data.id}`);
       return createRes.data.id;
     }
@@ -118,6 +142,7 @@ async function ensureKnowledgeBase(token) {
 // 上传文件到 Open WebUI 文件系统
 async function uploadFileToOpenWebUI(doc, token) {
   try {
+    const cfg = getOpenWebUIConfig();
     const tempDir = path.join(__dirname, "..", "..", "tmp");
     fs.mkdirSync(tempDir, { recursive: true });
     const tempFile = path.join(tempDir, `kb-sync-${doc.id}.md`);
@@ -125,16 +150,17 @@ async function uploadFileToOpenWebUI(doc, token) {
 
     const boundary = `----FormBoundary${Date.now()}`;
     const fileContent = fs.readFileSync(tempFile);
+    const safeFilename = (doc.slug || `doc-${doc.id}`).replace(/"/g, '\\"') + ".md";
 
     const body = Buffer.concat([
-      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${doc.slug}.md"\r\nContent-Type: text/markdown\r\n\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${safeFilename}"\r\nContent-Type: text/markdown\r\n\r\n`),
       fileContent,
       Buffer.from(`\r\n--${boundary}--\r\n`),
     ]);
 
     const options = {
-      hostname: OPEN_WEBUI_HOST,
-      port: OPEN_WEBUI_PORT,
+      hostname: cfg.host,
+      port: cfg.port,
       path: "/api/v1/files/",
       method: "POST",
       headers: {
@@ -160,7 +186,7 @@ async function uploadFileToOpenWebUI(doc, token) {
       req.on("error", reject);
       req.on("timeout", () => {
         req.destroy();
-        reject(new Error("Upload timeout"));
+        reject(new Error(`Upload timeout to ${cfg.host}:${cfg.port}`));
       });
       req.write(body);
       req.end();
@@ -168,12 +194,12 @@ async function uploadFileToOpenWebUI(doc, token) {
 
     try { fs.unlinkSync(tempFile); } catch {}
 
-    if (result.status === 200 && result.data?.id) {
+    if (result.status >= 200 && result.status < 300 && result.data?.id) {
       return { success: true, fileId: result.data.id };
     }
 
-    console.error(`[KBSync] Failed to upload file for doc ${doc.id}:`, result.data);
-    return { success: false, error: result.data };
+    console.error(`[KBSync] Failed to upload file for doc ${doc.id} (HTTP ${result.status}):`, result.data);
+    return { success: false, error: result.data, status: result.status };
   } catch (err) {
     console.error(`[KBSync] uploadFileToOpenWebUI error ${doc.id}:`, err.message);
     return { success: false, error: err.message };
@@ -190,13 +216,12 @@ async function addFileToKnowledgeBase(fileId, knowledgeBaseId, token) {
       token
     );
 
-    // 成功或已存在都视为成功
-    if (result.status === 200) {
+    if (result.status >= 200 && result.status < 300) {
       return { success: true };
     }
 
-    // 重复内容也视为成功（文件已在知识库中）
-    if (result.data?.detail?.includes("Duplicate") || result.data?.detail?.includes("already exists")) {
+    const detail = typeof result.data?.detail === "string" ? result.data.detail : JSON.stringify(result.data);
+    if (detail && (detail.includes("Duplicate") || detail.includes("already exists") || detail.includes("already in"))) {
       console.log(`[KBSync] File ${fileId} already exists in knowledge base, skipping`);
       return { success: true, skipped: true };
     }
@@ -212,13 +237,11 @@ async function addFileToKnowledgeBase(fileId, knowledgeBaseId, token) {
 // 同步单个文档
 async function syncDocument(doc, knowledgeBaseId, token) {
   try {
-    // 第一步：上传文件到 Open WebUI
     const uploadResult = await uploadFileToOpenWebUI(doc, token);
     if (!uploadResult.success) {
       return uploadResult;
     }
 
-    // 第二步：将文件添加到知识库
     const addResult = await addFileToKnowledgeBase(uploadResult.fileId, knowledgeBaseId, token);
     if (addResult.success) {
       console.log(`[KBSync] Synced document: ${doc.title} (${doc.id})`);
@@ -238,7 +261,10 @@ async function fullSync() {
     console.log("[KBSync] OPEN_WEBUI_API_KEY not configured, skipping sync");
     return { synced: 0, failed: 0, skipped: true, reason: "api_key_not_configured" };
   }
+
   const token = getApiKey();
+  const cfg = getOpenWebUIConfig();
+  console.log(`[KBSync] Starting full sync to ${cfg.url}`);
 
   const knowledgeBaseId = await ensureKnowledgeBase(token);
   if (!knowledgeBaseId) {
@@ -259,16 +285,21 @@ async function fullSync() {
   let synced = 0;
   let failed = 0;
 
+  const errors = [];
   for (const doc of docs) {
     const result = await syncDocument(doc, knowledgeBaseId, token);
     if (result.success) {
       synced++;
     } else {
       failed++;
+      errors.push({ title: doc.title, id: doc.id, error: result.error || result.status || "unknown" });
     }
   }
 
-  // 记录同步日志（使用正确的列名）
+  const detailObj = { synced, failed, total: docs.length };
+  if (errors.length > 0) {
+    detailObj.errors = errors.slice(0, 5);
+  }
   try {
     db.prepare(
       `INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at)
@@ -277,7 +308,7 @@ async function fullSync() {
       "export",
       "openwebui-kb",
       failed === 0 ? "success" : "error",
-      JSON.stringify({ synced, failed, total: docs.length }),
+      JSON.stringify(detailObj),
       nowIso()
     );
   } catch (err) {
@@ -285,7 +316,7 @@ async function fullSync() {
   }
 
   console.log(`[KBSync] Full sync complete: ${synced} synced, ${failed} failed, ${docs.length} total`);
-  return { synced, failed, total: docs.length };
+  return { synced, failed, total: docs.length, errors: errors.length > 0 ? errors : undefined };
 }
 
 // 实时同步单个文档（在文档创建/更新时调用）
@@ -313,8 +344,7 @@ async function syncDocumentById(docId) {
   const knowledgeBaseId = await ensureKnowledgeBase(token);
   if (!knowledgeBaseId) return { success: false, error: "knowledge_base_not_available" };
 
-  const result = await syncDocument(doc, knowledgeBaseId, token);
-  return result;
+  return await syncDocument(doc, knowledgeBaseId, token);
 }
 
 // 从 Open WebUI 知识库中删除文档
@@ -329,13 +359,11 @@ async function deleteDocumentFromKB(docId) {
   if (!knowledgeBaseId) return { success: false, error: "knowledge_base_not_available" };
 
   try {
-    // 查询知识库中的文件列表，找到匹配的文档
     const listRes = await makeRequest(`/api/v1/knowledge/${knowledgeBaseId}`, "GET", null, token);
-    if (listRes.status !== 200 || !listRes.data?.files) {
+    if (listRes.status < 200 || listRes.status >= 300 || !listRes.data?.files) {
       return { success: false, error: "failed_to_list_files" };
     }
 
-    // 根据文件名匹配（我们上传时使用的文件名格式是 {slug}.md）
     const db = openDb();
     const doc = db.prepare("SELECT slug FROM kb_documents WHERE id = ?").get(docId);
     if (!doc) return { success: false, error: "document_not_found" };
@@ -346,7 +374,6 @@ async function deleteDocumentFromKB(docId) {
       return { success: true, skipped: true };
     }
 
-    // 删除文件
     const deleteRes = await makeRequest(
       `/api/v1/knowledge/${knowledgeBaseId}/file/delete`,
       "POST",
@@ -354,7 +381,7 @@ async function deleteDocumentFromKB(docId) {
       token
     );
 
-    if (deleteRes.status === 200) {
+    if (deleteRes.status >= 200 && deleteRes.status < 300) {
       console.log(`[KBSync] Deleted document ${docId} from knowledge base`);
       return { success: true };
     }
