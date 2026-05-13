@@ -5,13 +5,6 @@ RUN npm ci
 COPY admin/ ./
 RUN npm run build
 
-FROM node:22-alpine AS admin-build
-WORKDIR /app/admin
-COPY admin/package.json admin/package-lock.json ./
-RUN npm ci
-COPY admin/ ./
-RUN npm run build
-
 # ---- Python stage for Open WebUI ----
 FROM python:3.11-alpine AS python-deps
 WORKDIR /app
