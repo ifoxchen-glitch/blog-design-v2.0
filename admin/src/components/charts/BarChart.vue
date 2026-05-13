@@ -28,8 +28,7 @@ function init() {
   updateOption()
 }
 
-function getBarColor(color: string, index: number, total: number): any {
-  // Gradient from base color (top) to lighter tint (bottom)
+function getBarColor(color: string): any {
   return new (echarts as any).graphic.LinearGradient(0, 0, 1, 0, [
     { offset: 0, color: color },
     { offset: 1, color: adjustColor(color, 40) },
@@ -46,17 +45,6 @@ function adjustColor(hex: string, amount: number): string {
   const ng = Math.round(g + (255 - g) * factor)
   const nb = Math.round(b + (255 - b) * factor)
   return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`
-}
-
-const chartColors = [
-  '#60a5fa', '#f472b6', '#2dd4bf', '#30d158',
-  '#ff9f0a', '#64d2ff', '#a78bfa', '#fb7185',
-  '#34d399', '#fbbf24', '#38bdf8', '#e879f9',
-]
-
-function getColorByIndex(index: number): any {
-  const color = chartColors[index % chartColors.length]
-  return getBarColor(color, index, chartColors.length)
 }
 
 function updateOption() {
@@ -81,7 +69,7 @@ function updateOption() {
         data: reversed.map((item, i) => ({
           value: item.value,
           itemStyle: {
-            color: getBarColor(props.color, i, reversed.length),
+            color: getBarColor(props.color),
             borderRadius: [0, 6, 6, 0],
           },
         })),
