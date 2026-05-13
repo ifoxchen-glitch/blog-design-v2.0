@@ -190,8 +190,15 @@ async function addFileToKnowledgeBase(fileId, knowledgeBaseId, token) {
       token
     );
 
+    // 成功或已存在都视为成功
     if (result.status === 200) {
       return { success: true };
+    }
+
+    // 重复内容也视为成功（文件已在知识库中）
+    if (result.data?.detail?.includes("Duplicate") || result.data?.detail?.includes("already exists")) {
+      console.log(`[KBSync] File ${fileId} already exists in knowledge base, skipping`);
+      return { success: true, skipped: true };
     }
 
     console.error(`[KBSync] Failed to add file ${fileId} to knowledge base:`, result.data);
@@ -261,13 +268,15 @@ async function fullSync() {
     }
   }
 
-  // 记录同步日志
+  // 记录同步日志（使用正确的列名）
   try {
     db.prepare(
-      `INSERT INTO kb_sync_logs (action, details, created_at)
-       VALUES (?, ?, ?)`
+      `INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at)
+       VALUES (?, ?, ?, ?, ?)`
     ).run(
-      "full_sync",
+      "export",
+      "openwebui-kb",
+      failed === 0 ? "success" : "error",
       JSON.stringify({ synced, failed, total: docs.length }),
       nowIso()
     );
