@@ -579,6 +579,31 @@ export async function apiTriggerOpenWebUISync(client: AxiosInstance = request): 
   return res.data.data
 }
 
+export interface OpenWebUITestStep {
+  name: string
+  status: 'ok' | 'fail'
+  httpStatus?: number
+  error?: string
+  response?: unknown
+  fileId?: string | null
+  count?: number | null
+}
+
+export interface OpenWebUITestResult {
+  url: string
+  host: string
+  port: number
+  apiKeyConfigured: boolean
+  apiKeyPrefix: string | null
+  steps: OpenWebUITestStep[]
+  ok: boolean
+}
+
+export async function apiTestOpenWebUIConnection(client: AxiosInstance = request): Promise<OpenWebUITestResult> {
+  const res = await client.post<ApiResponse<OpenWebUITestResult>>('/api/v2/admin/kb/sync/openwebui-test')
+  return res.data.data
+}
+
 // ============================================================
 // File Tree
 // ============================================================
