@@ -53,6 +53,18 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, service: "adminApp" });
 });
 
+// Open WebUI 状态检查
+app.get("/workbench/health", async (req, res) => {
+  const launcher = require("../openwebui/launcher");
+  const status = launcher.getStatus();
+  res.json({
+    ok: status.ready,
+    running: status.running,
+    port: status.port,
+    host: status.host,
+  });
+});
+
 const v2Router = express.Router();
 v2Router.use(generalLimiter);
 v2Router.use("/auth", loginLimiter, authRouter);

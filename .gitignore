@@ -17,3 +17,8 @@ NDH6SA~M
 
 server/public/uploads/
 
+# Open WebUI data and temp files
+server/open-webui/backend/data/
+server/open-webui/backend/*.db
+server/tmp/
+
