@@ -266,6 +266,8 @@ const secondaryItems: SecondaryItem[] = [
 function goToPost(postId: number) {
   router.push(`/cms/posts/edit?id=${postId}`)
 }
+
+const dayOptions = [
   { label: '7天', value: 7 },
   { label: '14天', value: 14 },
   { label: '30天', value: 30 },
