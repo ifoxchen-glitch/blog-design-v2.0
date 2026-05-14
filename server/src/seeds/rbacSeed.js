@@ -65,6 +65,10 @@ const PERMISSIONS = [
   { code: "ai:chat",       resource: "ai",         action: "chat",    name: "AI 对话",         description: "与 AI 模型对话" },
   { code: "ai:model",      resource: "ai",         action: "model",  name: "管理 AI 模型",    description: "配置和管理 AI 模型" },
   { code: "task:manage",   resource: "task",       action: "manage", name: "管理任务看板",     description: "创建、编辑、删除任务看板中的任务" },
+  { code: "iot:card:list",    resource: "iot:card",  action: "list",    name: "查看物联网卡列表",  description: "浏览物联网卡列表" },
+  { code: "iot:card:query",   resource: "iot:card",  action: "query",   name: "查询物联网卡详情",  description: "查看单张物联网卡详细信息" },
+  { code: "iot:card:enable",  resource: "iot:card",  action: "enable",  name: "启用物联网卡",      description: "恢复物联网卡通信功能" },
+  { code: "iot:card:disable", resource: "iot:card",  action: "disable", name: "禁用物联网卡",      description: "强制断开物联网卡通信" },
 ];
 
 // ============================================================
@@ -81,13 +85,13 @@ const ROLES = [
     code: "content_admin",
     name: "内容管理员",
     description: "可管理博客内容（文章 / 标签 / 分类 / 友链）",
-    permissions: ["post:list", "post:create", "post:update", "post:delete", "post:publish", "tag:list", "tag:create", "tag:update", "tag:delete", "category:list", "category:create", "category:update", "category:delete", "link:list", "link:create", "link:update", "link:delete", "media:upload", "media:delete", "analytics:view"],
+    permissions: ["post:list", "post:create", "post:update", "post:delete", "post:publish", "tag:list", "tag:create", "tag:update", "tag:delete", "category:list", "category:create", "category:update", "category:delete", "link:list", "link:create", "link:update", "link:delete", "media:upload", "media:delete", "analytics:view", "iot:card:list"],
   },
   {
     code: "viewer",
     name: "访客/只读",
     description: "只能浏览数据，不能修改",
-    permissions: ["post:list", "user:list", "analytics:view", "ops:logs", "ops:monitor"],
+    permissions: ["post:list", "user:list", "analytics:view", "ops:logs", "ops:monitor", "iot:card:list"],
   },
 ];
 
@@ -144,6 +148,9 @@ const MENUS = [
     ],
   },
   { name: "数据导入导出", path: "/cms/backup",   icon: "ArchiveOutline",     permission: "cms:export",     sort: 8 },
+  {
+    name: "物联网卡管理", path: "/cms/iot/cards", icon: "GridOutline",  permission: "iot:card:list", sort: 9,
+  },
 ];
 
 // ============================================================
