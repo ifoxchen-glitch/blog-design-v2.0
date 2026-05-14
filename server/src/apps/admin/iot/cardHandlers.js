@@ -370,6 +370,9 @@ async function getStats(req, res) {
     ORDER BY hour
   `).all();
 
+  // Ensure numeric values
+  const ensureNum = (v) => (typeof v === 'number' ? v : parseFloat(v || '0'));
+
   return res.status(200).json({
     code: 200,
     message: "success",
@@ -379,15 +382,74 @@ async function getStats(req, res) {
       offline,
       stopped,
       separated,
-      totalUsed: usage.totalUsed,
-      totalTotal: usage.totalTotal,
-      totalResidue: usage.totalResidue,
-      operatorDist,
+      totalUsed: ensureNum(usage.totalUsed),
+      totalTotal: ensureNum(usage.totalTotal),
+      totalResidue: ensureNum(usage.totalResidue),
+      operatorDist: operatorDist.map(d => ({ operator: String(d.operator), count: d.count })),
       regionDist,
       comboDist,
-      trend,
+      trend: trend.map(t => ({ hour: String(t.hour), totalUsed: ensureNum(t.totalUsed) })),
     },
   });
+}
+
+// DELETE /api/v2/admin/iot/cards/:cardNo
+async function deleteCardHandler(req, res) {
+  const { cardNo } = req.params;
+  const db = openDb();
+  const row = db.prepare("SELECT * FROM iot_cards WHERE card_no = ?").get(cardNo);
+  if (!row) {
+    return res.status(404).json({ code: 404, message: "Card not found" });
+  }
+  db.prepare("DELETE FROM iot_cards WHERE card_no = ?").run(cardNo);
+  db.prepare("DELETE FROM iot_card_snapshots WHERE card_no = ?").run(cardNo);
+  return res.status(200).json({ code: 200, message: "Card deleted", data: { cardNo } });
+}
+
+// GET /api/v2/admin/iot/cards/:cardNo/history
+async function getCardHistory(req, res) {
+  const { cardNo } = req.params;
+  const precision = String(req.query.precision || 'hour').trim(); // 'hour' | 'day' | 'week'
+  const db = openDb();
+
+  let sql;
+  if (precision === 'day') {
+    sql = `
+      SELECT date(recorded_at) AS label,
+             AVG(combo_used) AS avgUsed,
+             MAX(combo_used) AS maxUsed,
+             MIN(combo_used) AS minUsed
+      FROM iot_card_snapshots
+      WHERE card_no = ? AND recorded_at >= datetime('now', '-30 days')
+      GROUP BY date(recorded_at)
+      ORDER BY label
+    `;
+  } else if (precision === 'week') {
+    sql = `
+      SELECT strftime('%Y-W%W', recorded_at) AS label,
+             AVG(combo_used) AS avgUsed,
+             MAX(combo_used) AS maxUsed,
+             MIN(combo_used) AS minUsed
+      FROM iot_card_snapshots
+      WHERE card_no = ? AND recorded_at >= datetime('now', '-90 days')
+      GROUP BY strftime('%Y-%W', recorded_at)
+      ORDER BY label
+    `;
+  } else {
+    // hour - last 24h
+    sql = `
+      SELECT strftime('%Y-%m-%d %H:00', recorded_at) AS label,
+             combo_used AS used,
+             combo_residue AS residue,
+             combo_total AS total
+      FROM iot_card_snapshots
+      WHERE card_no = ? AND recorded_at >= datetime('now', '-1 day')
+      ORDER BY label
+    `;
+  }
+
+  const rows = db.prepare(sql).all(cardNo);
+  return res.status(200).json({ code: 200, message: "success", data: { items: rows, precision } });
 }
 
 // Snapshot all cards for hourly usage tracking
@@ -416,7 +478,9 @@ module.exports = {
   batchCards,
   getBalance,
   getStats,
+  getCardHistory,
   snapshotCards,
+  deleteCard: deleteCardHandler,
   disableCard: disableCardHandler,
   enableCard: enableCardHandler,
 };

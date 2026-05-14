@@ -69,6 +69,7 @@ const PERMISSIONS = [
   { code: "iot:card:query",   resource: "iot:card",  action: "query",   name: "查询物联网卡详情",  description: "查看单张物联网卡详细信息" },
   { code: "iot:card:enable",  resource: "iot:card",  action: "enable",  name: "启用物联网卡",      description: "恢复物联网卡通信功能" },
   { code: "iot:card:disable", resource: "iot:card",  action: "disable", name: "禁用物联网卡",      description: "强制断开物联网卡通信" },
+  { code: "iot:card:delete",  resource: "iot:card",  action: "delete",  name: "删除物联网卡",      description: "从本地数据库删除物联网卡记录" },
 ];
 
 // ============================================================

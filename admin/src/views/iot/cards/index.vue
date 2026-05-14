@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, h, ref, onMounted } from 'vue'
+import { computed, h, ref, onMounted, watch } from 'vue'
 import axios from 'axios'
 import {
   NButton,
   NInput,
   NSelect,
+  NPopconfirm,
   NPagination,
   NSpin,
   NEmpty,
@@ -19,6 +20,8 @@ import {
   NSwitch,
   NProgress,
   NCard,
+  NRadioGroup,
+  NRadioButton,
   useMessage,
 } from 'naive-ui'
 import {
@@ -34,14 +37,17 @@ import BarChart from '../../../components/charts/BarChart.vue'
 import {
   apiGetCards,
   apiGetCard,
+  apiGetCardHistory,
   apiSyncCards,
   apiBatchCards,
   apiGetBalance,
   apiGetStats,
+  apiDeleteCard,
   apiEnableCard,
   apiDisableCard,
   type CardItem,
   type StatsData,
+  type HistoryItem,
 } from '../../../api/iot'
 import { usePermissionStore } from '../../../stores/permission'
 import { useTable } from '../../../composables/useTable'
@@ -161,7 +167,6 @@ async function loadStats() {
   try {
     const res = await apiGetStats()
     stats.value = res
-    // Populate filter dropdowns
     regionOptions.value = [
       { label: '全部区域', value: '' },
       ...res.regionDist.map((r) => ({ label: r.region, value: r.region })),
@@ -225,7 +230,6 @@ async function handleBatchQuery() {
     if (res.items.length === 0) {
       batchError.value = '未找到任何卡片'
     }
-    // Refresh list and stats after batch query
     table.refresh()
     loadStats()
   } catch (e: unknown) {
@@ -240,13 +244,38 @@ const detailVisible = ref(false)
 const detailLoading = ref(false)
 const selectedCard = ref<CardItem | null>(null)
 
+// History chart in drawer
+const historyPrecision = ref<'hour' | 'day' | 'week'>('hour')
+const historyData = ref<HistoryItem[]>([])
+const historyLoading = ref(false)
+
+async function loadHistory(cardNo: string) {
+  historyLoading.value = true
+  try {
+    const res = await apiGetCardHistory(cardNo, historyPrecision.value)
+    historyData.value = res.items
+  } catch {
+    historyData.value = []
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+watch(historyPrecision, () => {
+  if (selectedCard.value) {
+    loadHistory(selectedCard.value.cardNo)
+  }
+})
+
 async function handleView(row: CardItem) {
   detailLoading.value = true
   detailVisible.value = true
   selectedCard.value = null
+  historyData.value = []
   try {
     const res = await apiGetCard(row.cardNo)
     selectedCard.value = res
+    loadHistory(row.cardNo)
   } catch {
     selectedCard.value = row
   } finally {
@@ -276,15 +305,27 @@ async function handleToggle(row: CardItem, nextEnabled: boolean) {
   }
 }
 
-// Status tag helper
+// Delete
+async function handleDelete(row: CardItem) {
+  try {
+    await apiDeleteCard(row.cardNo)
+    message.success('卡片已删除')
+    table.refresh()
+    loadStats()
+  } catch (e: unknown) {
+    message.error(extractError(e, '删除失败'))
+  }
+}
+
+// Status tag helper — now prefixed with "卡"
 function gprsStateTag(state: string) {
   const map: Record<string, { label: string; type: string }> = {
-    '1': { label: '在线', type: 'success' },
-    '2': { label: '离线', type: 'default' },
-    '3': { label: '停机', type: 'error' },
-    '4': { label: '机卡分离', type: 'warning' },
+    '1': { label: '卡 在线', type: 'success' },
+    '2': { label: '卡 离线', type: 'default' },
+    '3': { label: '卡 停机', type: 'error' },
+    '4': { label: '卡 机卡分离', type: 'warning' },
   }
-  const t = map[state] || { label: state || '未知', type: 'default' }
+  const t = map[state] || { label: '卡 ' + (state || '未知'), type: 'default' }
   return h(NTag, { size: 'small', type: t.type as any }, () => t.label)
 }
 
@@ -330,7 +371,7 @@ const tableColumns = computed(() => [
   {
     title: '状态',
     key: 'gprsState',
-    width: 80,
+    width: 100,
     render(row: CardItem) {
       return gprsStateTag(row.gprsState)
     },
@@ -396,10 +437,21 @@ const tableColumns = computed(() => [
   {
     title: '操作',
     key: 'actions',
-    width: 60,
+    width: 100,
     fixed: 'right',
     render(row: CardItem) {
-      return h(NButton, { size: 'tiny', quaternary: true, onClick: () => handleView(row) }, () => '查看')
+      return h('div', { class: 'flex items-center gap-1' }, [
+        h(NButton, { size: 'tiny', quaternary: true, onClick: () => handleView(row) }, () => '查看'),
+        h(NPopconfirm,
+          { 'onPositive-click': () => handleDelete(row) },
+          {
+            trigger: () => permissionStore.hasPermission('iot:card:delete')
+              ? h(NButton, { size: 'tiny', quaternary: true, type: 'error' }, () => '删除')
+              : null,
+            default: () => `确认删除卡片 ${row.cardNo}?`,
+          },
+        ),
+      ])
     },
   },
 ] as any)
@@ -523,7 +575,7 @@ function extractError(e: unknown, fallback: string): string {
         striped
         size="small"
         class="rounded-xl overflow-hidden"
-        :scroll-x="1300"
+        :scroll-x="1400"
         @update:sorter="(s: any) => s ? applySort(`${s.columnKey}:${s.order}`) : applySort('')"
       />
     </NSpin>
@@ -551,7 +603,7 @@ function extractError(e: unknown, fallback: string): string {
                 size="small"
                 :type="(card.gprsState === '1' ? 'success' : card.gprsState === '2' ? 'default' : card.gprsState === '3' ? 'error' : 'warning') as any"
               >
-                {{ { '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[card.gprsState] || '未知' }}
+                {{ { '1': '卡 在线', '2': '卡 离线', '3': '卡 停机', '4': '卡 机卡分离' }[card.gprsState] || '卡 未知' }}
               </NTag>
               <NSwitch
                 v-if="permissionStore.hasPermission('iot:card:enable') || permissionStore.hasPermission('iot:card:disable')"
@@ -592,8 +644,17 @@ function extractError(e: unknown, fallback: string): string {
             />
           </div>
 
-          <div class="flex justify-end">
+          <div class="flex justify-between items-center">
             <NButton size="tiny" quaternary @click="handleView(card)">查看详情</NButton>
+            <NPopconfirm
+              v-if="permissionStore.hasPermission('iot:card:delete')"
+              :on-positive-click="() => handleDelete(card)"
+            >
+              <template #trigger>
+                <NButton size="tiny" quaternary type="error">删除</NButton>
+              </template>
+              确认删除卡片 {{ card.cardNo }}?
+            </NPopconfirm>
           </div>
         </div>
       </div>
@@ -693,27 +754,59 @@ function extractError(e: unknown, fallback: string): string {
     </div>
 
     <!-- Detail Drawer -->
-    <NDrawer v-model:show="detailVisible" :width="420" placement="right">
+    <NDrawer v-model:show="detailVisible" :width="520" placement="right">
       <NDrawerContent title="卡片详情" closable>
         <NSpin :show="detailLoading">
-          <NDescriptions v-if="selectedCard" :column="1" label-placement="left" size="large">
-            <NDescriptionsItem label="卡号">{{ selectedCard.cardNo }}</NDescriptionsItem>
-            <NDescriptionsItem label="MSISDN">{{ selectedCard.msisdn || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="ICCID">{{ selectedCard.iccid || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="IMSI">{{ selectedCard.imsi || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="运营商">{{ operatorLabel(selectedCard.operator) }}</NDescriptionsItem>
-            <NDescriptionsItem label="卡形态">{{ selectedCard.cardType || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="套餐">{{ selectedCard.comboName || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="已用">{{ selectedCard.comboUsed != null ? selectedCard.comboUsed + ' MB' : '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="剩余">{{ selectedCard.comboResidue != null ? selectedCard.comboResidue + ' MB' : '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="总量">{{ selectedCard.comboTotal != null ? selectedCard.comboTotal + ' MB' : '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="联网状态">{{ gprsStateTag(selectedCard.gprsState) }}</NDescriptionsItem>
-            <NDescriptionsItem label="设备状态">{{ selectedCard.onOffStatus === '1' ? '在线' : selectedCard.onOffStatus === '0' ? '离线' : '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="激活状态">{{ selectedCard.activatedState === '1' ? '测试期' : selectedCard.activatedState === '2' ? '库存期' : selectedCard.activatedState === '3' ? '已激活' : '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="实时位置">{{ selectedCard.realPosition || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="激活时间">{{ selectedCard.activationTime || '-' }}</NDescriptionsItem>
-            <NDescriptionsItem label="到期时间">{{ selectedCard.endTime || '-' }}</NDescriptionsItem>
-          </NDescriptions>
+          <template v-if="selectedCard">
+            <!-- All fields -->
+            <NDescriptions :column="1" label-placement="left" size="large" class="mb-6">
+              <NDescriptionsItem label="卡号">{{ selectedCard.cardNo }}</NDescriptionsItem>
+              <NDescriptionsItem label="MSISDN">{{ selectedCard.msisdn || '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="ICCID">{{ selectedCard.iccid || '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="IMSI">{{ selectedCard.imsi || '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="运营商">{{ operatorLabel(selectedCard.operator) }}</NDescriptionsItem>
+              <NDescriptionsItem label="卡形态">{{ selectedCard.cardType || '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="套餐">{{ selectedCard.comboName || '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="已用">{{ selectedCard.comboUsed != null ? selectedCard.comboUsed + ' MB' : '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="剩余">{{ selectedCard.comboResidue != null ? selectedCard.comboResidue + ' MB' : '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="总量">{{ selectedCard.comboTotal != null ? selectedCard.comboTotal + ' MB' : '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="状态">{{ gprsStateTag(selectedCard.gprsState) }}</NDescriptionsItem>
+              <NDescriptionsItem label="联网状态">{{ selectedCard.onOffStatus === '1' ? '在线' : selectedCard.onOffStatus === '0' ? '不在线' : '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="激活状态">{{ selectedCard.activatedState === '1' ? '测试期' : selectedCard.activatedState === '2' ? '库存期' : selectedCard.activatedState === '3' ? '已激活' : '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="实时位置">{{ selectedCard.realPosition || '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="激活时间">{{ selectedCard.activationTime || '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="到期时间">{{ selectedCard.endTime || '-' }}</NDescriptionsItem>
+            </NDescriptions>
+
+            <!-- Usage history chart -->
+            <div class="border-t border-slate-200 dark:border-slate-700 pt-4">
+              <div class="flex items-center justify-between mb-4">
+                <h4 class="font-medium text-sm">流量使用历史</h4>
+                <NRadioGroup v-model:value="historyPrecision" size="small">
+                  <NRadioButton value="hour">时</NRadioButton>
+                  <NRadioButton value="day">日</NRadioButton>
+                  <NRadioButton value="week">周</NRadioButton>
+                </NRadioGroup>
+              </div>
+
+              <NSpin :show="historyLoading">
+                <div v-if="historyData.length === 0" class="text-center text-sm text-slate-400 py-10">暂无历史数据</div>
+                <div v-else class="flex items-end justify-between gap-1 h-[180px] px-2">
+                  <div
+                    v-for="(item, idx) in historyData"
+                    :key="idx"
+                    class="flex-1 flex flex-col items-center gap-1"
+                  >
+                    <div
+                      class="w-full bg-blue-500/80 rounded-t-sm min-h-[4px]"
+                      :style="{ height: `${Math.max(4, ((item.used ?? item.avgUsed ?? 0) / Math.max(1, ...historyData.map(x => x.used ?? x.avgUsed ?? 0))) * 140)}px` }"
+                    />
+                    <div class="text-[10px] text-slate-500 truncate w-full text-center">{{ item.label.slice(-5) }}</div>
+                  </div>
+                </div>
+              </NSpin>
+            </div>
+          </template>
         </NSpin>
       </NDrawerContent>
     </NDrawer>

@@ -6,6 +6,8 @@ const {
   batchCards,
   getBalance,
   getStats,
+  getCardHistory,
+  deleteCard,
   disableCard,
   enableCard,
 } = require("./cardHandlers");
@@ -20,6 +22,8 @@ router.get("/stats",        jwtAuth, requirePermission("iot:card:list"),   getSt
 router.post("/sync",        jwtAuth, requirePermission("iot:card:list"),   syncCards);
 router.post("/batch",       jwtAuth, requirePermission("iot:card:list"),   batchCards);
 router.get("/:cardNo",      jwtAuth, requirePermission("iot:card:query"),  getCard);
+router.get("/:cardNo/history", jwtAuth, requirePermission("iot:card:query"), getCardHistory);
+router.delete("/:cardNo",   jwtAuth, requirePermission("iot:card:delete"), deleteCard);
 router.put("/:cardNo/disable", jwtAuth, requirePermission("iot:card:disable"), disableCard);
 router.put("/:cardNo/enable",  jwtAuth, requirePermission("iot:card:enable"),  enableCard);
 

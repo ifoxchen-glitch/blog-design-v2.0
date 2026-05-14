@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NInput, NButton, NCard, NForm, NFormItem, NSpace, NAlert } from 'naive-ui'
+import { NInput, NInputNumber, NButton, NCard, NForm, NFormItem, NSpace, NAlert, NSwitch } from 'naive-ui'
 import PageHeader from '../../components/common/PageHeader.vue'
 
 const openWebUIUrl = ref('')
@@ -8,6 +8,8 @@ const openWebUIApiKey = ref('')
 const iotApiBaseUrl = ref('')
 const iotAppId = ref('')
 const iotAppSecret = ref('')
+const iotSyncEnabled = ref(true)
+const iotSyncInterval = ref(60)
 const loading = ref(false)
 const saving = ref(false)
 const message = ref('')
@@ -24,6 +26,8 @@ async function loadSettings() {
       iotApiBaseUrl.value = data.data?.iot_api_base_url || ''
       iotAppId.value = data.data?.iot_app_id || ''
       iotAppSecret.value = data.data?.iot_app_secret || ''
+      iotSyncEnabled.value = data.data?.iot_sync_enabled !== 0
+      iotSyncInterval.value = data.data?.iot_sync_interval || 60
     }
   } catch (err) {
     console.error('Failed to load settings:', err)
@@ -45,6 +49,8 @@ async function saveSettings() {
         iot_api_base_url: iotApiBaseUrl.value,
         iot_app_id: iotAppId.value,
         iot_app_secret: iotAppSecret.value,
+        iot_sync_enabled: iotSyncEnabled.value,
+        iot_sync_interval: iotSyncInterval.value,
       }),
     })
     const data = await res.json()
@@ -160,6 +166,25 @@ onMounted(() => {
             show-password-on="click"
             :loading="loading"
           />
+        </NFormItem>
+
+        <NFormItem label="自动同步">
+          <NSwitch v-model:value="iotSyncEnabled" :loading="loading" />
+          <span class="text-xs text-gray-400 ml-2">定时保存卡片用量快照，用于趋势分析</span>
+        </NFormItem>
+
+        <NFormItem label="同步间隔(分钟)">
+          <NInputNumber
+            v-model:value="iotSyncInterval"
+            :min="5"
+            :max="1440"
+            :step="5"
+            placeholder="60"
+            style="width: 160px"
+          />
+          <template #feedback>
+            <span class="text-xs text-gray-400">最小5分钟，最大1440分钟（24小时）</span>
+          </template>
         </NFormItem>
 
         <NFormItem>

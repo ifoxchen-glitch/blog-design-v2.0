@@ -47,6 +47,16 @@ export interface StatsData {
   trend: { hour: string; totalUsed: number }[]
 }
 
+export interface HistoryItem {
+  label: string
+  used?: number
+  residue?: number
+  total?: number
+  avgUsed?: number
+  maxUsed?: number
+  minUsed?: number
+}
+
 export async function apiGetCards(
   params: CardListQuery & { page: number; pageSize: number },
   client: AxiosInstance = request,
@@ -73,6 +83,18 @@ export async function apiGetCard(
 ): Promise<CardItem> {
   const res = await client.get<ApiResponse<CardItem>>(
     `/api/v2/admin/iot/cards/${encodeURIComponent(cardNo)}`,
+  )
+  return res.data.data
+}
+
+export async function apiGetCardHistory(
+  cardNo: string,
+  precision: 'hour' | 'day' | 'week' = 'hour',
+  client: AxiosInstance = request,
+): Promise<{ items: HistoryItem[]; precision: string }> {
+  const res = await client.get<ApiResponse<{ items: HistoryItem[]; precision: string }>>(
+    `/api/v2/admin/iot/cards/${encodeURIComponent(cardNo)}/history`,
+    { params: { precision } },
   )
   return res.data.data
 }
@@ -104,6 +126,15 @@ export async function apiGetBalance(
     '/api/v2/admin/iot/cards/balance',
   )
   return res.data.data
+}
+
+export async function apiDeleteCard(
+  cardNo: string,
+  client: AxiosInstance = request,
+): Promise<void> {
+  await client.delete<ApiResponse<void>>(
+    `/api/v2/admin/iot/cards/${encodeURIComponent(cardNo)}`,
+  )
 }
 
 export async function apiDisableCard(
