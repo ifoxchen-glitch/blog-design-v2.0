@@ -30,11 +30,13 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
  */
 function matchSelectedPaths(relPath, selectedPaths) {
   if (!selectedPaths || selectedPaths.length === 0) return true; // no filter = include all
+  const lower = relPath.toLowerCase();
   const result = selectedPaths.some(sp => {
-    if (sp.endsWith('/')) {
-      return relPath.startsWith(sp);
+    const spLower = sp.toLowerCase();
+    if (spLower.endsWith('/')) {
+      return lower.startsWith(spLower);
     }
-    return relPath === sp || relPath.startsWith(sp + '/');
+    return lower === spLower || lower.startsWith(spLower + '/');
   });
   return result;
 }
@@ -45,7 +47,7 @@ function scanVault(vaultPath, selectedPaths) {
   if (!fs.existsSync(wikiPath)) { console.log(`[kb-sync] scanVault: wikiPath not found: ${wikiPath}`); return results; }
 
   const resolved = path.resolve(wikiPath);
-  const normalized = path.normalize(resolved);
+  const normalized = path.normalize(resolved).toLowerCase();
   let scanned = 0, matched = 0;
 
   function walk(dir) {
@@ -59,7 +61,7 @@ function scanVault(vaultPath, selectedPaths) {
     for (const e of entries) {
       if (e.name.startsWith(".")) continue;
       const full = path.join(dir, e.name);
-      const real = path.normalize(full);
+      const real = path.normalize(full).toLowerCase();
       if (!real.startsWith(normalized + path.sep) && real !== normalized) {
         console.log(`[kb-sync] scanVault: symlink/escape blocked: ${full}`); continue;
       }
@@ -277,7 +279,7 @@ function scanVaultPaths(vaultPath) {
   if (!fs.existsSync(wikiPath)) return results;
 
   const resolved = path.resolve(wikiPath);
-  const normalized = path.normalize(resolved);
+  const normalized = path.normalize(resolved).toLowerCase();
 
   function walk(dir) {
     if (dir.length > 4000) return;
@@ -286,7 +288,7 @@ function scanVaultPaths(vaultPath) {
     for (const e of entries) {
       if (e.name.startsWith(".")) continue;
       const full = path.join(dir, e.name);
-      const real = path.normalize(full);
+      const real = path.normalize(full).toLowerCase();
       if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
       if (e.isDirectory()) {
         walk(full);
@@ -314,7 +316,7 @@ function scanVaultChecksums(vaultPath) {
   const wikiPath = path.join(vaultPath, "wiki");
   if (!fs.existsSync(wikiPath)) return results;
   const resolved = path.resolve(wikiPath);
-  const normalized = path.normalize(resolved);
+  const normalized = path.normalize(resolved).toLowerCase();
   function walk(dir) {
     if (dir.length > 4000) return;
     let entries;
@@ -322,7 +324,7 @@ function scanVaultChecksums(vaultPath) {
     for (const e of entries) {
       if (e.name.startsWith(".")) continue;
       const full = path.join(dir, e.name);
-      const real = path.normalize(full);
+      const real = path.normalize(full).toLowerCase();
       if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
       if (e.isDirectory()) { walk(full); }
       else if (e.isFile() && e.name.endsWith(".md")) {
