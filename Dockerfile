@@ -13,7 +13,7 @@ ENV NODE_ENV=production \
     ADMIN_PORT=3000
 
 COPY server/package.json server/package-lock.json ./
-RUN npm ci --omit=dev --omit=optional
+RUN npm install --omit=dev --omit=optional
 
 COPY server/src ./server/src
 COPY server/public ./server/public
