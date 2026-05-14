@@ -8,8 +8,9 @@ const { nowIso } = require("../../../utils");
 const { getCardInfo, getCardInfoBatch, disableCard, enableCard, getAmount } = require("../../../modules/iotService");
 
 function mapCard(raw) {
+  // IoT platform uses 'iccid' as the primary identifier, not 'cardNo'
   return {
-    cardNo:        raw.cardNo,
+    cardNo:        raw.cardNo || raw.iccid,
     msisdn:        raw.msisdn,
     imsi:          raw.imsi,
     iccid:         raw.iccid,
@@ -128,8 +129,8 @@ async function syncCards(req, res) {
   }
 
   const allCards = Array.isArray(result.data) ? result.data : [];
-  // Filter out cards without cardNo to satisfy NOT NULL constraint
-  const cards = allCards.filter((c) => c?.cardNo || c?.cardNo === "0");
+  // Filter out cards without an identifier (iccid or cardNo) to satisfy NOT NULL constraint
+  const cards = allCards.filter((c) => c?.iccid || c?.cardNo);
   const upsert = db.prepare(`
     INSERT INTO iot_cards (card_no, msisdn, imsi, iccid, operator, card_type, combo_name,
       combo_residue, combo_used, combo_total, status, gprs_state, on_off_status,
@@ -209,8 +210,8 @@ async function batchCards(req, res) {
     Array.isArray(result.data?.list) ? result.data.list :
     [];
   const allCards = rawList;
-  // Filter out cards without cardNo to satisfy NOT NULL constraint
-  const cards = allCards.filter((c) => c?.cardNo || c?.cardNo === "0");
+  // Filter out cards without an identifier (iccid or cardNo) to satisfy NOT NULL constraint
+  const cards = allCards.filter((c) => c?.iccid || c?.cardNo);
   const upsert = db.prepare(`
     INSERT INTO iot_cards (card_no, msisdn, imsi, iccid, operator, card_type, combo_name,
       combo_residue, combo_used, combo_total, status, gprs_state, on_off_status,
