@@ -135,19 +135,9 @@ async function syncCards(req, res) {
   console.log(`[IoT] syncCards: ${rows.length} cards in local DB`);
 
   const cardNos = rows.map((r) => String(r.card_no));
-  let result;
-  try {
-    result = await getCardInfoBatch(cardNos);
-  } catch (e) {
-    const detail = e.response?.data ? JSON.stringify(e.response.data).substring(0, 500) : e.message;
-    console.error("[IoT] syncCards error:", detail);
-    db.prepare(`INSERT INTO iot_sync_logs (synced_at, card_count, result) VALUES (?, 0, ?)`).run(now, detail);
-    return res.status(503).json({ code: 503, message: "IoT platform error: " + detail });
-  }
 
-  const allCards = Array.isArray(result.data) ? result.data : [];
-  // Filter out cards without an identifier (iccid or cardNo) to satisfy NOT NULL constraint
-  const cards = allCards.filter((c) => c?.iccid || c?.cardNo);
+  // Query each card individually to avoid IoT platform DB corruption errors
+  // from hitting a single bad row in batch mode
   const upsert = db.prepare(`
     INSERT INTO iot_cards (card_no, msisdn, imsi, iccid, operator, card_type, combo_name,
       combo_residue, combo_used, combo_total, status, gprs_state, on_off_status,
@@ -166,37 +156,47 @@ async function syncCards(req, res) {
       updated_at=excluded.updated_at
   `);
 
-  const upsertMany = db.transaction((cards) => {
-    for (const c of cards) {
-      const mapped = mapCard(c);
-      upsert.run({
-        card_no:        mapped.cardNo,
-        msisdn:         mapped.msisdn,
-        imsi:           mapped.imsi,
-        iccid:          mapped.iccid,
-        operator:       mapped.operator,
-        card_type:      mapped.cardType,
-        combo_name:     mapped.comboName,
-        combo_residue:  mapped.comboResidue,
-        combo_used:     mapped.comboUsed,
-        combo_total:    mapped.comboTotal,
-        status:         mapped.status,
-        gprs_state:     mapped.gprsState,
-        on_off_status:  mapped.onOffStatus,
-        activated_state: mapped.activatedState,
-        real_position:  mapped.realPosition,
-        activation_time: mapped.activationTime,
-        end_time:       mapped.endTime,
-        created_at:     now,
-        updated_at:     now,
-      });
+  let successCount = 0;
+  let failCount = 0;
+  for (const cardNo of cardNos) {
+    try {
+      const result = await getCardInfo(cardNo);
+      const cards = Array.isArray(result.data) ? result.data : result.data ? [result.data] : [];
+      const card = cards.find((c) => c?.iccid || c?.cardNo);
+      if (card) {
+        const mapped = mapCard(card);
+        upsert.run({
+          card_no:        mapped.cardNo,
+          msisdn:         mapped.msisdn,
+          imsi:           mapped.imsi,
+          iccid:          mapped.iccid,
+          operator:       mapped.operator,
+          card_type:      mapped.cardType,
+          combo_name:     mapped.comboName,
+          combo_residue:  mapped.comboResidue,
+          combo_used:     mapped.comboUsed,
+          combo_total:    mapped.comboTotal,
+          status:         mapped.status,
+          gprs_state:     mapped.gprsState,
+          on_off_status:  mapped.onOffStatus,
+          activated_state: mapped.activatedState,
+          real_position:  mapped.realPosition,
+          activation_time: mapped.activationTime,
+          end_time:       mapped.endTime,
+          created_at:     now,
+          updated_at:     now,
+        });
+        successCount++;
+      }
+    } catch (e) {
+      failCount++;
+      console.error(`[IoT] syncCards: failed to fetch card ${cardNo}:`, e.response?.data || e.message);
     }
-  });
+  }
 
-  upsertMany(cards);
-  db.prepare(`INSERT INTO iot_sync_logs (synced_at, card_count, result) VALUES (?, ?, 'ok')`).run(now, cards.length);
+  db.prepare(`INSERT INTO iot_sync_logs (synced_at, card_count, result) VALUES (?, ?, ?)`).run(now, successCount, failCount > 0 ? `fail:${failCount}` : 'ok');
 
-  return res.status(200).json({ code: 200, message: "success", data: { cardCount: cards.length } });
+  return res.status(200).json({ code: 200, message: "success", data: { cardCount: successCount, failCount } });
 }
 
 // POST /api/v2/admin/iot/cards/batch
