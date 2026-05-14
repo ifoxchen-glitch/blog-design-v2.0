@@ -176,6 +176,12 @@ const router = createRouter({
           meta: { permission: 'ops:monitor' },
         },
         {
+          path: '/cms/ops/iotcards',
+          name: 'cms-ops-iotcards',
+          component: () => import('../views/ops/iotcards/index.vue'),
+          meta: { permission: 'iot:list' },
+        },
+        {
           path: '/cms/rbac',
           redirect: '/cms/rbac/users',
         },
