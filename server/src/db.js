@@ -343,6 +343,34 @@ function migrate(db) {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_kb_sl_created ON kb_sync_logs(created_at);
+
+    -- Phase 10: IoT Card Management
+    CREATE TABLE IF NOT EXISTS iot_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      iccid TEXT UNIQUE NOT NULL,
+      msisdn TEXT,
+      imsi TEXT,
+      operator TEXT,
+      card_type TEXT,
+      combo_name TEXT,
+      combo_residue INTEGER DEFAULT 0,
+      combo_used INTEGER DEFAULT 0,
+      combo_total INTEGER DEFAULT 0,
+      period_validity TEXT,
+      status TEXT,
+      gprs_state TEXT,
+      on_off_status TEXT,
+      activated_state TEXT,
+      real_position TEXT,
+      activation_time TEXT,
+      end_time TEXT,
+      remarks TEXT,
+      last_sync_time TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_iot_cards_iccid ON iot_cards(iccid);
+    CREATE INDEX IF NOT EXISTS idx_iot_cards_status ON iot_cards(status);
   `);
   // Seed the singleton row for kb_sync_config
   db.prepare(`INSERT OR IGNORE INTO kb_sync_config (id, vault_path, created_at, updated_at) VALUES (1, '', datetime('now'), datetime('now'))`).run();

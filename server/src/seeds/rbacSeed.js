@@ -65,6 +65,9 @@ const PERMISSIONS = [
   { code: "ai:chat",       resource: "ai",         action: "chat",    name: "AI 对话",         description: "与 AI 模型对话" },
   { code: "ai:model",      resource: "ai",         action: "model",  name: "管理 AI 模型",    description: "配置和管理 AI 模型" },
   { code: "task:manage",   resource: "task",       action: "manage", name: "管理任务看板",     description: "创建、编辑、删除任务看板中的任务" },
+  { code: "iot:list",     resource: "iot",        action: "list",   name: "查看物联网卡",    description: "浏览物联网卡列表" },
+  { code: "iot:query",    resource: "iot",        action: "query",  name: "查询物联网卡",    description: "查询物联网卡余额与状态" },
+  { code: "iot:manage",   resource: "iot",        action: "manage", name: "管理物联网卡",    description: "物联网卡断网/恢复操作" },
 ];
 
 // ============================================================
@@ -141,6 +144,7 @@ const MENUS = [
       { name: "审计日志", path: "/cms/ops/logs",    icon: "ReceiptOutline",  permission: "ops:logs" },
       { name: "备份",     path: "/cms/ops/backup",  icon: "ArchiveOutline",  permission: "ops:backup" },
       { name: "系统监控", path: "/cms/ops/monitor", icon: "PulseOutline",    permission: "ops:monitor" },
+      { name: "物联网卡", path: "/cms/ops/iotcards", icon: "CpuOutline",     permission: "iot:list" },
     ],
   },
   { name: "数据导入导出", path: "/cms/backup",   icon: "ArchiveOutline",     permission: "cms:export",     sort: 8 },
