@@ -349,15 +349,15 @@ async function getStats(req, res) {
   const db = openDb();
 
   const total = db.prepare("SELECT COUNT(*) AS c FROM iot_cards").get().c;
-  const online = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '1'").get().c;
-  const offline = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '2'").get().c;
-  const stopped = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '3'").get().c;
-  const separated = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '4'").get().c;
+  const online = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state LIKE '1%'").get().c;
+  const offline = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state LIKE '2%'").get().c;
+  const stopped = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state LIKE '3%'").get().c;
+  const separated = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state LIKE '4%'").get().c;
 
   const gprsStateDist = db.prepare(`
-    SELECT gprs_state AS state, COUNT(*) AS count
+    SELECT ROUND(CAST(gprs_state AS REAL)) AS state, COUNT(*) AS count
     FROM iot_cards WHERE gprs_state IS NOT NULL
-    GROUP BY gprs_state
+    GROUP BY state
     ORDER BY count DESC
   `).all();
 
