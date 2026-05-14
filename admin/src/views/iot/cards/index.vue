@@ -633,9 +633,9 @@ function extractError(e: unknown, fallback: string): string {
             <div class="flex items-center gap-2">
               <NTag
                 size="small"
-                :type="(card.gprsState === '1' ? 'success' : card.gprsState === '2' ? 'default' : card.gprsState === '0' ? 'warning' : 'error') as any"
+                :type="(normalizeGprs(card.gprsState) === '1' ? 'success' : normalizeGprs(card.gprsState) === '2' ? 'default' : normalizeGprs(card.gprsState) === '0' ? 'warning' : 'error') as any"
               >
-                {{ { '0': '未知', '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[card.gprsState] || '未知' }}
+                {{ gprsStateLabel(card.gprsState) }}
               </NTag>
               <NSwitch
                 v-if="permissionStore.hasPermission('iot:card:enable') || permissionStore.hasPermission('iot:card:disable')"
@@ -713,7 +713,7 @@ function extractError(e: unknown, fallback: string): string {
       <h3 class="text-lg font-semibold mb-5 text-slate-800 dark:text-slate-200">数据仪表盘</h3>
 
       <!-- Stat Cards -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <NCard size="small" class="text-center">
           <div class="text-2xl font-bold text-slate-800 dark:text-slate-100">{{ stats.total }}</div>
           <div class="text-xs text-slate-500 mt-1">总卡片数</div>
@@ -729,6 +729,10 @@ function extractError(e: unknown, fallback: string): string {
         <NCard size="small" class="text-center">
           <div class="text-2xl font-bold text-rose-500">{{ stats.stopped }}</div>
           <div class="text-xs text-slate-500 mt-1">停机</div>
+        </NCard>
+        <NCard size="small" class="text-center">
+          <div class="text-2xl font-bold text-orange-400">{{ stats.separated }}</div>
+          <div class="text-xs text-slate-500 mt-1">机卡分离</div>
         </NCard>
       </div>
 
@@ -787,7 +791,7 @@ function extractError(e: unknown, fallback: string): string {
         </NCard>
         <NCard title="卡状态分布" size="small">
           <PieChart
-            :data="stats.gprsStateDist.map(d => ({ name: { '0': '未知', '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[d.state] || d.state, value: d.count }))"
+            :data="stats.gprsStateDist.map(d => ({ name: { '0': '未知', '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[String(d.state)] || String(d.state), value: d.count }))"
             :height="240"
           />
         </NCard>
