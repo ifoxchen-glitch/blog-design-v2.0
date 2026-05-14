@@ -21,8 +21,8 @@ let mapLoaded = false
 async function loadMap() {
   if (mapLoaded) return
   try {
-    // 使用 DataV 提供的中国地图 GeoJSON
-    const res = await fetch('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json')
+    // Use local GeoJSON bundled in the app
+    const res = await fetch('/china.json')
     const chinaGeo = await res.json()
     echarts.registerMap('china', chinaGeo)
     mapLoaded = true
