@@ -33,7 +33,6 @@ import {
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import PieChart from '../../../components/charts/PieChart.vue'
-import PieChart from '../../../components/charts/PieChart.vue'
 import ChinaMap from '../../../components/charts/ChinaMap.vue'
 import BarChart from '../../../components/charts/BarChart.vue'
 import {
