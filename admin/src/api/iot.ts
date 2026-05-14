@@ -1,0 +1,97 @@
+// IoT Card Management API client
+import { request, type ApiResponse } from './request'
+import type { AxiosInstance } from 'axios'
+
+export interface CardItem {
+  cardNo: string
+  msisdn: string
+  imsi: string
+  iccid: string
+  operator: string
+  cardType: string
+  comboName: string
+  comboResidue: number
+  comboUsed: number
+  comboTotal: number
+  status: string
+  gprsState: string
+  onOffStatus: string
+  activatedState: string
+  realPosition: string | null
+  activationTime: string | null
+  endTime: string | null
+}
+
+export interface CardListQuery {
+  keyword?: string
+  status?: string
+  operator?: string
+}
+
+export async function apiGetCards(
+  params: CardListQuery & { page: number; pageSize: number },
+  client: AxiosInstance = request,
+): Promise<{ items: CardItem[]; total: number; page: number; pageSize: number }> {
+  const res = await client.get<ApiResponse<{ items: CardItem[]; total: number; page: number; pageSize: number }>>(
+    '/api/v2/admin/iot/cards',
+    { params },
+  )
+  return res.data.data
+}
+
+export async function apiGetCard(
+  cardNo: string,
+  client: AxiosInstance = request,
+): Promise<CardItem> {
+  const res = await client.get<ApiResponse<CardItem>>(
+    `/api/v2/admin/iot/cards/${encodeURIComponent(cardNo)}`,
+  )
+  return res.data.data
+}
+
+export async function apiSyncCards(
+  client: AxiosInstance = request,
+): Promise<{ cardCount: number }> {
+  const res = await client.post<ApiResponse<{ cardCount: number }>>(
+    '/api/v2/admin/iot/cards/sync',
+  )
+  return res.data.data
+}
+
+export async function apiBatchCards(
+  cardNos: string[],
+  client: AxiosInstance = request,
+): Promise<{ items: CardItem[]; total: number }> {
+  const res = await client.post<ApiResponse<{ items: CardItem[]; total: number }>>(
+    '/api/v2/admin/iot/cards/batch',
+    { cardNos },
+  )
+  return res.data.data
+}
+
+export async function apiGetBalance(
+  client: AxiosInstance = request,
+): Promise<{ amount: string }> {
+  const res = await client.get<ApiResponse<{ amount: string }>>(
+    '/api/v2/admin/iot/cards/balance',
+  )
+  return res.data.data
+}
+
+export async function apiDisableCard(
+  cardNo: string,
+  client: AxiosInstance = request,
+): Promise<void> {
+  await client.put<ApiResponse<void>>(
+    `/api/v2/admin/iot/cards/${encodeURIComponent(cardNo)}/disable`,
+  )
+}
+
+export async function apiEnableCard(
+  cardNo: string,
+  client: AxiosInstance = request,
+): Promise<void> {
+  await client.put<ApiResponse<void>>(
+    `/api/v2/admin/iot/cards/${encodeURIComponent(cardNo)}/enable`,
+  )
+}

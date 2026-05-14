@@ -540,6 +540,44 @@ function migrate(db) {
     );
   }
 
+  // ============================================================
+  // Phase 10: IoT Card Management (物联网卡管理)
+  // ============================================================
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS iot_cards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      card_no TEXT UNIQUE NOT NULL,
+      msisdn TEXT,
+      imsi TEXT,
+      iccid TEXT,
+      operator TEXT,
+      card_type TEXT,
+      combo_name TEXT,
+      combo_residue REAL,
+      combo_used REAL,
+      combo_total REAL,
+      status TEXT,
+      gprs_state TEXT,
+      on_off_status TEXT,
+      activated_state TEXT,
+      real_position TEXT,
+      activation_time TEXT,
+      end_time TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_iot_cards_status ON iot_cards(status);
+    CREATE INDEX IF NOT EXISTS idx_iot_cards_operator ON iot_cards(operator);
+
+    CREATE TABLE IF NOT EXISTS iot_sync_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      synced_at TEXT NOT NULL,
+      card_count INTEGER NOT NULL DEFAULT 0,
+      result TEXT NOT NULL DEFAULT 'ok'
+    );
+    CREATE INDEX IF NOT EXISTS idx_iot_sync_logs_synced_at ON iot_sync_logs(synced_at);
+  `);
+
 }
 
 function ensureSeed(db) {

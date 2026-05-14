@@ -203,6 +203,12 @@ const router = createRouter({
           component: () => import('../views/rbac/menus/index.vue'),
           meta: { permission: 'menu:manage' },
         },
+        {
+          path: '/cms/iot/cards',
+          name: 'iot-cards',
+          component: () => import('../views/iot/cards/index.vue'),
+          meta: { permission: 'iot:card:list' },
+        },
       ],
     },
   ],

@@ -25,6 +25,7 @@ const tasksRouter = require("./admin/kb/tasksRouter");
 const templatesRouter = require("./admin/kb/templatesRouter");
 const webSearchRouter = require("./admin/kb/webSearchRouter");
 const settingsRouter = require("./admin/settings/settingsRouter");
+const iotCardsRouter = require("./admin/iot/cardsRouter");
 
 const app = express();
 
@@ -89,6 +90,7 @@ v2Router.use("/admin/kb/tasks", tasksRouter);
 v2Router.use("/admin/kb/templates", templatesRouter);
 v2Router.use("/admin/kb/search", webSearchRouter);
 v2Router.use("/admin/settings", settingsRouter);
+v2Router.use("/admin/iot/cards", iotCardsRouter);
 
 // ---- Open WebUI 代理配置 ----
 // 代理 API 请求到 Open WebUI FastAPI 后端

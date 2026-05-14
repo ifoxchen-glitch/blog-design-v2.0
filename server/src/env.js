@@ -12,4 +12,8 @@ function optional(name, fallback) {
 module.exports = {
   required,
   optional,
+  // IoT platform (物联网卡管理)
+  IOT_API_BASE_URL: optional("IOT_API_BASE_URL", ""),
+  IOT_APP_ID:       optional("IOT_APP_ID", ""),
+  IOT_APP_SECRET:   optional("IOT_APP_SECRET", ""),
 };
