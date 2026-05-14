@@ -5,7 +5,6 @@ import {
   NButton,
   NInput,
   NSelect,
-  NPopconfirm,
   NPagination,
   NSpin,
   NEmpty,
@@ -322,7 +321,7 @@ const tableColumns = computed(() => [
       return h(NButton, { size: 'tiny', quaternary: true, onClick: () => handleView(row) }, () => '查看')
     },
   },
-])
+] as any)
 
 function extractError(e: unknown, fallback: string): string {
   if (axios.isAxiosError(e)) {
