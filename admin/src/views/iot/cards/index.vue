@@ -390,7 +390,7 @@ const tableColumns = computed(() => [
     },
   },
   {
-    title: '状态',
+    title: '卡状态',
     key: 'gprsState',
     width: 100,
     render(row: CardItem) {
@@ -401,9 +401,9 @@ const tableColumns = computed(() => [
     },
   },
   {
-    title: '联网',
+    title: '开关机状态',
     key: 'onOffStatus',
-    width: 90,
+    width: 100,
     render(row: CardItem) {
       const s = String(row.onOffStatus ?? '')
       const map: Record<string, string> = { '1': '在线', '0': '离线' }
@@ -654,8 +654,8 @@ function extractError(e: unknown, fallback: string): string {
             <div><span class="text-slate-400">MSISDN: </span>{{ card.msisdn || '-' }}</div>
             <div><span class="text-slate-400">IMEI: </span>{{ (card as any).imei || '-' }}</div>
             <div><span class="text-slate-400">运营商: </span>{{ operatorLabel(card.operator) }}</div>
-            <div><span class="text-slate-400">状态: </span>{{ gprsStateLabel(card.gprsState) }}</div>
-            <div><span class="text-slate-400">联网: </span>{{ `[${card.onOffStatus ?? '-'}] ` }}{{ card.onOffStatus === '1' ? '在线' : card.onOffStatus === '0' ? '离线' : '-' }}</div>
+            <div><span class="text-slate-400">卡状态: </span>{{ gprsStateLabel(card.gprsState) }}</div>
+            <div><span class="text-slate-400">开关机状态: </span>{{ card.onOffStatus === '1' ? '在线' : card.onOffStatus === '0' ? '离线' : '-' }}</div>
             <div><span class="text-slate-400">激活: </span>{{ { '1': '测试期', '2': '库存期', '3': '已激活' }[card.activatedState] || '-' }}</div>
             <div class="col-span-2"><span class="text-slate-400">套餐: </span>{{ card.comboName || '-' }}</div>
             <div><span class="text-slate-400">位置: </span>{{ card.realPosition || '-' }}</div>
