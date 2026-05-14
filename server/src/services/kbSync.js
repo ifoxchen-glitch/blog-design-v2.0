@@ -678,4 +678,5 @@ module.exports = {
   ensureKnowledgeBase,
   testConnection,
   getSyncProgress,
+  listKnowledgeBases,
 };
