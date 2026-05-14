@@ -326,8 +326,8 @@ async function getStats(req, res) {
   const db = openDb();
 
   const total = db.prepare("SELECT COUNT(*) AS c FROM iot_cards").get().c;
-  const online = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '1'").get().c;
-  const offline = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '2'").get().c;
+  const online = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE on_off_status = '1'").get().c;
+  const offline = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE on_off_status = '0'").get().c;
   const stopped = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '3'").get().c;
   const separated = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '4'").get().c;
 
