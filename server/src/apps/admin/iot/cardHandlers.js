@@ -198,9 +198,17 @@ async function batchCards(req, res) {
     return res.status(503).json({ code: 503, message: "IoT platform error: " + e.message });
   }
 
+  console.log("[IoT] batchCards raw response:", JSON.stringify(result).substring(0, 800));
+
   const db = openDb();
   const now = nowIso();
-  const allCards = Array.isArray(result.data) ? result.data : [];
+  // opsli-boot may wrap list in result.data.records or result.data.list
+  const rawList =
+    Array.isArray(result.data) ? result.data :
+    Array.isArray(result.data?.records) ? result.data.records :
+    Array.isArray(result.data?.list) ? result.data.list :
+    [];
+  const allCards = rawList;
   // Filter out cards without cardNo to satisfy NOT NULL constraint
   const cards = allCards.filter((c) => c?.cardNo || c?.cardNo === "0");
   const upsert = db.prepare(`
