@@ -317,14 +317,22 @@ async function handleDelete(row: CardItem) {
   }
 }
 
+// Normalize gprsState to string for consistent key lookup
+function normalizeGprs(state: string | number | null | undefined) {
+  if (state == null) return '0'
+  return String(state)
+}
+
 // Status label text (for text display in card view)
-function gprsStateLabel(state: string) {
+function gprsStateLabel(state: string | number | null | undefined) {
+  const s = normalizeGprs(state)
   const map: Record<string, string> = { '0': '未知', '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }
-  return map[state] || '未知'
+  return map[s] || '未知'
 }
 
 // Status tag VNode (for NDataTable render and NTag in templates)
-function gprsStateTag(state: string) {
+function gprsStateTag(state: string | number | null | undefined) {
+  const s = normalizeGprs(state)
   const map: Record<string, { label: string; type: string }> = {
     '0': { label: '未知', type: 'warning' },
     '1': { label: '在线', type: 'success' },
@@ -332,7 +340,7 @@ function gprsStateTag(state: string) {
     '3': { label: '停机', type: 'error' },
     '4': { label: '机卡分离', type: 'error' },
   }
-  const t = map[state] || { label: '未知', type: 'warning' }
+  const t = map[s] || { label: '未知', type: 'warning' }
   return h(NTag, { size: 'small', type: t.type as any }, () => t.label)
 }
 
@@ -386,7 +394,10 @@ const tableColumns = computed(() => [
     key: 'gprsState',
     width: 100,
     render(row: CardItem) {
-      return gprsStateTag(row.gprsState)
+      return h('span', {}, [
+        h('span', { class: 'text-red-400 mr-1' }, `[${row.gprsState}]`),
+        gprsStateTag(row.gprsState),
+      ])
     },
   },
   {
@@ -802,7 +813,7 @@ function extractError(e: unknown, fallback: string): string {
               <NDescriptionsItem label="已用">{{ selectedCard.comboUsed != null ? selectedCard.comboUsed + ' MB' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="剩余">{{ selectedCard.comboResidue != null ? selectedCard.comboResidue + ' MB' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="总量">{{ selectedCard.comboTotal != null ? selectedCard.comboTotal + ' MB' : '-' }}</NDescriptionsItem>
-              <NDescriptionsItem label="状态">{{ gprsStateTag(selectedCard.gprsState) }}</NDescriptionsItem>
+              <NDescriptionsItem label="状态">{{ gprsStateLabel(selectedCard.gprsState) }}</NDescriptionsItem>
               <NDescriptionsItem label="联网状态">{{ selectedCard.onOffStatus === '1' ? '在线' : selectedCard.onOffStatus === '0' ? '不在线' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="激活状态">{{ selectedCard.activatedState === '1' ? '测试期' : selectedCard.activatedState === '2' ? '库存期' : selectedCard.activatedState === '3' ? '已激活' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="实时位置">{{ selectedCard.realPosition || '-' }}</NDescriptionsItem>
