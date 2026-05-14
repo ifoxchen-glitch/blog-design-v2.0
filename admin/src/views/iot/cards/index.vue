@@ -33,6 +33,8 @@ import {
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import PieChart from '../../../components/charts/PieChart.vue'
+import PieChart from '../../../components/charts/PieChart.vue'
+import ChinaMap from '../../../components/charts/ChinaMap.vue'
 import BarChart from '../../../components/charts/BarChart.vue'
 import {
   apiGetCards,
@@ -794,6 +796,9 @@ function extractError(e: unknown, fallback: string): string {
             :data="stats.gprsStateDist.map(d => ({ name: { '0': '未知', '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[String(d.state)] || String(d.state), value: d.count }))"
             :height="240"
           />
+        </NCard>
+        <NCard title="全国分布热力图" size="small" class="md:col-span-2">
+          <ChinaMap :data="stats.regionDist.map(d => ({ name: d.region, value: d.count }))" :height="300" />
         </NCard>
       </div>
     </div>
