@@ -39,20 +39,35 @@ async function getIotToken() {
 async function refreshToken() {
   const { baseUrl, appId, appSecret } = getIotConfig();
 
-  const res = await axios.post(`${baseUrl}/auth/login`, {
+  const loginUrl = `${baseUrl}/auth/login`;
+  console.log("[IoT] Refreshing token from:", loginUrl);
+  console.log("[IoT] appId:", appId, "secretLen:", appSecret?.length);
+
+  const res = await axios.post(loginUrl, {
     appId,
     appSecret,
     ts: String(Date.now()),
   });
 
-  const token = res.data?.data?.accessToken;
+  console.log("[IoT] auth response status:", res.status);
+  console.log("[IoT] auth response data:", JSON.stringify(res.data).substring(0, 500));
+  console.log("[IoT] auth response headers token:", res.headers?.token);
+
+  // Try multiple locations: body.data.accessToken, body.data.token, header token
+  const token =
+    res.data?.data?.accessToken ||
+    res.data?.data?.token ||
+    res.headers?.token;
+
   if (!token) {
-    throw new Error("IoT platform returned no accessToken in response body");
+    throw new Error(
+      `IoT platform returned no token. body=${JSON.stringify(res.data).substring(0, 200)}`
+    );
   }
 
   _token = token;
   _expiresAt = Date.now() + 15 * 60 * 1000;
-  console.log("[IoT] Token refreshed, expires at", new Date(_expiresAt).toISOString());
+  console.log("[IoT] Token refreshed (len=" + token.length + "), expires at", new Date(_expiresAt).toISOString());
 }
 
 async function forceRefresh() {

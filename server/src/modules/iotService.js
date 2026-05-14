@@ -3,11 +3,17 @@
  * Wraps all IoT API calls with token injection and response normalization.
  */
 const axios = require("axios");
-const { optional } = require("../env");
+const { openDb } = require("../db");
 const { getIotToken } = require("./iotToken");
 
+function getIotBaseUrl() {
+  const db = openDb();
+  const settings = db.prepare("SELECT iot_api_base_url FROM system_settings WHERE id = 1").get();
+  return settings?.iot_api_base_url || "";
+}
+
 function buildClient() {
-  const baseURL = optional("IOT_API_BASE_URL") || "";
+  const baseURL = getIotBaseUrl();
   const instance = axios.create({ baseURL, timeout: 10_000 });
 
   instance.interceptors.request.use(async (config) => {
@@ -35,22 +41,6 @@ async function iotPost(path, data) {
   const client = buildClient();
   const res = await client.post(path, data);
   return normalizeResponse(res);
-}
-
-// ----- Auth -----
-async function fetchToken() {
-  const baseUrl = optional("IOT_API_BASE_URL");
-  const appId = optional("IOT_APP_ID");
-  const appSecret = optional("IOT_APP_SECRET");
-  if (!baseUrl || !appId || !appSecret) {
-    throw new Error("IOT platform credentials not configured");
-  }
-  const res = await axios.post(`${baseUrl}/auth/login`, {
-    appId,
-    appSecret,
-    ts: Date.now(),
-  });
-  return res.headers["token"];
 }
 
 // ----- Card -----
