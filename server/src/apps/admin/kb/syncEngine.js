@@ -253,8 +253,13 @@ async function fullImport(vaultPath, conflictStrategy, selectedPaths) {
   const db = openDb();
   const now = new Date().toISOString();
   try {
+    const wikiPath = path.join(vaultPath, "wiki");
+    console.log(`[kb-sync] fullImport starting: vault=${vaultPath} wiki=${wikiPath} selected=${JSON.stringify(selectedPaths)} wikiExists=${fs.existsSync(wikiPath)}`);
     const files = scanVault(vaultPath, selectedPaths);
-    return await importFromFiles(files, conflictStrategy, "obsidian");
+    console.log(`[kb-sync] scanVault found ${files.length} files, starting import...`);
+    const result = await importFromFiles(files, conflictStrategy, "obsidian");
+    console.log(`[kb-sync] fullImport complete:`, JSON.stringify(result));
+    return result;
   } catch (err) {
     console.error("[kb-sync] fullImport error:", err.message);
     // Write the error to sync logs so the UI can display it
