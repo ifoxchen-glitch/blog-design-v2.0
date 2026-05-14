@@ -132,13 +132,17 @@ async function syncCards(req, res) {
     return res.status(200).json({ code: 200, message: "No cards to sync", data: { cardCount: 0 } });
   }
 
+  console.log(`[IoT] syncCards: ${rows.length} cards in local DB`);
+
   const cardNos = rows.map((r) => r.card_no);
   let result;
   try {
     result = await getCardInfoBatch(cardNos);
   } catch (e) {
-    db.prepare(`INSERT INTO iot_sync_logs (synced_at, card_count, result) VALUES (?, 0, ?)`).run(now, String(e.message));
-    return res.status(503).json({ code: 503, message: "IoT platform error: " + e.message });
+    const detail = e.response?.data ? JSON.stringify(e.response.data).substring(0, 500) : e.message;
+    console.error("[IoT] syncCards error:", detail);
+    db.prepare(`INSERT INTO iot_sync_logs (synced_at, card_count, result) VALUES (?, 0, ?)`).run(now, detail);
+    return res.status(503).json({ code: 503, message: "IoT platform error: " + detail });
   }
 
   const allCards = Array.isArray(result.data) ? result.data : [];
@@ -326,8 +330,8 @@ async function getStats(req, res) {
   const db = openDb();
 
   const total = db.prepare("SELECT COUNT(*) AS c FROM iot_cards").get().c;
-  const online = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE on_off_status = '1'").get().c;
-  const offline = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE on_off_status = '0'").get().c;
+  const online = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE status = '1'").get().c;
+  const offline = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE status = '0'").get().c;
   const stopped = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '3'").get().c;
   const separated = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '4'").get().c;
 

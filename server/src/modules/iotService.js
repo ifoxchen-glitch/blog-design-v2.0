@@ -40,8 +40,16 @@ async function iotGet(path, params) {
 
 async function iotPost(path, data) {
   const client = buildClient();
-  const res = await client.post(path, data);
-  return normalizeResponse(res);
+  console.log("[IoT] POST", path, "body:", JSON.stringify(data).substring(0, 300));
+  try {
+    const res = await client.post(path, data);
+    console.log("[IoT] response:", JSON.stringify(res.data).substring(0, 300));
+    return normalizeResponse(res);
+  } catch (e) {
+    const detail = e.response?.data ? JSON.stringify(e.response.data).substring(0, 500) : e.message;
+    console.error("[IoT] POST error:", path, detail);
+    throw e;
+  }
 }
 
 // ----- Card -----
