@@ -61,9 +61,9 @@ function scanVault(vaultPath, selectedPaths) {
     for (const e of entries) {
       if (e.name.startsWith(".")) continue;
       const full = path.join(dir, e.name);
-      const real = path.normalize(full).toLowerCase();
+      const real = path.resolve(full).toLowerCase();
       if (!real.startsWith(normalized + path.sep) && real !== normalized) {
-        console.log(`[kb-sync] scanVault: symlink/escape blocked: ${full}`); continue;
+        console.log(`[kb-sync] scanVault: symlink/escape blocked: ${full} (real=${real})`); continue;
       }
       if (e.isDirectory()) {
         walk(full);
@@ -288,7 +288,7 @@ function scanVaultPaths(vaultPath) {
     for (const e of entries) {
       if (e.name.startsWith(".")) continue;
       const full = path.join(dir, e.name);
-      const real = path.normalize(full).toLowerCase();
+      const real = path.resolve(full).toLowerCase();
       if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
       if (e.isDirectory()) {
         walk(full);
@@ -324,7 +324,7 @@ function scanVaultChecksums(vaultPath) {
     for (const e of entries) {
       if (e.name.startsWith(".")) continue;
       const full = path.join(dir, e.name);
-      const real = path.normalize(full).toLowerCase();
+      const real = path.resolve(full).toLowerCase();
       if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
       if (e.isDirectory()) { walk(full); }
       else if (e.isFile() && e.name.endsWith(".md")) {
