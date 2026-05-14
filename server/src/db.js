@@ -556,6 +556,7 @@ function migrate(db) {
       msisdn TEXT,
       imsi TEXT,
       iccid TEXT,
+      imei TEXT,
       operator TEXT,
       card_type TEXT,
       combo_name TEXT,
@@ -604,7 +605,10 @@ function migrate(db) {
     );
   `);
 
-  // Add raw_json column if not exists (schema evolution)
+  // Schema evolution for existing databases
+  try {
+    db.exec("ALTER TABLE iot_cards ADD COLUMN imei TEXT");
+  } catch (_) { /* already exists */ }
   try {
     db.exec("ALTER TABLE iot_card_raw ADD COLUMN raw_json TEXT");
   } catch (_) { /* already exists */ }

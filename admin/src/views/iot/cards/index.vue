@@ -362,6 +362,12 @@ const tableColumns = computed(() => [
     ellipsis: { tooltip: true },
   },
   {
+    title: 'IMEI',
+    key: 'imei',
+    width: 150,
+    ellipsis: { tooltip: true },
+  },
+  {
     title: '运营商',
     key: 'operator',
     width: 70,
@@ -619,6 +625,7 @@ function extractError(e: unknown, fallback: string): string {
           <div class="grid grid-cols-2 gap-y-2 gap-x-4 text-xs text-slate-500 dark:text-slate-400 mb-3">
             <div><span class="text-slate-400">ICCID: </span>{{ card.iccid || '-' }}</div>
             <div><span class="text-slate-400">MSISDN: </span>{{ card.msisdn || '-' }}</div>
+            <div><span class="text-slate-400">IMEI: </span>{{ (card as any).imei || '-' }}</div>
             <div><span class="text-slate-400">运营商: </span>{{ operatorLabel(card.operator) }}</div>
             <div><span class="text-slate-400">激活: </span>{{ { '1': '测试期', '2': '库存期', '3': '已激活' }[card.activatedState] || '-' }}</div>
             <div class="col-span-2"><span class="text-slate-400">套餐: </span>{{ card.comboName || '-' }}</div>
@@ -769,6 +776,7 @@ function extractError(e: unknown, fallback: string): string {
             <NDescriptions :column="1" label-placement="left" size="large" class="mb-6">
               <NDescriptionsItem label="卡号">{{ selectedCard.cardNo }}</NDescriptionsItem>
               <NDescriptionsItem label="MSISDN">{{ selectedCard.msisdn || '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="IMEI">{{ (selectedCard as any).imei || '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="ICCID">{{ selectedCard.iccid || '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="IMSI">{{ selectedCard.imsi || '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="运营商">{{ operatorLabel(selectedCard.operator) }}</NDescriptionsItem>

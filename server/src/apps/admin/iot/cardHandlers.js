@@ -14,6 +14,7 @@ function mapCard(raw) {
     msisdn:        raw.msisdn,
     imsi:          raw.imsi,
     iccid:         raw.iccid,
+    imei:          raw.imei,
     operator:      raw.operator,
     cardType:      raw.type,
     comboName:     raw.comboName,
@@ -74,6 +75,7 @@ async function listCards(req, res) {
     msisdn:        r.msisdn,
     imsi:          r.imsi,
     iccid:         r.iccid,
+    imei:          r.imei || null,
     operator:      r.operator,
     cardType:      r.card_type,
     comboName:     r.combo_name,
@@ -107,6 +109,7 @@ async function getCard(req, res) {
     msisdn:        row.msisdn,
     imsi:          row.imsi,
     iccid:         row.iccid,
+    imei:          row.imei || null,
     operator:      row.operator,
     cardType:      row.card_type,
     comboName:     row.combo_name,
@@ -151,14 +154,14 @@ async function syncCards(req, res) {
   // Query each card individually to avoid IoT platform DB corruption errors
   // from hitting a single bad row in batch mode
   const upsert = db.prepare(`
-    INSERT INTO iot_cards (card_no, msisdn, imsi, iccid, operator, card_type, combo_name,
+    INSERT INTO iot_cards (card_no, msisdn, imsi, iccid, imei, operator, card_type, combo_name,
       combo_residue, combo_used, combo_total, status, gprs_state, on_off_status,
       activated_state, real_position, activation_time, end_time, created_at, updated_at)
-    VALUES (@card_no, @msisdn, @imsi, @iccid, @operator, @card_type, @combo_name,
+    VALUES (@card_no, @msisdn, @imsi, @iccid, @imei, @operator, @card_type, @combo_name,
       @combo_residue, @combo_used, @combo_total, @status, @gprs_state, @on_off_status,
       @activated_state, @real_position, @activation_time, @end_time, @created_at, @updated_at)
     ON CONFLICT(card_no) DO UPDATE SET
-      msisdn=excluded.msisdn, imsi=excluded.imsi, iccid=excluded.iccid,
+      msisdn=excluded.msisdn, imsi=excluded.imsi, iccid=excluded.iccid, imei=excluded.imei,
       operator=excluded.operator, card_type=excluded.card_type, combo_name=excluded.combo_name,
       combo_residue=excluded.combo_residue, combo_used=excluded.combo_used,
       combo_total=excluded.combo_total, status=excluded.status,
@@ -182,6 +185,7 @@ async function syncCards(req, res) {
           msisdn:         mapped.msisdn,
           imsi:           mapped.imsi,
           iccid:          mapped.iccid,
+          imei:           mapped.imei || null,
           operator:       mapped.operator,
           card_type:      mapped.cardType,
           combo_name:     mapped.comboName,
@@ -244,14 +248,14 @@ async function batchCards(req, res) {
   // Filter out cards without an identifier (iccid or cardNo) to satisfy NOT NULL constraint
   const cards = allCards.filter((c) => c?.iccid || c?.cardNo);
   const upsert = db.prepare(`
-    INSERT INTO iot_cards (card_no, msisdn, imsi, iccid, operator, card_type, combo_name,
+    INSERT INTO iot_cards (card_no, msisdn, imsi, iccid, imei, operator, card_type, combo_name,
       combo_residue, combo_used, combo_total, status, gprs_state, on_off_status,
       activated_state, real_position, activation_time, end_time, created_at, updated_at)
-    VALUES (@card_no, @msisdn, @imsi, @iccid, @operator, @card_type, @combo_name,
+    VALUES (@card_no, @msisdn, @imsi, @iccid, @imei, @operator, @card_type, @combo_name,
       @combo_residue, @combo_used, @combo_total, @status, @gprs_state, @on_off_status,
       @activated_state, @real_position, @activation_time, @end_time, @created_at, @updated_at)
     ON CONFLICT(card_no) DO UPDATE SET
-      msisdn=excluded.msisdn, imsi=excluded.imsi, iccid=excluded.iccid,
+      msisdn=excluded.msisdn, imsi=excluded.imsi, iccid=excluded.iccid, imei=excluded.imei,
       operator=excluded.operator, card_type=excluded.card_type, combo_name=excluded.combo_name,
       combo_residue=excluded.combo_residue, combo_used=excluded.combo_used,
       combo_total=excluded.combo_total, status=excluded.status,
@@ -269,6 +273,7 @@ async function batchCards(req, res) {
         msisdn:         mapped.msisdn,
         imsi:           mapped.imsi,
         iccid:          mapped.iccid,
+        imei:           mapped.imei || null,
         operator:       mapped.operator,
         card_type:      mapped.cardType,
         combo_name:     mapped.comboName,
