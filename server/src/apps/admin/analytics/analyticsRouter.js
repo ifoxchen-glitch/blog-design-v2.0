@@ -207,7 +207,7 @@ router.get("/referrers", (req, res) => {
 
 /**
  * GET /api/v2/admin/analytics/hourly
- * 返回今天 24 小时 PV 分布
+ * 返回今天 24 小时 PV / UV 分布
  */
 router.get("/hourly", (req, res) => {
   const db = openDb();
@@ -217,20 +217,27 @@ router.get("/hourly", (req, res) => {
 
   const labels = [];
   const pv = [];
+  const uv = [];
 
   for (let h = 0; h < 24; h++) {
     const hourStart = `${today}T${String(h).padStart(2, '0')}:00:00.000Z`;
     const hourEnd = `${today}T${String(h).padStart(2, '0')}:59:59.999Z`;
-    const count = db.prepare(`SELECT COUNT(*) as c FROM page_views WHERE created_at >= ? AND created_at < ?`)
-      .get(hourStart, hourEnd)?.c || 0;
+    const row = db.prepare(`
+      SELECT
+        COUNT(*) as pv,
+        COUNT(DISTINCT session_id) as uv
+      FROM page_views
+      WHERE created_at >= ? AND created_at < ?
+    `).get(hourStart, hourEnd);
     labels.push(`${String(h).padStart(2, '0')}:00`);
-    pv.push(count);
+    pv.push(row?.pv || 0);
+    uv.push(row?.uv || 0);
   }
 
   res.json({
     code: 200,
     message: "success",
-    data: { labels, pv },
+    data: { labels, pv, uv },
   });
 });
 

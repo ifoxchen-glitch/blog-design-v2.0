@@ -83,6 +83,7 @@ async function loadAll() {
     hourlyLabels.value = hourly.labels
     hourlySeries.value = [
       { name: 'PV', data: hourly.pv, color: '#64d2ff' },
+      { name: 'UV', data: hourly.uv, color: '#a78bfa' },
     ]
   } catch (e) {
     console.error('Dashboard load failed:', e)
@@ -427,20 +428,6 @@ const dayOptions = [
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-5 mb-5">
       <div class="base-container p-5">
         <div class="mb-4">
-          <h3 class="text-sm font-semibold text-base-content">访问来源 Top 10</h3>
-          <p class="text-xs text-base-content/40 mt-0.5">Referrer 域名统计</p>
-        </div>
-        <BarChart :items="referrers" :height="260" color="#30d158" />
-      </div>
-      <div class="base-container p-5">
-        <div class="mb-4">
-          <h3 class="text-sm font-semibold text-base-content">今日时段分布</h3>
-          <p class="text-xs text-base-content/40 mt-0.5">24 小时 PV 分布</p>
-        </div>
-        <LineChart :labels="hourlyLabels" :series="hourlySeries" :height="260" :fill="false" />
-      </div>
-      <div class="lg:col-span-2 base-container p-5">
-        <div class="mb-4">
           <h3 class="text-sm font-semibold text-base-content">新增文章</h3>
           <p class="text-xs text-base-content/40 mt-0.5">最近 20 篇文章</p>
         </div>
@@ -462,6 +449,20 @@ const dayOptions = [
             <span class="text-xs text-base-content/40 shrink-0">{{ new Date(post.createdAt).toLocaleDateString('zh-CN') }}</span>
           </div>
         </div>
+      </div>
+      <div class="base-container p-5">
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold text-base-content">访问来源 Top 10</h3>
+          <p class="text-xs text-base-content/40 mt-0.5">Referrer 域名统计</p>
+        </div>
+        <BarChart :items="referrers" :height="260" color="#30d158" />
+      </div>
+      <div class="lg:col-span-2 base-container p-5">
+        <div class="mb-4">
+          <h3 class="text-sm font-semibold text-base-content">今日时段分布</h3>
+          <p class="text-xs text-base-content/40 mt-0.5">24 小时 PV / UV 分布</p>
+        </div>
+        <LineChart :labels="hourlyLabels" :series="hourlySeries" :height="260" :fill="true" />
       </div>
     </div>
 
