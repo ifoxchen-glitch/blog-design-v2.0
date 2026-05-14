@@ -16,29 +16,44 @@ const props = withDefaults(defineProps<{
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
-let mapLoaded = false
+const mapLoaded = ref(false)
+const loadError = ref('')
 
 async function loadMap() {
-  if (mapLoaded) return
-  try {
-    // Use local GeoJSON bundled in the app
-    const res = await fetch('/china.json')
-    const chinaGeo = await res.json()
-    echarts.registerMap('china', chinaGeo)
-    mapLoaded = true
-  } catch (e) {
-    console.error('[ChinaMap] failed to load GeoJSON:', e)
+  if (mapLoaded.value) return
+  const urls = ['/china.json', '/admin-static/china.json']
+  for (const url of urls) {
+    try {
+      const res = await fetch(url)
+      if (!res.ok) {
+        loadError.value = `HTTP ${res.status}: ${url}`
+        continue
+      }
+      const chinaGeo = await res.json()
+      if (!chinaGeo || !chinaGeo.features) {
+        loadError.value = `Invalid GeoJSON: ${url}`
+        continue
+      }
+      echarts.registerMap('china', chinaGeo)
+      mapLoaded.value = true
+      loadError.value = ''
+      console.log(`[ChinaMap] loaded from ${url}`)
+      return
+    } catch (e) {
+      loadError.value = `Failed: ${url} — ${(e as Error).message}`
+    }
   }
+  console.error('[ChinaMap] all URLs failed:', loadError.value)
 }
 
 function init() {
-  if (!chartRef.value || !mapLoaded) return
+  if (!chartRef.value || !mapLoaded.value) return
   chart = echarts.init(chartRef.value)
   updateOption()
 }
 
 function updateOption() {
-  if (!chart || !mapLoaded) return
+  if (!chart || !mapLoaded.value) return
 
   const max = Math.max(...props.data.map(d => d.value), 1)
 
@@ -112,8 +127,8 @@ watch(() => props.data, () => {
 </script>
 
 <template>
-  <div v-if="!mapLoaded" class="flex items-center justify-center" :style="{ height: `${height}px` }">
-    <span class="text-sm text-slate-400">地图加载中...</span>
+  <div v-if="!mapLoaded" class="flex flex-col items-center justify-center" :style="{ height: `${height}px` }">
+    <span class="text-sm text-slate-400">{{ loadError || '地图加载中...' }}</span>
   </div>
   <div ref="chartRef" v-show="mapLoaded" :style="{ width: '100%', height: `${height}px` }" />
 </template>
