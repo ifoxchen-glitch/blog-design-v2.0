@@ -317,18 +317,16 @@ async function handleDelete(row: CardItem) {
   }
 }
 
-// Status tag helper — text from gprsState, color from onOffStatus
-function gprsStateTag(state: string, onlineStatus?: string) {
-  const map: Record<string, { label: string }> = {
-    '1': { label: '卡 在线' },
-    '2': { label: '卡 离线' },
-    '3': { label: '卡 停机' },
-    '4': { label: '卡 机卡分离' },
+// Status tag helper — text and color from gprsState
+function gprsStateTag(state: string) {
+  const map: Record<string, { label: string; type: string }> = {
+    '1': { label: '在线', type: 'success' },
+    '2': { label: '离线', type: 'default' },
+    '3': { label: '停机', type: 'error' },
+    '4': { label: '机卡分离', type: 'warning' },
   }
-  const label = map[state]?.label || '卡 ' + (state || '未知')
-  // onOffStatus: '1'=在线(绿色) '0'=离线(灰色)
-  const colorType = onlineStatus === '1' ? 'success' : onlineStatus === '0' ? 'default' : 'default'
-  return h(NTag, { size: 'small', type: colorType as any }, () => label)
+  const t = map[state] || { label: state || '未知', type: 'default' }
+  return h(NTag, { size: 'small', type: t.type as any }, () => t.label)
 }
 
 function operatorLabel(op: string) {
@@ -375,7 +373,7 @@ const tableColumns = computed(() => [
     key: 'gprsState',
     width: 100,
     render(row: CardItem) {
-      return gprsStateTag(row.gprsState, row.onOffStatus)
+      return gprsStateTag(row.gprsState)
     },
   },
   {
@@ -603,9 +601,9 @@ function extractError(e: unknown, fallback: string): string {
             <div class="flex items-center gap-2">
               <NTag
                 size="small"
-                :type="(card.onOffStatus === '1' ? 'success' : 'default') as any"
+                :type="(card.gprsState === '1' ? 'success' : card.gprsState === '2' ? 'default' : card.gprsState === '3' ? 'error' : 'warning') as any"
               >
-                {{ { '1': '卡 在线', '2': '卡 离线', '3': '卡 停机', '4': '卡 机卡分离' }[card.gprsState] || '卡 未知' }}
+                {{ { '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[card.gprsState] || '未知' }}
               </NTag>
               <NSwitch
                 v-if="permissionStore.hasPermission('iot:card:enable') || permissionStore.hasPermission('iot:card:disable')"
@@ -772,7 +770,7 @@ function extractError(e: unknown, fallback: string): string {
               <NDescriptionsItem label="已用">{{ selectedCard.comboUsed != null ? selectedCard.comboUsed + ' MB' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="剩余">{{ selectedCard.comboResidue != null ? selectedCard.comboResidue + ' MB' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="总量">{{ selectedCard.comboTotal != null ? selectedCard.comboTotal + ' MB' : '-' }}</NDescriptionsItem>
-              <NDescriptionsItem label="状态">{{ gprsStateTag(selectedCard.gprsState, selectedCard.onOffStatus) }}</NDescriptionsItem>
+              <NDescriptionsItem label="状态">{{ gprsStateTag(selectedCard.gprsState) }}</NDescriptionsItem>
               <NDescriptionsItem label="联网状态">{{ selectedCard.onOffStatus === '1' ? '在线' : selectedCard.onOffStatus === '0' ? '不在线' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="激活状态">{{ selectedCard.activatedState === '1' ? '测试期' : selectedCard.activatedState === '2' ? '库存期' : selectedCard.activatedState === '3' ? '已激活' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="实时位置">{{ selectedCard.realPosition || '-' }}</NDescriptionsItem>
