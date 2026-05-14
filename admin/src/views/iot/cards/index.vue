@@ -384,6 +384,15 @@ const tableColumns = computed(() => [
     },
   },
   {
+    title: '联网',
+    key: 'onOffStatus',
+    width: 70,
+    render(row: CardItem) {
+      const map: Record<string, string> = { '1': '在线', '0': '离线' }
+      return h(NTag, { size: 'small', type: row.onOffStatus === '1' ? 'success' : 'default' as any }, () => map[row.onOffStatus] || '-')
+    },
+  },
+  {
     title: '套餐',
     key: 'comboName',
     width: 160,
@@ -627,6 +636,8 @@ function extractError(e: unknown, fallback: string): string {
             <div><span class="text-slate-400">MSISDN: </span>{{ card.msisdn || '-' }}</div>
             <div><span class="text-slate-400">IMEI: </span>{{ (card as any).imei || '-' }}</div>
             <div><span class="text-slate-400">运营商: </span>{{ operatorLabel(card.operator) }}</div>
+            <div><span class="text-slate-400">状态: </span>{{ gprsStateTag(card.gprsState) }}</div>
+            <div><span class="text-slate-400">联网: </span>{{ card.onOffStatus === '1' ? '在线' : card.onOffStatus === '0' ? '离线' : '-' }}</div>
             <div><span class="text-slate-400">激活: </span>{{ { '1': '测试期', '2': '库存期', '3': '已激活' }[card.activatedState] || '-' }}</div>
             <div class="col-span-2"><span class="text-slate-400">套餐: </span>{{ card.comboName || '-' }}</div>
             <div><span class="text-slate-400">位置: </span>{{ card.realPosition || '-' }}</div>
