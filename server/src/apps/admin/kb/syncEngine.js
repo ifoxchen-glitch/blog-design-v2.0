@@ -30,60 +30,53 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
  */
 function matchSelectedPaths(relPath, selectedPaths) {
   if (!selectedPaths || selectedPaths.length === 0) return true; // no filter = include all
-  return selectedPaths.some(sp => {
-    // sp can be a folder (e.g., "concepts/") or a file (e.g., "entities/ai.md")
+  const result = selectedPaths.some(sp => {
     if (sp.endsWith('/')) {
       return relPath.startsWith(sp);
     }
     return relPath === sp || relPath.startsWith(sp + '/');
   });
+  return result;
 }
 
 function scanVault(vaultPath, selectedPaths) {
   const results = [];
   const wikiPath = path.join(vaultPath, "wiki");
-  if (!fs.existsSync(wikiPath)) return results;
+  if (!fs.existsSync(wikiPath)) { console.log(`[kb-sync] scanVault: wikiPath not found: ${wikiPath}`); return results; }
 
   const resolved = path.resolve(wikiPath);
   const normalized = path.normalize(resolved);
+  let scanned = 0, matched = 0;
 
   function walk(dir) {
-    if (dir.length > 4000) return; // guard against too-deep recursion
+    if (dir.length > 4000) return;
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return; // skip unreadable dirs
+    } catch (e) {
+      console.log(`[kb-sync] scanVault: cannot read dir ${dir}: ${e.message}`); return;
     }
     for (const e of entries) {
       if (e.name.startsWith(".")) continue;
       const full = path.join(dir, e.name);
-      // Prevent escaping the vault via symlinks
       const real = path.normalize(full);
-      if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
+      if (!real.startsWith(normalized + path.sep) && real !== normalized) {
+        console.log(`[kb-sync] scanVault: symlink/escape blocked: ${full}`); continue;
+      }
       if (e.isDirectory()) {
         walk(full);
       } else if (e.isFile() && e.name.endsWith(".md")) {
-        let stat;
-        try {
-          stat = fs.statSync(full);
-        } catch {
-          continue;
-        }
-        if (stat.size > MAX_FILE_SIZE) continue;
+        scanned++;
         const relPath = path.relative(wikiPath, full).replace(/\\/g, "/");
         if (!matchSelectedPaths(relPath, selectedPaths)) continue;
+        matched++;
         const content = fs.readFileSync(full, "utf8");
-        results.push({
-          relativePath: relPath,
-          content,
-          checksum: computeChecksum(content),
-          size: stat.size,
-        });
+        results.push({ relativePath: relPath, content, checksum: computeChecksum(content), size: fs.statSync(full).size });
       }
     }
   }
   walk(wikiPath);
+  console.log(`[kb-sync] scanVault: scanned=${scanned} matched=${matched} results=${results.length} selected=${JSON.stringify(selectedPaths)}`);
   return results;
 }
 
