@@ -38,6 +38,8 @@ import {
   apiBatchCards,
   apiGetBalance,
   apiGetStats,
+  apiEnableCard,
+  apiDisableCard,
   type CardItem,
   type StatsData,
 } from '../../../api/iot'
