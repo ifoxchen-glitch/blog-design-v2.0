@@ -127,7 +127,9 @@ async function syncCards(req, res) {
     return res.status(503).json({ code: 503, message: "IoT platform error: " + e.message });
   }
 
-  const cards = Array.isArray(result.data) ? result.data : [];
+  const allCards = Array.isArray(result.data) ? result.data : [];
+  // Filter out cards without cardNo to satisfy NOT NULL constraint
+  const cards = allCards.filter((c) => c?.cardNo || c?.cardNo === "0");
   const upsert = db.prepare(`
     INSERT INTO iot_cards (card_no, msisdn, imsi, iccid, operator, card_type, combo_name,
       combo_residue, combo_used, combo_total, status, gprs_state, on_off_status,
@@ -198,7 +200,9 @@ async function batchCards(req, res) {
 
   const db = openDb();
   const now = nowIso();
-  const cards = Array.isArray(result.data) ? result.data : [];
+  const allCards = Array.isArray(result.data) ? result.data : [];
+  // Filter out cards without cardNo to satisfy NOT NULL constraint
+  const cards = allCards.filter((c) => c?.cardNo || c?.cardNo === "0");
   const upsert = db.prepare(`
     INSERT INTO iot_cards (card_no, msisdn, imsi, iccid, operator, card_type, combo_name,
       combo_residue, combo_used, combo_total, status, gprs_state, on_off_status,
