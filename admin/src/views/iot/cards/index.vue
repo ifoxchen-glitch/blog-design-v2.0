@@ -317,7 +317,13 @@ async function handleDelete(row: CardItem) {
   }
 }
 
-// Status tag helper — text and color from gprsState
+// Status label text (for text display in card view)
+function gprsStateLabel(state: string) {
+  const map: Record<string, string> = { '0': '未知', '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }
+  return map[state] || '未知'
+}
+
+// Status tag VNode (for NDataTable render and NTag in templates)
 function gprsStateTag(state: string) {
   const map: Record<string, { label: string; type: string }> = {
     '0': { label: '未知', type: 'warning' },
@@ -636,7 +642,7 @@ function extractError(e: unknown, fallback: string): string {
             <div><span class="text-slate-400">MSISDN: </span>{{ card.msisdn || '-' }}</div>
             <div><span class="text-slate-400">IMEI: </span>{{ (card as any).imei || '-' }}</div>
             <div><span class="text-slate-400">运营商: </span>{{ operatorLabel(card.operator) }}</div>
-            <div><span class="text-slate-400">状态: </span>{{ gprsStateTag(card.gprsState) }}</div>
+            <div><span class="text-slate-400">状态: </span>{{ gprsStateLabel(card.gprsState) }}</div>
             <div><span class="text-slate-400">联网: </span>{{ card.onOffStatus === '1' ? '在线' : card.onOffStatus === '0' ? '离线' : '-' }}</div>
             <div><span class="text-slate-400">激活: </span>{{ { '1': '测试期', '2': '库存期', '3': '已激活' }[card.activatedState] || '-' }}</div>
             <div class="col-span-2"><span class="text-slate-400">套餐: </span>{{ card.comboName || '-' }}</div>
