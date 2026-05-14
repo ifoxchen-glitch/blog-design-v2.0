@@ -388,7 +388,13 @@ const dayOptions = [
           <h3 class="text-sm font-semibold text-base-content">访问趋势</h3>
           <p class="text-xs text-base-content/40 mt-0.5">PV / UV 对比</p>
         </div>
-        <LineChart :labels="trendLabels" :series="trendSeries" :height="320" :fill="true" />
+        <div v-if="loading" class="flex items-center justify-center" :style="{ height: '320px' }">
+          <div class="text-base-content/40 text-sm">数据加载中...</div>
+        </div>
+        <div v-else-if="!trendLabels.length" class="flex items-center justify-center" :style="{ height: '320px' }">
+          <div class="text-base-content/40 text-sm">暂无数据</div>
+        </div>
+        <LineChart v-else :labels="trendLabels" :series="trendSeries" :height="320" :fill="true" />
       </div>
       <div class="base-container p-5">
         <div class="mb-4">
