@@ -805,6 +805,19 @@ function extractError(e: unknown, fallback: string): string {
                   </div>
                 </div>
               </NSpin>
+
+              <!-- Raw JSON data -->
+              <template v-if="selectedCard?.rawJson">
+                <div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <h4 class="font-medium text-sm">原始数据</h4>
+                    <span class="text-xs text-slate-400">同步于 {{ selectedCard.syncedAt ? new Date(selectedCard.syncedAt).toLocaleString() : '-' }}</span>
+                  </div>
+                  <div class="bg-slate-800 rounded-lg p-3 overflow-auto max-h-72">
+                    <pre class="text-xs text-green-400 whitespace-pre-wrap break-all">{{ JSON.stringify(selectedCard.rawJson, null, 2) }}</pre>
+                  </div>
+                </div>
+              </template>
             </div>
           </template>
         </NSpin>

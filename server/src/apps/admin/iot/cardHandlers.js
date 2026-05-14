@@ -99,6 +99,9 @@ async function getCard(req, res) {
   const row = db.prepare(`SELECT * FROM iot_cards WHERE card_no = ?`).get(cardNo);
   if (!row) return res.status(404).json({ code: 404, message: "Card not found" });
 
+  // Also fetch the latest raw JSON from the last sync
+  const rawRow = db.prepare(`SELECT raw_json, synced_at FROM iot_card_raw WHERE card_no = ?`).get(cardNo);
+
   const data = {
     cardNo:        row.card_no,
     msisdn:        row.msisdn,
@@ -117,6 +120,8 @@ async function getCard(req, res) {
     realPosition:  row.real_position,
     activationTime: row.activation_time,
     endTime:       row.end_time,
+    rawJson:       rawRow?.raw_json ? JSON.parse(rawRow.raw_json) : null,
+    syncedAt:      rawRow?.synced_at || null,
   };
   return res.status(200).json({ code: 200, message: "success", data });
 }
@@ -135,6 +140,13 @@ async function syncCards(req, res) {
   console.log(`[IoT] syncCards: ${rows.length} cards in local DB`);
 
   const cardNos = rows.map((r) => String(r.card_no));
+
+  // Raw JSON upsert — stores the full API response for each card
+  const upsertRaw = db.prepare(`
+    INSERT INTO iot_card_raw (card_no, raw_json, synced_at)
+    VALUES (@card_no, @raw_json, @synced_at)
+    ON CONFLICT(card_no) DO UPDATE SET raw_json=excluded.raw_json, synced_at=excluded.synced_at
+  `);
 
   // Query each card individually to avoid IoT platform DB corruption errors
   // from hitting a single bad row in batch mode
@@ -186,6 +198,8 @@ async function syncCards(req, res) {
           created_at:     now,
           updated_at:     now,
         });
+        // Save raw JSON for detail display
+        upsertRaw.run({ card_no: mapped.cardNo, raw_json: JSON.stringify(result.data), synced_at: now });
         successCount++;
       }
     } catch (e) {

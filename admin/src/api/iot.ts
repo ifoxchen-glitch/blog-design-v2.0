@@ -20,6 +20,8 @@ export interface CardItem {
   realPosition: string | null
   activationTime: string | null
   endTime: string | null
+  rawJson?: Record<string, unknown> | null
+  syncedAt?: string | null
 }
 
 export interface CardListQuery {

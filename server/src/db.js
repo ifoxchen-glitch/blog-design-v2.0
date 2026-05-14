@@ -595,7 +595,19 @@ function migrate(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_snapshots_card_time ON iot_card_snapshots(card_no, recorded_at);
     CREATE INDEX IF NOT EXISTS idx_snapshots_recorded ON iot_card_snapshots(recorded_at);
+
+    CREATE TABLE IF NOT EXISTS iot_card_raw (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      card_no TEXT UNIQUE NOT NULL,
+      raw_json TEXT,
+      synced_at TEXT NOT NULL
+    );
   `);
+
+  // Add raw_json column if not exists (schema evolution)
+  try {
+    db.exec("ALTER TABLE iot_card_raw ADD COLUMN raw_json TEXT");
+  } catch (_) { /* already exists */ }
 
 }
 
