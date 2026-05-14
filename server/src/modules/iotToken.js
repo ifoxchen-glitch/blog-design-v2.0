@@ -42,7 +42,7 @@ async function refreshToken() {
   const res = await axios.post(`${baseUrl}/auth/login`, {
     appId,
     appSecret,
-    ts: Date.now(),
+    ts: String(Date.now()),
   });
 
   const token = res.headers["token"];
