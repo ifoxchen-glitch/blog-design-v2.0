@@ -45,9 +45,9 @@ async function refreshToken() {
     ts: String(Date.now()),
   });
 
-  const token = res.headers["token"];
+  const token = res.data?.data?.accessToken;
   if (!token) {
-    throw new Error("IoT platform returned no token in response header");
+    throw new Error("IoT platform returned no accessToken in response body");
   }
 
   _token = token;
