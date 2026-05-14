@@ -39,14 +39,17 @@ async function getIotToken() {
 async function refreshToken() {
   const { baseUrl, appId, appSecret } = getIotConfig();
 
-  const loginUrl = `${baseUrl}/auth/login`;
+  // Strip trailing slash to avoid double-slash URLs (opsli-boot rejects with 401 on `api//auth/login`)
+  const cleanBase = baseUrl.replace(/\/+$/, "");
+  const loginUrl = `${cleanBase}/auth/login`;
+  const ts = String(Date.now());
   console.log("[IoT] Refreshing token from:", loginUrl);
-  console.log("[IoT] appId:", appId, "secretLen:", appSecret?.length);
+  console.log("[IoT] appId:", appId, "secretLen:", appSecret?.length, "ts:", ts);
 
   const res = await axios.post(loginUrl, {
     appId,
     appSecret,
-    ts: String(Date.now()),
+    ts,
   });
 
   console.log("[IoT] auth response status:", res.status);

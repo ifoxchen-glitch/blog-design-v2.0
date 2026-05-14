@@ -9,7 +9,8 @@ const { getIotToken } = require("./iotToken");
 function getIotBaseUrl() {
   const db = openDb();
   const settings = db.prepare("SELECT iot_api_base_url FROM system_settings WHERE id = 1").get();
-  return settings?.iot_api_base_url || "";
+  // Strip trailing slash so axios baseURL + path doesn't produce double slashes
+  return (settings?.iot_api_base_url || "").replace(/\/+$/, "");
 }
 
 function buildClient() {
