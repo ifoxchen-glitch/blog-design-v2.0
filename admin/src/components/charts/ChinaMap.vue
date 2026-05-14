@@ -22,7 +22,7 @@ async function loadMap() {
   if (mapLoaded) return
   try {
     // Use local GeoJSON bundled in the app
-    const res = await fetch('/china.json')
+    const res = await fetch('/admin-static/china.json')
     const chinaGeo = await res.json()
     echarts.registerMap('china', chinaGeo)
     mapLoaded = true
