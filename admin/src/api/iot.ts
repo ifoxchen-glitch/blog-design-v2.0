@@ -26,6 +26,25 @@ export interface CardListQuery {
   keyword?: string
   status?: string
   operator?: string
+  region?: string
+  combo?: string
+  sortKey?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
+export interface StatsData {
+  total: number
+  online: number
+  offline: number
+  stopped: number
+  separated: number
+  totalUsed: number
+  totalTotal: number
+  totalResidue: number
+  operatorDist: { operator: string; count: number }[]
+  regionDist: { region: string; count: number }[]
+  comboDist: { combo: string; count: number }[]
+  trend: { hour: string; totalUsed: number }[]
 }
 
 export async function apiGetCards(
@@ -35,6 +54,15 @@ export async function apiGetCards(
   const res = await client.get<ApiResponse<{ items: CardItem[]; total: number; page: number; pageSize: number }>>(
     '/api/v2/admin/iot/cards',
     { params },
+  )
+  return res.data.data
+}
+
+export async function apiGetStats(
+  client: AxiosInstance = request,
+): Promise<StatsData> {
+  const res = await client.get<ApiResponse<StatsData>>(
+    '/api/v2/admin/iot/cards/stats',
   )
   return res.data.data
 }

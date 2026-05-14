@@ -572,6 +572,8 @@ function migrate(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_iot_cards_status ON iot_cards(status);
     CREATE INDEX IF NOT EXISTS idx_iot_cards_operator ON iot_cards(operator);
+    CREATE INDEX IF NOT EXISTS idx_iot_cards_position ON iot_cards(real_position);
+    CREATE INDEX IF NOT EXISTS idx_iot_cards_combo ON iot_cards(combo_name);
 
     CREATE TABLE IF NOT EXISTS iot_sync_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -580,6 +582,17 @@ function migrate(db) {
       result TEXT NOT NULL DEFAULT 'ok'
     );
     CREATE INDEX IF NOT EXISTS idx_iot_sync_logs_synced_at ON iot_sync_logs(synced_at);
+
+    CREATE TABLE IF NOT EXISTS iot_card_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      card_no TEXT NOT NULL,
+      combo_used REAL NOT NULL DEFAULT 0,
+      combo_residue REAL NOT NULL DEFAULT 0,
+      combo_total REAL NOT NULL DEFAULT 0,
+      recorded_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_snapshots_card_time ON iot_card_snapshots(card_no, recorded_at);
+    CREATE INDEX IF NOT EXISTS idx_snapshots_recorded ON iot_card_snapshots(recorded_at);
   `);
 
 }

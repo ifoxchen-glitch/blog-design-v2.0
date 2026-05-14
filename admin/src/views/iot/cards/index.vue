@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, ref } from 'vue'
+import { computed, h, ref, onMounted } from 'vue'
 import axios from 'axios'
 import {
   NButton,
@@ -17,6 +17,8 @@ import {
   NModal,
   NAlert,
   NSwitch,
+  NProgress,
+  NCard,
   useMessage,
 } from 'naive-ui'
 import {
@@ -27,15 +29,17 @@ import {
   GridOutline,
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
+import PieChart from '../../../components/charts/PieChart.vue'
+import BarChart from '../../../components/charts/BarChart.vue'
 import {
   apiGetCards,
   apiGetCard,
   apiSyncCards,
   apiBatchCards,
   apiGetBalance,
-  apiDisableCard,
-  apiEnableCard,
+  apiGetStats,
   type CardItem,
+  type StatsData,
 } from '../../../api/iot'
 import { usePermissionStore } from '../../../stores/permission'
 import { useTable } from '../../../composables/useTable'
@@ -47,9 +51,21 @@ interface CardQuery {
   keyword: string
   status: string
   operator: string
+  region: string
+  combo: string
+  sortKey: string
+  sortOrder: 'asc' | 'desc'
 }
 
-const initialQuery: CardQuery = { keyword: '', status: '', operator: '' }
+const initialQuery: CardQuery = {
+  keyword: '',
+  status: '',
+  operator: '',
+  region: '',
+  combo: '',
+  sortKey: '',
+  sortOrder: 'desc',
+}
 
 // View mode toggle: 'list' | 'card'
 const viewMode = ref<'list' | 'card'>('list')
@@ -62,6 +78,10 @@ const table = useTable<CardItem, CardQuery>({
       keyword: params.keyword || undefined,
       status: params.status || undefined,
       operator: params.operator || undefined,
+      region: params.region || undefined,
+      combo: params.combo || undefined,
+      sortKey: params.sortKey || undefined,
+      sortOrder: params.sortOrder || undefined,
     })
     return { list: res.items, total: res.total }
   },
@@ -86,6 +106,35 @@ const OPERATOR_OPTIONS = [
   { label: '电信', value: '3' },
 ]
 
+// Region / Combo filter options (populated from stats)
+const regionOptions = ref<{ label: string; value: string }[]>([{ label: '全部区域', value: '' }])
+const comboOptions = ref<{ label: string; value: string }[]>([{ label: '全部套餐', value: '' }])
+
+// Sort options
+const SORT_OPTIONS = [
+  { label: '默认排序', value: '' },
+  { label: '卡号 ↑', value: 'card_no:asc' },
+  { label: '卡号 ↓', value: 'card_no:desc' },
+  { label: '已用流量 ↑', value: 'combo_used:asc' },
+  { label: '已用流量 ↓', value: 'combo_used:desc' },
+  { label: '剩余流量 ↑', value: 'combo_residue:asc' },
+  { label: '剩余流量 ↓', value: 'combo_residue:desc' },
+  { label: '到期时间 ↑', value: 'end_time:asc' },
+  { label: '到期时间 ↓', value: 'end_time:desc' },
+]
+
+function applySort(value: string) {
+  if (!value) {
+    table.query.sortKey = ''
+    table.query.sortOrder = 'desc'
+  } else {
+    const [key, order] = value.split(':')
+    table.query.sortKey = key
+    table.query.sortOrder = order as 'asc' | 'desc'
+  }
+  table.refresh()
+}
+
 // Balance
 const balance = ref<string | null>(null)
 const balanceLoading = ref(false)
@@ -102,6 +151,33 @@ async function loadBalance() {
 }
 loadBalance()
 
+// Stats / Dashboard
+const stats = ref<StatsData | null>(null)
+const statsLoading = ref(false)
+async function loadStats() {
+  statsLoading.value = true
+  try {
+    const res = await apiGetStats()
+    stats.value = res
+    // Populate filter dropdowns
+    regionOptions.value = [
+      { label: '全部区域', value: '' },
+      ...res.regionDist.map((r) => ({ label: r.region, value: r.region })),
+    ]
+    comboOptions.value = [
+      { label: '全部套餐', value: '' },
+      ...res.comboDist.map((c) => ({ label: c.combo, value: c.combo })),
+    ]
+  } catch {
+    stats.value = null
+  } finally {
+    statsLoading.value = false
+  }
+}
+onMounted(() => {
+  loadStats()
+})
+
 // Sync
 const syncLoading = ref(false)
 async function handleSync() {
@@ -111,6 +187,7 @@ async function handleSync() {
     message.success(`同步成功，共 ${res.cardCount} 张卡`)
     table.refresh()
     loadBalance()
+    loadStats()
   } catch (e: unknown) {
     message.error(extractError(e, '同步失败'))
   } finally {
@@ -146,6 +223,9 @@ async function handleBatchQuery() {
     if (res.items.length === 0) {
       batchError.value = '未找到任何卡片'
     }
+    // Refresh list and stats after batch query
+    table.refresh()
+    loadStats()
   } catch (e: unknown) {
     batchError.value = extractError(e, '批量查询失败')
   } finally {
@@ -166,7 +246,6 @@ async function handleView(row: CardItem) {
     const res = await apiGetCard(row.cardNo)
     selectedCard.value = res
   } catch {
-    // Use row data as fallback
     selectedCard.value = row
   } finally {
     detailLoading.value = false
@@ -187,6 +266,7 @@ async function handleToggle(row: CardItem, nextEnabled: boolean) {
       message.success('卡已禁用')
     }
     table.refresh()
+    loadStats()
   } catch (e: unknown) {
     message.error(extractError(e, nextEnabled ? '启用失败' : '禁用失败'))
   } finally {
@@ -211,6 +291,11 @@ function operatorLabel(op: string) {
   return map[op] || op || '-'
 }
 
+function usagePercent(used: number | null | undefined, total: number | null | undefined) {
+  if (!used || !total || total <= 0) return 0
+  return Math.min(100, Math.round((used / total) * 100))
+}
+
 // Table columns (list view — show all key fields)
 const tableColumns = computed(() => [
   {
@@ -218,6 +303,7 @@ const tableColumns = computed(() => [
     key: 'cardNo',
     width: 160,
     ellipsis: { tooltip: true },
+    sorter: true,
   },
   {
     title: 'ICCID',
@@ -255,19 +341,20 @@ const tableColumns = computed(() => [
   },
   {
     title: '用量',
-    key: 'usage',
-    width: 120,
+    key: 'comboUsed',
+    width: 100,
+    sorter: true,
     render(row: CardItem) {
       const used = row.comboUsed
-      const total = row.comboTotal
-      if (used == null || total == null) return '-'
-      return `${used.toFixed(0)} / ${total >= 1024 ? (total / 1024).toFixed(1) + 'G' : total.toFixed(0) + 'M'}`
+      if (used == null) return '-'
+      return used >= 1024 ? (used / 1024).toFixed(1) + 'G' : used.toFixed(0) + 'M'
     },
   },
   {
     title: '剩余',
     key: 'comboResidue',
     width: 90,
+    sorter: true,
     render(row: CardItem) {
       const v = row.comboResidue
       if (v === null || v === undefined) return '-'
@@ -276,18 +363,10 @@ const tableColumns = computed(() => [
     },
   },
   {
-    title: '激活状态',
-    key: 'activatedState',
-    width: 90,
-    render(row: CardItem) {
-      const map: Record<string, string> = { '1': '测试期', '2': '库存期', '3': '已激活' }
-      return map[row.activatedState] || '-'
-    },
-  },
-  {
     title: '到期时间',
     key: 'endTime',
     width: 110,
+    sorter: true,
   },
   {
     title: '位置',
@@ -352,6 +431,7 @@ function extractError(e: unknown, fallback: string): string {
           v-model:value="table.query.keyword"
           placeholder="搜索卡号 / MSISDN / ICCID"
           clearable
+          @update:value="table.refresh()"
         >
           <template #prefix>
             <SearchOutline class="w-4 h-4 text-base-content/30" />
@@ -363,14 +443,40 @@ function extractError(e: unknown, fallback: string): string {
         :options="STATUS_OPTIONS"
         placeholder="状态"
         clearable
-        style="width: 130px"
+        style="width: 120px"
+        @update:value="table.refresh()"
       />
       <NSelect
         v-model:value="table.query.operator"
         :options="OPERATOR_OPTIONS"
         placeholder="运营商"
         clearable
-        style="width: 130px"
+        style="width: 120px"
+        @update:value="table.refresh()"
+      />
+      <NSelect
+        v-model:value="table.query.region"
+        :options="regionOptions"
+        placeholder="区域"
+        clearable
+        style="width: 140px"
+        @update:value="table.refresh()"
+      />
+      <NSelect
+        v-model:value="table.query.combo"
+        :options="comboOptions"
+        placeholder="套餐"
+        clearable
+        style="width: 160px"
+        @update:value="table.refresh()"
+      />
+      <NSelect
+        :value="table.query.sortKey ? `${table.query.sortKey}:${table.query.sortOrder}` : ''"
+        :options="SORT_OPTIONS"
+        placeholder="排序"
+        clearable
+        style="width: 140px"
+        @update:value="applySort"
       />
       <NButton quaternary circle :loading="table.loading.value" @click="table.refresh()">
         <RefreshOutline class="w-4 h-4" />
@@ -415,7 +521,8 @@ function extractError(e: unknown, fallback: string): string {
         striped
         size="small"
         class="rounded-xl overflow-hidden"
-        :scroll-x="1400"
+        :scroll-x="1300"
+        @update:sorter="(s: any) => s ? applySort(`${s.columnKey}:${s.order}`) : applySort('')"
       />
     </NSpin>
 
@@ -439,11 +546,11 @@ function extractError(e: unknown, fallback: string): string {
             <div class="font-medium text-sm truncate" :title="card.cardNo">{{ card.cardNo }}</div>
             <div class="flex items-center gap-2">
               <NTag
-              size="small"
-              :type="(card.gprsState === '1' ? 'success' : card.gprsState === '2' ? 'default' : card.gprsState === '3' ? 'error' : 'warning') as any"
-            >
-              {{ { '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[card.gprsState] || '未知' }}
-            </NTag>
+                size="small"
+                :type="(card.gprsState === '1' ? 'success' : card.gprsState === '2' ? 'default' : card.gprsState === '3' ? 'error' : 'warning') as any"
+              >
+                {{ { '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[card.gprsState] || '未知' }}
+              </NTag>
               <NSwitch
                 v-if="permissionStore.hasPermission('iot:card:enable') || permissionStore.hasPermission('iot:card:disable')"
                 :value="card.status === '1'"
@@ -459,11 +566,28 @@ function extractError(e: unknown, fallback: string): string {
             <div><span class="text-slate-400">MSISDN: </span>{{ card.msisdn || '-' }}</div>
             <div><span class="text-slate-400">运营商: </span>{{ operatorLabel(card.operator) }}</div>
             <div><span class="text-slate-400">激活: </span>{{ { '1': '测试期', '2': '库存期', '3': '已激活' }[card.activatedState] || '-' }}</div>
-            <div><span class="text-slate-400">用量: </span>{{ card.comboUsed != null ? card.comboUsed.toFixed(0) + 'M' : '-' }} / {{ card.comboTotal != null ? (card.comboTotal >= 1024 ? (card.comboTotal/1024).toFixed(1) + 'G' : card.comboTotal.toFixed(0) + 'M') : '-' }}</div>
-            <div><span class="text-slate-400">剩余: </span><span :class="(card.comboResidue ?? 0) < 100 ? 'text-red-500 font-medium' : ''">{{ card.comboResidue != null ? (card.comboResidue >= 1024 ? (card.comboResidue/1024).toFixed(1) + 'G' : card.comboResidue.toFixed(0) + 'M') : '-' }}</span></div>
             <div class="col-span-2"><span class="text-slate-400">套餐: </span>{{ card.comboName || '-' }}</div>
             <div><span class="text-slate-400">位置: </span>{{ card.realPosition || '-' }}</div>
             <div><span class="text-slate-400">到期: </span>{{ card.endTime || '-' }}</div>
+          </div>
+
+          <!-- Usage progress bar -->
+          <div class="mb-3">
+            <div class="flex justify-between text-xs mb-1">
+              <span class="text-slate-500">
+                已用 {{ card.comboUsed != null ? (card.comboUsed >= 1024 ? (card.comboUsed/1024).toFixed(1) + 'G' : card.comboUsed.toFixed(0) + 'M') : '-' }}
+              </span>
+              <span class="text-slate-400">
+                {{ usagePercent(card.comboUsed, card.comboTotal) }}%
+              </span>
+            </div>
+            <NProgress
+              :percentage="usagePercent(card.comboUsed, card.comboTotal)"
+              :height="8"
+              :border-radius="4"
+              :color="usagePercent(card.comboUsed, card.comboTotal) > 90 ? '#ef4444' : usagePercent(card.comboUsed, card.comboTotal) > 70 ? '#f59e0b' : '#3b82f6'"
+              :show-indicator="false"
+            />
           </div>
 
           <div class="flex justify-end">
@@ -484,6 +608,86 @@ function extractError(e: unknown, fallback: string): string {
         @update:page="table.handlePageChange"
         @update:page-size="table.handlePageSizeChange"
       />
+    </div>
+
+    <!-- Dashboard Section -->
+    <div v-if="stats" class="mt-10 pt-8 border-t border-slate-200 dark:border-slate-700">
+      <h3 class="text-lg font-semibold mb-5 text-slate-800 dark:text-slate-200">数据仪表盘</h3>
+
+      <!-- Stat Cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <NCard size="small" class="text-center">
+          <div class="text-2xl font-bold text-slate-800 dark:text-slate-100">{{ stats.total }}</div>
+          <div class="text-xs text-slate-500 mt-1">总卡片数</div>
+        </NCard>
+        <NCard size="small" class="text-center">
+          <div class="text-2xl font-bold text-emerald-500">{{ stats.online }}</div>
+          <div class="text-xs text-slate-500 mt-1">在线</div>
+        </NCard>
+        <NCard size="small" class="text-center">
+          <div class="text-2xl font-bold text-slate-400">{{ stats.offline }}</div>
+          <div class="text-xs text-slate-500 mt-1">离线</div>
+        </NCard>
+        <NCard size="small" class="text-center">
+          <div class="text-2xl font-bold text-rose-500">{{ stats.stopped }}</div>
+          <div class="text-xs text-slate-500 mt-1">停机</div>
+        </NCard>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <NCard size="small" class="text-center">
+          <div class="text-2xl font-bold text-blue-500">
+            {{ stats.totalUsed >= 1024 ? (stats.totalUsed / 1024).toFixed(1) + ' GB' : stats.totalUsed.toFixed(0) + ' MB' }}
+          </div>
+          <div class="text-xs text-slate-500 mt-1">总已用流量</div>
+        </NCard>
+        <NCard size="small" class="text-center">
+          <div class="text-2xl font-bold text-teal-500">
+            {{ stats.totalResidue >= 1024 ? (stats.totalResidue / 1024).toFixed(1) + ' GB' : stats.totalResidue.toFixed(0) + ' MB' }}
+          </div>
+          <div class="text-xs text-slate-500 mt-1">总剩余流量</div>
+        </NCard>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <NCard title="运营商分布" size="small">
+          <PieChart
+            :data="stats.operatorDist.map(d => ({ name: { '1': '联通', '2': '移动', '3': '电信' }[d.operator] || d.operator, value: d.count }))"
+            :height="240"
+          />
+        </NCard>
+        <NCard title="区域分布 TOP10" size="small">
+          <BarChart
+            :items="stats.regionDist.map(d => ({ name: d.region, value: d.count }))"
+            :height="240"
+            :bar-width="16"
+          />
+        </NCard>
+        <NCard title="套餐分布 TOP10" size="small">
+          <BarChart
+            :items="stats.comboDist.map(d => ({ name: d.combo, value: d.count }))"
+            :height="240"
+            :bar-width="16"
+          />
+        </NCard>
+        <NCard title="24小时用量趋势" size="small">
+          <div v-if="stats.trend.length === 0" class="text-center text-sm text-slate-400 py-10">暂无数据</div>
+          <div v-else class="flex items-end justify-between gap-1 h-[200px] pt-4 px-2">
+            <div
+              v-for="t in stats.trend"
+              :key="t.hour"
+              class="flex-1 flex flex-col items-center gap-1"
+            >
+              <div
+                class="w-full bg-blue-500/80 rounded-t-sm min-h-[4px]"
+                :style="{ height: `${Math.max(4, (t.totalUsed / Math.max(...stats.trend.map(x => x.totalUsed))) * 160)}px` }"
+              />
+              <div class="text-[10px] text-slate-500">{{ t.hour }}时</div>
+            </div>
+          </div>
+        </NCard>
+      </div>
     </div>
 
     <!-- Detail Drawer -->

@@ -38,6 +38,10 @@ async function listCards(req, res) {
   const keyword = String(req.query.keyword || "").trim() || null;
   const status = String(req.query.status || "").trim() || null;
   const operator = String(req.query.operator || "").trim() || null;
+  const region = String(req.query.region || "").trim() || null;
+  const combo = String(req.query.combo || "").trim() || null;
+  const sortKey = String(req.query.sortKey || "").trim() || null;
+  const sortOrder = String(req.query.sortOrder || "").trim() || 'desc';
 
   const conditions = ["1=1"];
   const params = [];
@@ -48,12 +52,21 @@ async function listCards(req, res) {
   }
   if (status) conditions.push("status = ?"), params.push(status);
   if (operator) conditions.push("operator = ?"), params.push(operator);
+  if (region) conditions.push("real_position LIKE ?"), params.push(`%${region}%`);
+  if (combo) conditions.push("combo_name LIKE ?"), params.push(`%${combo}%`);
 
   const where = conditions.join(" AND ");
   const total = db.prepare(`SELECT COUNT(*) AS c FROM iot_cards WHERE ${where}`).get(...params).c;
   const offset = (page - 1) * pageSize;
+
+  // Sorting
+  const allowedSortKeys = ['card_no', 'combo_used', 'combo_residue', 'combo_total', 'end_time', 'real_position', 'combo_name'];
+  const orderBy = allowedSortKeys.includes(sortKey)
+    ? `${sortKey} ${sortOrder.toLowerCase() === 'asc' ? 'ASC' : 'DESC'}`
+    : 'id DESC';
+
   const rows = db
-    .prepare(`SELECT * FROM iot_cards WHERE ${where} ORDER BY id DESC LIMIT ? OFFSET ?`)
+    .prepare(`SELECT * FROM iot_cards WHERE ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
     .all(...params, pageSize, offset);
 
   const items = rows.map((r) => ({
@@ -308,12 +321,102 @@ async function enableCardHandler(req, res) {
   }
 }
 
+// GET /api/v2/admin/iot/cards/stats
+async function getStats(req, res) {
+  const db = openDb();
+
+  const total = db.prepare("SELECT COUNT(*) AS c FROM iot_cards").get().c;
+  const online = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '1'").get().c;
+  const offline = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '2'").get().c;
+  const stopped = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '3'").get().c;
+  const separated = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '4'").get().c;
+
+  const usage = db.prepare(`
+    SELECT COALESCE(SUM(combo_used), 0) AS totalUsed,
+           COALESCE(SUM(combo_total), 0) AS totalTotal,
+           COALESCE(SUM(combo_residue), 0) AS totalResidue
+    FROM iot_cards
+  `).get();
+
+  const operatorDist = db.prepare(`
+    SELECT operator, COUNT(*) AS count FROM iot_cards GROUP BY operator
+  `).all();
+
+  const regionDist = db.prepare(`
+    SELECT real_position AS region, COUNT(*) AS count
+    FROM iot_cards
+    WHERE real_position IS NOT NULL AND real_position != ''
+    GROUP BY real_position
+    ORDER BY count DESC
+    LIMIT 10
+  `).all();
+
+  const comboDist = db.prepare(`
+    SELECT combo_name AS combo, COUNT(*) AS count
+    FROM iot_cards
+    WHERE combo_name IS NOT NULL AND combo_name != ''
+    GROUP BY combo_name
+    ORDER BY count DESC
+    LIMIT 10
+  `).all();
+
+  // Recent 24h hourly usage trend from snapshots
+  const trend = db.prepare(`
+    SELECT strftime('%H', recorded_at) AS hour,
+           SUM(combo_used) AS totalUsed
+    FROM iot_card_snapshots
+    WHERE recorded_at >= datetime('now', '-1 day')
+    GROUP BY hour
+    ORDER BY hour
+  `).all();
+
+  return res.status(200).json({
+    code: 200,
+    message: "success",
+    data: {
+      total,
+      online,
+      offline,
+      stopped,
+      separated,
+      totalUsed: usage.totalUsed,
+      totalTotal: usage.totalTotal,
+      totalResidue: usage.totalResidue,
+      operatorDist,
+      regionDist,
+      comboDist,
+      trend,
+    },
+  });
+}
+
+// Snapshot all cards for hourly usage tracking
+function snapshotCards() {
+  const db = openDb();
+  const now = nowIso();
+  const rows = db.prepare("SELECT card_no, combo_used, combo_residue, combo_total FROM iot_cards").all();
+  const insert = db.prepare(`
+    INSERT INTO iot_card_snapshots (card_no, combo_used, combo_residue, combo_total, recorded_at)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  const insertMany = db.transaction((rows) => {
+    for (const r of rows) {
+      insert.run(r.card_no, r.combo_used || 0, r.combo_residue || 0, r.combo_total || 0, now);
+    }
+  });
+  insertMany(rows);
+  console.log(`[IoT] Snapshotted ${rows.length} cards at ${now}`);
+  return rows.length;
+}
+
 module.exports = {
   listCards,
   getCard,
   syncCards,
   batchCards,
   getBalance,
+  getStats,
+  snapshotCards,
   disableCard: disableCardHandler,
   enableCard: enableCardHandler,
 };
