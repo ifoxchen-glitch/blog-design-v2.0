@@ -47,6 +47,7 @@ export interface StatsData {
   regionDist: { region: string; count: number }[]
   comboDist: { combo: string; count: number }[]
   trend: { hour: string; totalUsed: number }[]
+  gprsStateDist: { state: string; count: number }[]
 }
 
 export interface HistoryItem {

@@ -320,12 +320,13 @@ async function handleDelete(row: CardItem) {
 // Status tag helper — text and color from gprsState
 function gprsStateTag(state: string) {
   const map: Record<string, { label: string; type: string }> = {
+    '0': { label: '未知', type: 'warning' },
     '1': { label: '在线', type: 'success' },
     '2': { label: '离线', type: 'default' },
     '3': { label: '停机', type: 'error' },
-    '4': { label: '机卡分离', type: 'warning' },
+    '4': { label: '机卡分离', type: 'error' },
   }
-  const t = map[state] || { label: state || '未知', type: 'default' }
+  const t = map[state] || { label: '未知', type: 'warning' }
   return h(NTag, { size: 'small', type: t.type as any }, () => t.label)
 }
 
@@ -601,9 +602,9 @@ function extractError(e: unknown, fallback: string): string {
             <div class="flex items-center gap-2">
               <NTag
                 size="small"
-                :type="(card.gprsState === '1' ? 'success' : card.gprsState === '2' ? 'default' : card.gprsState === '3' ? 'error' : 'warning') as any"
+                :type="(card.gprsState === '1' ? 'success' : card.gprsState === '2' ? 'default' : card.gprsState === '0' ? 'warning' : 'error') as any"
               >
-                {{ { '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[card.gprsState] || '未知' }}
+                {{ { '0': '未知', '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[card.gprsState] || '未知' }}
               </NTag>
               <NSwitch
                 v-if="permissionStore.hasPermission('iot:card:enable') || permissionStore.hasPermission('iot:card:disable')"
@@ -749,6 +750,12 @@ function extractError(e: unknown, fallback: string): string {
               <div class="text-[10px] text-slate-500">{{ t.hour }}时</div>
             </div>
           </div>
+        </NCard>
+        <NCard title="卡状态分布" size="small">
+          <PieChart
+            :data="stats.gprsStateDist.map(d => ({ name: { '0': '未知', '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[d.state] || d.state, value: d.count }))"
+            :height="240"
+          />
         </NCard>
       </div>
     </div>

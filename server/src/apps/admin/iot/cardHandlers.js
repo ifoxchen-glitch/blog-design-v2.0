@@ -344,10 +344,17 @@ async function getStats(req, res) {
   const db = openDb();
 
   const total = db.prepare("SELECT COUNT(*) AS c FROM iot_cards").get().c;
-  const online = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE status = '1'").get().c;
-  const offline = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE status = '0'").get().c;
+  const online = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '1'").get().c;
+  const offline = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '2'").get().c;
   const stopped = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '3'").get().c;
   const separated = db.prepare("SELECT COUNT(*) AS c FROM iot_cards WHERE gprs_state = '4'").get().c;
+
+  const gprsStateDist = db.prepare(`
+    SELECT gprs_state AS state, COUNT(*) AS count
+    FROM iot_cards WHERE gprs_state IS NOT NULL
+    GROUP BY gprs_state
+    ORDER BY count DESC
+  `).all();
 
   const usage = db.prepare(`
     SELECT COALESCE(SUM(combo_used), 0) AS totalUsed,
@@ -406,6 +413,7 @@ async function getStats(req, res) {
       operatorDist: operatorDist.map(d => ({ operator: String(d.operator), count: d.count })),
       regionDist,
       comboDist,
+      gprsStateDist: gprsStateDist.map(d => ({ state: String(d.state), count: d.count })),
       trend: trend.map(t => ({ hour: String(t.hour), totalUsed: ensureNum(t.totalUsed) })),
     },
   });
