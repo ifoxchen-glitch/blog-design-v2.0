@@ -17,12 +17,15 @@ import {
   NDescriptionsItem,
   NModal,
   NAlert,
+  NSwitch,
   useMessage,
 } from 'naive-ui'
 import {
   SearchOutline,
   RefreshOutline,
   CloudUploadOutline,
+  ListOutline,
+  GridOutline,
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import {
@@ -48,6 +51,9 @@ interface CardQuery {
 }
 
 const initialQuery: CardQuery = { keyword: '', status: '', operator: '' }
+
+// View mode toggle: 'list' | 'card'
+const viewMode = ref<'list' | 'card'>('list')
 
 const table = useTable<CardItem, CardQuery>({
   fetch: async (params) => {
@@ -168,24 +174,24 @@ async function handleView(row: CardItem) {
   }
 }
 
-// Enable / Disable
-async function handleEnable(row: CardItem) {
-  try {
-    await apiEnableCard(row.cardNo)
-    message.success('卡已启用')
-    table.refresh()
-  } catch (e: unknown) {
-    message.error(extractError(e, '启用失败'))
-  }
-}
+// Enable / Disable toggle
+const toggleLoadingMap = ref<Record<string, boolean>>({})
 
-async function handleDisable(row: CardItem) {
+async function handleToggle(row: CardItem, nextEnabled: boolean) {
+  toggleLoadingMap.value[row.cardNo] = true
   try {
-    await apiDisableCard(row.cardNo)
-    message.success('卡已禁用')
+    if (nextEnabled) {
+      await apiEnableCard(row.cardNo)
+      message.success('卡已启用')
+    } else {
+      await apiDisableCard(row.cardNo)
+      message.success('卡已禁用')
+    }
     table.refresh()
   } catch (e: unknown) {
-    message.error(extractError(e, '禁用失败'))
+    message.error(extractError(e, nextEnabled ? '启用失败' : '禁用失败'))
+  } finally {
+    toggleLoadingMap.value[row.cardNo] = false
   }
 }
 
@@ -206,7 +212,7 @@ function operatorLabel(op: string) {
   return map[op] || op || '-'
 }
 
-// Table columns
+// Table columns (list view — show all key fields)
 const tableColumns = computed(() => [
   {
     title: '卡号',
@@ -221,9 +227,15 @@ const tableColumns = computed(() => [
     ellipsis: { tooltip: true },
   },
   {
+    title: 'MSISDN',
+    key: 'msisdn',
+    width: 130,
+    ellipsis: { tooltip: true },
+  },
+  {
     title: '运营商',
     key: 'operator',
-    width: 80,
+    width: 70,
     render(row: CardItem) {
       return operatorLabel(row.operator)
     },
@@ -231,7 +243,7 @@ const tableColumns = computed(() => [
   {
     title: '状态',
     key: 'gprsState',
-    width: 90,
+    width: 80,
     render(row: CardItem) {
       return gprsStateTag(row.gprsState)
     },
@@ -239,52 +251,75 @@ const tableColumns = computed(() => [
   {
     title: '套餐',
     key: 'comboName',
-    width: 140,
+    width: 160,
     ellipsis: { tooltip: true },
   },
   {
-    title: '剩余(MB)',
+    title: '用量',
+    key: 'usage',
+    width: 120,
+    render(row: CardItem) {
+      const used = row.comboUsed
+      const total = row.comboTotal
+      if (used == null || total == null) return '-'
+      return `${used.toFixed(0)} / ${total >= 1024 ? (total / 1024).toFixed(1) + 'G' : total.toFixed(0) + 'M'}`
+    },
+  },
+  {
+    title: '剩余',
     key: 'comboResidue',
-    width: 100,
+    width: 90,
     render(row: CardItem) {
       const v = row.comboResidue
       if (v === null || v === undefined) return '-'
-      if (v >= 1024) return (v / 1024).toFixed(1) + ' GB'
-      return v.toFixed(0) + ' MB'
+      if (v >= 1024) return (v / 1024).toFixed(1) + 'G'
+      return v.toFixed(0) + 'M'
+    },
+  },
+  {
+    title: '激活状态',
+    key: 'activatedState',
+    width: 90,
+    render(row: CardItem) {
+      const map: Record<string, string> = { '1': '测试期', '2': '库存期', '3': '已激活' }
+      return map[row.activatedState] || '-'
+    },
+  },
+  {
+    title: '到期时间',
+    key: 'endTime',
+    width: 110,
+  },
+  {
+    title: '位置',
+    key: 'realPosition',
+    width: 100,
+    ellipsis: { tooltip: true },
+  },
+  {
+    title: '开关',
+    key: 'toggle',
+    width: 70,
+    fixed: 'right',
+    render(row: CardItem) {
+      const canToggle = permissionStore.hasPermission('iot:card:enable') || permissionStore.hasPermission('iot:card:disable')
+      if (!canToggle) return '-'
+      const isOn = row.status === '1'
+      return h(NSwitch, {
+        size: 'small',
+        value: isOn,
+        loading: toggleLoadingMap.value[row.cardNo],
+        'onUpdate:value': (v: boolean) => handleToggle(row, v),
+      })
     },
   },
   {
     title: '操作',
     key: 'actions',
-    width: 150,
+    width: 60,
+    fixed: 'right',
     render(row: CardItem) {
-      return h('div', { class: 'flex items-center gap-1' }, [
-        h(
-          NButton,
-          { size: 'tiny', quaternary: true, onClick: () => handleView(row) },
-          () => '查看',
-        ),
-        h(
-          NPopconfirm,
-          { 'onPositive-click': () => handleEnable(row) },
-          {
-            trigger: () => permissionStore.hasPermission('iot:card:enable')
-              ? h(NButton, { size: 'tiny', quaternary: true, type: 'success', title: '启用' }, () => '启用')
-              : null,
-            default: () => '确认启用该卡?',
-          },
-        ),
-        h(
-          NPopconfirm,
-          { 'onPositive-click': () => handleDisable(row) },
-          {
-            trigger: () => permissionStore.hasPermission('iot:card:disable')
-              ? h(NButton, { size: 'tiny', quaternary: true, type: 'error', title: '禁用' }, () => '禁用')
-              : null,
-            default: () => '确认禁用该卡?',
-          },
-        ),
-      ])
+      return h(NButton, { size: 'tiny', quaternary: true, onClick: () => handleView(row) }, () => '查看')
     },
   },
 ])
@@ -341,10 +376,28 @@ function extractError(e: unknown, fallback: string): string {
       <NButton quaternary circle :loading="table.loading.value" @click="table.refresh()">
         <RefreshOutline class="w-4 h-4" />
       </NButton>
+      <div class="flex items-center ml-auto">
+        <NButton
+          quaternary
+          :type="viewMode === 'list' ? 'primary' : 'default'"
+          @click="viewMode = 'list'"
+        >
+          <ListOutline class="w-4 h-4 mr-1" />
+          列表
+        </NButton>
+        <NButton
+          quaternary
+          :type="viewMode === 'card' ? 'primary' : 'default'"
+          @click="viewMode = 'card'"
+        >
+          <GridOutline class="w-4 h-4 mr-1" />
+          卡片
+        </NButton>
+      </div>
     </div>
 
-    <!-- Table -->
-    <NSpin :show="table.loading.value">
+    <!-- List View -->
+    <NSpin v-if="viewMode === 'list'" :show="table.loading.value">
       <div v-if="table.data.value.length === 0 && !table.loading.value" class="py-16">
         <NEmpty description="暂无物联网卡">
           <template #extra>
@@ -363,7 +416,62 @@ function extractError(e: unknown, fallback: string): string {
         striped
         size="small"
         class="rounded-xl overflow-hidden"
+        :scroll-x="1400"
       />
+    </NSpin>
+
+    <!-- Card View -->
+    <NSpin v-else :show="table.loading.value">
+      <div v-if="table.data.value.length === 0 && !table.loading.value" class="py-16">
+        <NEmpty description="暂无物联网卡">
+          <template #extra>
+            <p class="text-sm text-base-content/40 mt-2">点击右上角"同步"从IoT平台同步卡片数据</p>
+          </template>
+        </NEmpty>
+      </div>
+
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div
+          v-for="card in table.data.value"
+          :key="card.cardNo"
+          class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:shadow-md transition-shadow"
+        >
+          <div class="flex items-center justify-between mb-3">
+            <div class="font-medium text-sm truncate" :title="card.cardNo">{{ card.cardNo }}</div>
+            <div class="flex items-center gap-2">
+              <NTag
+              size="small"
+              :type="(card.gprsState === '1' ? 'success' : card.gprsState === '2' ? 'default' : card.gprsState === '3' ? 'error' : 'warning') as any"
+            >
+              {{ { '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[card.gprsState] || '未知' }}
+            </NTag>
+              <NSwitch
+                v-if="permissionStore.hasPermission('iot:card:enable') || permissionStore.hasPermission('iot:card:disable')"
+                :value="card.status === '1'"
+                :loading="toggleLoadingMap[card.cardNo]"
+                size="small"
+                @update:value="(v: boolean) => handleToggle(card, v)"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-y-2 gap-x-4 text-xs text-slate-500 dark:text-slate-400 mb-3">
+            <div><span class="text-slate-400">ICCID: </span>{{ card.iccid || '-' }}</div>
+            <div><span class="text-slate-400">MSISDN: </span>{{ card.msisdn || '-' }}</div>
+            <div><span class="text-slate-400">运营商: </span>{{ operatorLabel(card.operator) }}</div>
+            <div><span class="text-slate-400">激活: </span>{{ { '1': '测试期', '2': '库存期', '3': '已激活' }[card.activatedState] || '-' }}</div>
+            <div><span class="text-slate-400">用量: </span>{{ card.comboUsed != null ? card.comboUsed.toFixed(0) + 'M' : '-' }} / {{ card.comboTotal != null ? (card.comboTotal >= 1024 ? (card.comboTotal/1024).toFixed(1) + 'G' : card.comboTotal.toFixed(0) + 'M') : '-' }}</div>
+            <div><span class="text-slate-400">剩余: </span><span :class="(card.comboResidue ?? 0) < 100 ? 'text-red-500 font-medium' : ''">{{ card.comboResidue != null ? (card.comboResidue >= 1024 ? (card.comboResidue/1024).toFixed(1) + 'G' : card.comboResidue.toFixed(0) + 'M') : '-' }}</span></div>
+            <div class="col-span-2"><span class="text-slate-400">套餐: </span>{{ card.comboName || '-' }}</div>
+            <div><span class="text-slate-400">位置: </span>{{ card.realPosition || '-' }}</div>
+            <div><span class="text-slate-400">到期: </span>{{ card.endTime || '-' }}</div>
+          </div>
+
+          <div class="flex justify-end">
+            <NButton size="tiny" quaternary @click="handleView(card)">查看详情</NButton>
+          </div>
+        </div>
+      </div>
     </NSpin>
 
     <!-- Pagination -->
