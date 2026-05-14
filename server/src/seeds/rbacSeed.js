@@ -128,6 +128,7 @@ const MENUS = [
       { name: "文档管理",   path: "/cms/kb/documents", icon: "DocumentOutline",  permission: "kb:list" },
       { name: "画布管理",   path: "/cms/kb/canvases",  icon: "ShapesOutline",    permission: "kb:list" },
       { name: "Obsidian同步", path: "/cms/kb/sync",    icon: "SyncOutline",      permission: "kb:sync" },
+      { name: "知识图谱",     path: "/cms/kb/graph",   icon: "GitNetworkOutline", permission: "kb:list" },
     ],
   },
   {
