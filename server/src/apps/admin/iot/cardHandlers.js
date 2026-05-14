@@ -134,7 +134,7 @@ async function syncCards(req, res) {
 
   console.log(`[IoT] syncCards: ${rows.length} cards in local DB`);
 
-  const cardNos = rows.map((r) => r.card_no);
+  const cardNos = rows.map((r) => String(r.card_no));
   let result;
   try {
     result = await getCardInfoBatch(cardNos);
