@@ -40,14 +40,18 @@ async function iotGet(path, params) {
 
 async function iotPost(path, data) {
   const client = buildClient();
-  console.log("[IoT] POST", path, "body:", JSON.stringify(data).substring(0, 300));
+  const bodyStr = JSON.stringify(data);
+  console.log("[IoT] POST", path, "body:", bodyStr.substring(0, 400));
   try {
-    const res = await client.post(path, data);
+    const res = await client.post(path, data, {
+      headers: { 'Content-Type': 'application/json; charset=utf-8' }
+    });
     console.log("[IoT] response:", JSON.stringify(res.data).substring(0, 300));
     return normalizeResponse(res);
   } catch (e) {
+    const reqBody = e.config?.data ? JSON.stringify(e.config.data).substring(0, 400) : 'unknown';
     const detail = e.response?.data ? JSON.stringify(e.response.data).substring(0, 500) : e.message;
-    console.error("[IoT] POST error:", path, detail);
+    console.error("[IoT] POST error:", path, "reqBody:", reqBody, "res:", detail);
     throw e;
   }
 }
