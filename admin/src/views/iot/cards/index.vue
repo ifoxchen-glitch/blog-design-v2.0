@@ -317,10 +317,11 @@ async function handleDelete(row: CardItem) {
   }
 }
 
-// Normalize gprsState to string for consistent key lookup
+// Normalize any numeric value to a string key for label lookup
 function normalizeGprs(state: string | number | null | undefined) {
   if (state == null) return '0'
-  return String(state)
+  // Handle float values like 2.0 -> "2", 0.0 -> "0"
+  return String(Math.round(Number(state)))
 }
 
 // Status label text (for text display in card view)
@@ -394,10 +395,7 @@ const tableColumns = computed(() => [
     key: 'gprsState',
     width: 100,
     render(row: CardItem) {
-      return h('span', {}, [
-        h('span', { class: 'text-red-400 mr-1' }, `[${row.gprsState}]`),
-        gprsStateTag(row.gprsState),
-      ])
+      return gprsStateTag(normalizeGprs(row.gprsState))
     },
   },
   {
@@ -405,9 +403,9 @@ const tableColumns = computed(() => [
     key: 'onOffStatus',
     width: 100,
     render(row: CardItem) {
-      const s = String(row.onOffStatus ?? '')
+      const s = normalizeGprs(row.onOffStatus)
       const map: Record<string, string> = { '1': '在线', '0': '离线' }
-      return h(NTag, { size: 'small', type: s === '1' ? 'success' : 'default' as any }, () => `[${s}] ${map[s] || '-'}`)
+      return h(NTag, { size: 'small', type: s === '1' ? 'success' : 'default' as any }, () => map[s] || '-')
     },
   },
   {
@@ -655,7 +653,7 @@ function extractError(e: unknown, fallback: string): string {
             <div><span class="text-slate-400">IMEI: </span>{{ (card as any).imei || '-' }}</div>
             <div><span class="text-slate-400">运营商: </span>{{ operatorLabel(card.operator) }}</div>
             <div><span class="text-slate-400">卡状态: </span>{{ gprsStateLabel(card.gprsState) }}</div>
-            <div><span class="text-slate-400">开关机状态: </span>{{ card.onOffStatus === '1' ? '在线' : card.onOffStatus === '0' ? '离线' : '-' }}</div>
+            <div><span class="text-slate-400">开关机状态: </span>{{ normalizeGprs(card.onOffStatus) === '1' ? '在线' : normalizeGprs(card.onOffStatus) === '0' ? '离线' : '-' }}</div>
             <div><span class="text-slate-400">激活: </span>{{ { '1': '测试期', '2': '库存期', '3': '已激活' }[card.activatedState] || '-' }}</div>
             <div class="col-span-2"><span class="text-slate-400">套餐: </span>{{ card.comboName || '-' }}</div>
             <div><span class="text-slate-400">位置: </span>{{ card.realPosition || '-' }}</div>
@@ -814,8 +812,8 @@ function extractError(e: unknown, fallback: string): string {
               <NDescriptionsItem label="已用">{{ selectedCard.comboUsed != null ? selectedCard.comboUsed + ' MB' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="剩余">{{ selectedCard.comboResidue != null ? selectedCard.comboResidue + ' MB' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="总量">{{ selectedCard.comboTotal != null ? selectedCard.comboTotal + ' MB' : '-' }}</NDescriptionsItem>
-              <NDescriptionsItem label="状态">{{ gprsStateLabel(selectedCard.gprsState) }}</NDescriptionsItem>
-              <NDescriptionsItem label="联网状态">{{ selectedCard.onOffStatus === '1' ? '在线' : selectedCard.onOffStatus === '0' ? '不在线' : '-' }}</NDescriptionsItem>
+              <NDescriptionsItem label="卡状态">{{ gprsStateLabel(selectedCard.gprsState) }}</NDescriptionsItem>
+              <NDescriptionsItem label="开关机状态">{{ normalizeGprs(selectedCard.onOffStatus) === '1' ? '在线' : normalizeGprs(selectedCard.onOffStatus) === '0' ? '离线' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="激活状态">{{ selectedCard.activatedState === '1' ? '测试期' : selectedCard.activatedState === '2' ? '库存期' : selectedCard.activatedState === '3' ? '已激活' : '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="实时位置">{{ selectedCard.realPosition || '-' }}</NDescriptionsItem>
               <NDescriptionsItem label="激活时间">{{ selectedCard.activationTime || '-' }}</NDescriptionsItem>
