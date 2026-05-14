@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NInput, NButton, NCard, NForm, NFormItem, NSpace, NAlert } from 'naive-ui'
+import { NInput, NButton, NCard, NForm, NFormItem, NSpace, NAlert, NDivider } from 'naive-ui'
 import PageHeader from '../../components/common/PageHeader.vue'
 
 const openWebUIUrl = ref('')
 const openWebUIApiKey = ref('')
+const iotApiBaseUrl = ref('')
+const iotAppId = ref('')
+const iotAppSecret = ref('')
 const loading = ref(false)
 const saving = ref(false)
 const message = ref('')
@@ -18,6 +21,9 @@ async function loadSettings() {
     if (data.code === 0) {
       openWebUIUrl.value = data.data?.open_webui_url || ''
       openWebUIApiKey.value = data.data?.open_webui_api_key || ''
+      iotApiBaseUrl.value = data.data?.iot_api_base_url || ''
+      iotAppId.value = data.data?.iot_app_id || ''
+      iotAppSecret.value = data.data?.iot_app_secret || ''
     }
   } catch (err) {
     console.error('Failed to load settings:', err)
@@ -36,6 +42,9 @@ async function saveSettings() {
       body: JSON.stringify({
         open_webui_url: openWebUIUrl.value,
         open_webui_api_key: openWebUIApiKey.value,
+        iot_api_base_url: iotApiBaseUrl.value,
+        iot_app_id: iotAppId.value,
+        iot_app_secret: iotAppSecret.value,
       }),
     })
     const data = await res.json()
@@ -71,14 +80,15 @@ onMounted(() => {
 
 <template>
   <div>
-    <PageHeader title="系统设置" subtitle="配置外部服务连接" />
+    <PageHeader title="系统设置" />
 
-    <NCard class="max-w-2xl">
+    <NCard class="max-w-2xl mb-4">
       <NAlert v-if="message" :type="messageType" class="mb-4">
         {{ message }}
       </NAlert>
 
       <NForm label-placement="left" label-width="160px">
+        <div class="text-sm font-medium mb-2 text-gray-500">Open WebUI</div>
         <NFormItem label="Open WebUI 地址">
           <NInput
             v-model:value="openWebUIUrl"
@@ -118,6 +128,52 @@ onMounted(() => {
           </NButton>
           <NButton @click="testConnection">
             测试连接
+          </NButton>
+        </NSpace>
+      </NForm>
+    </NCard>
+
+    <NCard class="max-w-2xl">
+      <NForm label-placement="left" label-width="160px">
+        <div class="text-sm font-medium mb-2 text-gray-500">物联网卡平台</div>
+        <NFormItem label="API 地址">
+          <NInput
+            v-model:value="iotApiBaseUrl"
+            placeholder="http://220.154.130.214:9000"
+            :loading="loading"
+          />
+        </NFormItem>
+
+        <NFormItem label="App ID">
+          <NInput
+            v-model:value="iotAppId"
+            placeholder="19位数字"
+            :loading="loading"
+          />
+        </NFormItem>
+
+        <NFormItem label="App Secret">
+          <NInput
+            v-model:value="iotAppSecret"
+            placeholder="应用密钥"
+            type="password"
+            show-password-on="click"
+            :loading="loading"
+          />
+        </NFormItem>
+
+        <NFormItem>
+          <template #label>
+            <span class="text-gray-500">说明</span>
+          </template>
+          <div class="text-sm text-gray-400">
+            物联网卡平台接口凭证，用于同步卡片数据、查询余额、启用/禁用卡片等操作。
+          </div>
+        </NFormItem>
+
+        <NSpace>
+          <NButton type="primary" :loading="saving" @click="saveSettings">
+            保存设置
           </NButton>
         </NSpace>
       </NForm>

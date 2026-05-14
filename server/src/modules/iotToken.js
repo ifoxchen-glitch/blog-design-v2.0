@@ -2,21 +2,34 @@
  * IoT platform token manager.
  * Caches the access token returned in response header "token" from POST /auth/login.
  * Auto-refreshes 2 minutes before the 15-minute expiry.
+ * Reads credentials from system_settings DB table.
  */
 const axios = require("axios");
-const { optional } = require("../env");
+const { openDb } = require("../db");
 
 let _token = null;
 let _expiresAt = null;
 
+function getIotConfig() {
+  const db = openDb();
+  const settings = db.prepare("SELECT * FROM system_settings WHERE id = 1").get();
+  return {
+    baseUrl: settings?.iot_api_base_url || "",
+    appId: settings?.iot_app_id || "",
+    appSecret: settings?.iot_app_secret || "",
+  };
+}
+
 async function getIotToken() {
-  const baseUrl = optional("IOT_API_BASE_URL");
+  const { baseUrl, appId, appSecret } = getIotConfig();
   if (!baseUrl) {
-    throw new Error("IOT_API_BASE_URL is not configured");
+    throw new Error("IoT platform not configured (set in 系统设置)");
+  }
+  if (!appId || !appSecret) {
+    throw new Error("IoT platform credentials not configured");
   }
 
   const now = Date.now();
-  // Refresh if missing or expires within 2 minutes
   if (!_token || !_expiresAt || now >= _expiresAt - 120_000) {
     await refreshToken();
   }
@@ -24,14 +37,7 @@ async function getIotToken() {
 }
 
 async function refreshToken() {
-  const axios = require("axios");
-  const baseUrl = optional("IOT_API_BASE_URL");
-  const appId = optional("IOT_APP_ID");
-  const appSecret = optional("IOT_APP_SECRET");
-
-  if (!baseUrl || !appId || !appSecret) {
-    throw new Error("IoT platform credentials not configured (IOT_API_BASE_URL, IOT_APP_ID, IOT_APP_SECRET)");
-  }
+  const { baseUrl, appId, appSecret } = getIotConfig();
 
   const res = await axios.post(`${baseUrl}/auth/login`, {
     appId,
@@ -45,7 +51,6 @@ async function refreshToken() {
   }
 
   _token = token;
-  // Set expiry to now + 15 minutes (per spec)
   _expiresAt = Date.now() + 15 * 60 * 1000;
   console.log("[IoT] Token refreshed, expires at", new Date(_expiresAt).toISOString());
 }

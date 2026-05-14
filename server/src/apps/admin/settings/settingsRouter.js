@@ -11,29 +11,32 @@ router.get("/", (req, res) => {
   res.json({
     code: 0,
     message: "ok",
-    data: settings || { open_webui_url: "", open_webui_api_key: "" },
+    data: settings || { open_webui_url: "", open_webui_api_key: "", iot_api_base_url: "", iot_app_id: "", iot_app_secret: "" },
   });
 });
 
 // Update system settings
 router.put("/", (req, res) => {
-  const { open_webui_url, open_webui_api_key } = req.body;
+  const { open_webui_url, open_webui_api_key, iot_api_base_url, iot_app_id, iot_app_secret } = req.body;
   const db = openDb();
   const now = nowIso();
 
   db.prepare(
-    `INSERT INTO system_settings (id, open_webui_url, open_webui_api_key, created_at, updated_at)
-     VALUES (1, ?, ?, ?, ?)
+    `INSERT INTO system_settings (id, open_webui_url, open_webui_api_key, iot_api_base_url, iot_app_id, iot_app_secret, created_at, updated_at)
+     VALUES (1, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        open_webui_url = excluded.open_webui_url,
        open_webui_api_key = excluded.open_webui_api_key,
+       iot_api_base_url = excluded.iot_api_base_url,
+       iot_app_id = excluded.iot_app_id,
+       iot_app_secret = excluded.iot_app_secret,
        updated_at = excluded.updated_at`
-  ).run(open_webui_url || "", open_webui_api_key || "", now, now);
+  ).run(open_webui_url || "", open_webui_api_key || "", iot_api_base_url || "", iot_app_id || "", iot_app_secret || "", now, now);
 
   res.json({
     code: 0,
     message: "Settings updated",
-    data: { open_webui_url: open_webui_url || "", open_webui_api_key: open_webui_api_key || "" },
+    data: { open_webui_url: open_webui_url || "", open_webui_api_key: open_webui_api_key || "", iot_api_base_url: iot_api_base_url || "", iot_app_id: iot_app_id || "", iot_app_secret: iot_app_secret || "" },
   });
 });
 

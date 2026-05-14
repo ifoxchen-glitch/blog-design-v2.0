@@ -508,7 +508,11 @@ function migrate(db) {
   `);
   // Add open_webui_api_key column if not exists (migration for existing DBs)
   try { db.exec(`ALTER TABLE system_settings ADD COLUMN open_webui_api_key TEXT NOT NULL DEFAULT ''`); } catch { /* exists */ }
-  db.prepare(`INSERT OR IGNORE INTO system_settings (id, open_webui_url, open_webui_api_key, created_at, updated_at) VALUES (1, '', '', datetime('now'), datetime('now'))`).run();
+  // Phase 10: IoT platform settings
+  try { db.exec(`ALTER TABLE system_settings ADD COLUMN iot_api_base_url TEXT NOT NULL DEFAULT ''`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE system_settings ADD COLUMN iot_app_id TEXT NOT NULL DEFAULT ''`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE system_settings ADD COLUMN iot_app_secret TEXT NOT NULL DEFAULT ''`); } catch { /* exists */ }
+  db.prepare(`INSERT OR IGNORE INTO system_settings (id, open_webui_url, open_webui_api_key, iot_api_base_url, iot_app_id, iot_app_secret, created_at, updated_at) VALUES (1, '', '', '', '', '', datetime('now'), datetime('now'))`).run();
 
   // Seed default prompt templates
   const tmplCount = db.prepare("SELECT COUNT(*) AS c FROM kb_prompt_templates").get().c;
