@@ -309,7 +309,7 @@ const breadcrumbs = computed(() => {
       </div>
 
       <!-- Page content -->
-      <div class="flex flex-1 flex-col overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
+      <div class="flex flex-1 flex-col overflow-y-auto p-4 md:p-6 pb-24 md:pb-6">
         <RouterView v-slot="{ Component, route }">
           <Component :is="Component" :key="route.path" />
         </RouterView>

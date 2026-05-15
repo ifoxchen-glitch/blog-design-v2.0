@@ -20,8 +20,8 @@ interface DockItem {
 
 const dockItems = computed<DockItem[]>(() => {
   if (activeParent.value) {
-    // Child level — show "返回" + up to 4 children
-    const children = (activeParent.value.children ?? []).slice(0, 4)
+    // Child level — show "返回" + all children (scrollable)
+    const children = activeParent.value.children ?? []
     return [
       { path: '', label: '返回', icon: 'ArrowBack' },
       ...children.map((c) => ({
@@ -32,10 +32,9 @@ const dockItems = computed<DockItem[]>(() => {
     ]
   }
 
-  // Top level — first 5 root menus
+  // Top level — all root menus (scrollable, no slice)
   return permission.menus
     .filter((m) => !m.parent_id)
-    .slice(0, 5)
     .map((m) => ({
       path: m.path ?? (m.children?.[0]?.path ?? '/cms/dashboard'),
       label: m.name,
@@ -141,9 +140,12 @@ const iconMap: Record<string, () => any> = {
 <template>
   <nav
     class="fixed inset-x-0 bottom-0 z-50 border-t md:hidden"
-    style="border-color: color-mix(in srgb, var(--color-base-content) 5%, transparent); background: color-mix(in srgb, var(--color-base-200) 95%, transparent); backdrop-filter: blur(12px);"
+    style="border-color: color-mix(in srgb, var(--color-base-content) 5%, transparent); background: color-mix(in srgb, var(--color-base-200) 95%, transparent); backdrop-filter: blur(12px); padding-bottom: env(safe-area-inset-bottom, 4px);"
   >
-    <div class="flex items-center overflow-x-auto px-1 pb-2 scrollbar-none" style="-webkit-overflow-scrolling: touch; scrollbar-width: none;">
+    <div class="relative flex items-center overflow-x-auto px-1 pb-2 scrollbar-none" style="-webkit-overflow-scrolling: touch; scrollbar-width: none;">
+      <!-- Scroll fade hint (right edge) -->
+      <div class="pointer-events-none absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-[var(--color-base-200)] to-transparent" />
+
       <!-- header badge when showing children -->
       <div
         v-if="activeParent"
