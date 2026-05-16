@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, h, ref, onMounted, watch } from 'vue'
+import { computed, h, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import axios from 'axios'
+import * as echarts from 'echarts'
 import {
   NButton,
   NInput,
@@ -184,6 +185,13 @@ async function loadStats() {
 }
 onMounted(() => {
   loadStats()
+  window.addEventListener('resize', handleHistoryChartResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleHistoryChartResize)
+  historyChart?.dispose()
+  historyChart = null
 })
 
 // Sync
@@ -255,6 +263,7 @@ async function loadHistory(cardNo: string) {
   try {
     const res = await apiGetCardHistory(cardNo, historyPrecision.value)
     historyData.value = res.items
+    nextTick(() => setTimeout(() => renderHistoryChart(), 100))
   } catch {
     historyData.value = []
   } finally {
@@ -262,9 +271,103 @@ async function loadHistory(cardNo: string) {
   }
 }
 
+// History chart ref and ECharts instance
+const historyChartRef = ref<HTMLDivElement | null>(null)
+let historyChart: echarts.ECharts | null = null
+
+const TIME_COLORS: Record<string, string> = {
+  late_night: '#6366f1', // 0-6 凌晨
+  morning: '#60a5fa',    // 6-12 上午
+  afternoon: '#f59e0b',  // 12-18 下午
+  evening: '#ef4444',    // 18-24 晚上
+}
+function getTimeRegion(h: number): string {
+  if (h < 6) return 'late_night'
+  if (h < 12) return 'morning'
+  if (h < 18) return 'afternoon'
+  return 'evening'
+}
+
+function getHourFromLabel(label: string): number {
+  // label format: "2026-05-15 08:00" or "08:00"
+  const parts = label.split(' ')
+  const timePart = parts[parts.length - 1]
+  return parseInt(timePart.split(':')[0], 10)
+}
+
+function renderHistoryChart() {
+  if (!historyChartRef.value || historyData.value.length === 0) return
+
+  if (!historyChart) {
+    historyChart = echarts.init(historyChartRef.value)
+  }
+
+  const items = historyData.value.slice().reverse()
+  const isHour = historyPrecision.value === 'hour'
+  const maxVal = Math.max(...items.map(i => i.used ?? i.avgUsed ?? 0), 1)
+
+  historyChart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      confine: true,
+      formatter: (params: any[]) => {
+        if (!params || params.length === 0) return ''
+        const item = params[0]
+        const data = item.data
+        const region = isHour ? getTimeRegion(getHourFromLabel(data.label)) : ''
+        const regionLabels: Record<string, string> = {
+          late_night: '凌晨',
+          morning: '上午',
+          afternoon: '下午',
+          evening: '晚上',
+        }
+        const regionStr = region ? ` (${regionLabels[region]})` : ''
+        return `<div style="font-size:13px;line-height:1.8">
+          <b>${data.label}</b>${regionStr}<br/>
+          用量: <b>${data.used}</b> MB
+        </div>`
+      },
+    },
+    grid: { left: '3%', right: '3%', bottom: '6%', top: '4%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: items.map(i => i.label.slice(-5)),
+      axisLabel: { fontSize: 10 },
+    },
+    yAxis: { type: 'value', max: maxVal * 1.2, min: 0, axisLabel: { fontSize: 10 } },
+    animation: true,
+    animationDuration: 800,
+    animationEasing: 'cubicOut',
+    series: [{
+      type: 'bar',
+      data: items.map(i => ({
+        value: i.used ?? i.avgUsed ?? 0,
+        label: i.label,
+        used: i.used ?? i.avgUsed ?? 0,
+        itemStyle: {
+          color: isHour
+            ? TIME_COLORS[getTimeRegion(getHourFromLabel(i.label))]
+            : '#60a5fa',
+          borderRadius: [3, 3, 0, 0],
+        },
+      })),
+      barWidth: '70%',
+      itemStyle: { borderRadius: [3, 3, 0, 0] },
+    }],
+  }, true)
+}
+
+function handleHistoryChartResize() {
+  historyChart?.resize()
+}
+
 watch(historyPrecision, () => {
   if (selectedCard.value) {
-    loadHistory(selectedCard.value.cardNo)
+    nextTick(() => {
+      loadHistory(selectedCard.value.cardNo)
+      setTimeout(() => renderHistoryChart(), 200)
+    })
   }
 })
 
@@ -841,19 +944,7 @@ function extractError(e: unknown, fallback: string): string {
 
               <NSpin :show="historyLoading">
                 <div v-if="historyData.length === 0" class="text-center text-sm text-slate-400 py-10">暂无历史数据</div>
-                <div v-else class="flex items-end justify-between gap-1 h-[180px] px-2">
-                  <div
-                    v-for="(item, idx) in historyData"
-                    :key="idx"
-                    class="flex-1 flex flex-col items-center gap-1"
-                  >
-                    <div
-                      class="w-full bg-blue-500/80 rounded-t-sm min-h-[4px]"
-                      :style="{ height: `${Math.max(4, ((item.used ?? item.avgUsed ?? 0) / Math.max(1, ...historyData.map(x => x.used ?? x.avgUsed ?? 0))) * 140)}px` }"
-                    />
-                    <div class="text-[10px] text-slate-500 truncate w-full text-center">{{ item.label.slice(-5) }}</div>
-                  </div>
-                </div>
+                <div v-else ref="historyChartRef" class="w-full" style="height:180px" />
               </NSpin>
 
               <!-- Raw JSON data -->
