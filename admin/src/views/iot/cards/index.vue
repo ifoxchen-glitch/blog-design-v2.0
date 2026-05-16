@@ -363,9 +363,10 @@ function handleHistoryChartResize() {
 }
 
 watch(historyPrecision, () => {
-  if (selectedCard.value) {
+  const cardNo = selectedCard.value?.cardNo
+  if (cardNo) {
     nextTick(() => {
-      loadHistory(selectedCard.value.cardNo)
+      loadHistory(cardNo)
       setTimeout(() => renderHistoryChart(), 200)
     })
   }
