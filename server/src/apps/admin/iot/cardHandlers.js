@@ -487,6 +487,7 @@ async function getCardHistory(req, res) {
 // 返回过去 24h 每小时各区域流量用量
 function getUsageByRegion(req, res) {
   const db = openDb();
+  // recorded_at 存的是 UTC，转换为 Asia/Shanghai (UTC+8)
   const rows = db.prepare(`
     WITH ranked AS (
       SELECT s.card_no, c.real_position AS region,
@@ -496,10 +497,10 @@ function getUsageByRegion(req, res) {
              ) AS prev_used
       FROM iot_card_snapshots s
       JOIN iot_cards c ON s.card_no = c.card_no
-      WHERE s.recorded_at >= datetime('now', '-1 day')
+      WHERE datetime(s.recorded_at, '+8 hours') >= datetime('now', '+8 hours', '-1 day')
         AND c.real_position IS NOT NULL AND c.real_position != ''
     )
-    SELECT strftime('%Y-%m-%d %H:00', recorded_at) AS hour,
+    SELECT strftime('%Y-%m-%d %H:00', datetime(recorded_at, '+8 hours')) AS hour,
            region,
            ROUND(SUM(combo_used - COALESCE(prev_used, 0)), 3) AS usage_mb
     FROM ranked
@@ -507,16 +508,6 @@ function getUsageByRegion(req, res) {
     GROUP BY hour, region
     ORDER BY hour, usage_mb DESC
   `).all();
-
-  // Build { hours: [...], regions: [...], series: { regionName: [usagePerHour] } }
-  const hourSet = new Set();
-  const regionMap = {}; // region -> array[24] indexed by hour position
-  for (const r of rows) {
-    const hourKey = r.hour.slice(-6, -3); // "HH" from "YYYY-MM-DD HH:00"
-    hourSet.add(hourKey);
-    if (!regionMap[r.region]) regionMap[r.region] = {};
-    regionMap[r.region][hourKey] = (regionMap[r.region][hourKey] || 0) + Number(r.usage_mb);
-  }
 
   const hours = Array.from(hourSet).sort();
   const regionLabels = Object.keys(regionMap).sort();

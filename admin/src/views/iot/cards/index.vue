@@ -935,22 +935,6 @@ function extractError(e: unknown, fallback: string): string {
             :bar-width="16"
           />
         </NCard>
-        <NCard title="24小时用量趋势" size="small">
-          <div v-if="stats.trend.length === 0" class="text-center text-sm text-slate-400 py-10">暂无数据</div>
-          <div v-else class="flex items-end justify-between gap-1 h-[200px] pt-4 px-2">
-            <div
-              v-for="t in stats.trend"
-              :key="t.hour"
-              class="flex-1 flex flex-col items-center gap-1"
-            >
-              <div
-                class="w-full bg-blue-500/80 rounded-t-sm min-h-[4px]"
-                :style="{ height: `${Math.max(4, (t.totalUsed / Math.max(...stats.trend.map(x => x.totalUsed))) * 160)}px` }"
-              />
-              <div class="text-[10px] text-slate-500">{{ t.hour }}时</div>
-            </div>
-          </div>
-        </NCard>
         <NCard title="卡状态分布" size="small">
           <PieChart
             :data="stats.gprsStateDist.map(d => ({ name: { '0': '未知', '1': '在线', '2': '离线', '3': '停机', '4': '机卡分离' }[String(d.state)] || String(d.state), value: d.count }))"
