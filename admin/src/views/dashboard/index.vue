@@ -83,6 +83,7 @@ async function loadAll() {
     hourlyLabels.value = hourly.labels
     hourlySeries.value = [
       { name: 'PV', data: hourly.pv, color: '#64d2ff' },
+      { name: 'UV', data: hourly.uv, color: '#30d158' },
     ]
   } catch (e) {
     console.error('Dashboard load failed:', e)
@@ -396,12 +397,32 @@ const dayOptions = [
         </div>
         <LineChart v-else :labels="trendLabels" :series="trendSeries" :height="320" :fill="true" />
       </div>
-      <div class="base-container p-5">
+      <div class="lg:col-span-1 base-container p-5">
         <div class="mb-4">
-          <h3 class="text-sm font-semibold text-base-content">文章阅读量 Top 10</h3>
-          <p class="text-xs text-base-content/40 mt-0.5">按阅读量排序</p>
+          <h3 class="text-sm font-semibold text-base-content">新增文章</h3>
+          <p class="text-xs text-base-content/40 mt-0.5">最近 20 篇文章</p>
         </div>
-        <BarChart :items="topPosts" :height="320" color="#f472b6" />
+        <div
+          ref="scrollContainer"
+          class="overflow-y-auto"
+          :style="{ height: '260px' }"
+          @mouseenter="pauseScroll = true"
+          @mouseleave="pauseScroll = false"
+        >
+          <div
+            v-for="(post, idx) in recentPosts"
+            :key="post.id"
+            class="flex items-center gap-3 py-2.5 px-1 border-b border-[var(--color-base-border)] last:border-0 cursor-pointer hover:bg-primary/5 rounded transition-colors"
+            @click="goToPost(post.id)"
+          >
+            <span
+              class="text-xs font-mono w-5 text-center shrink-0"
+              :class="idx < 3 ? 'text-primary font-bold' : 'text-base-content/30'"
+            >{{ idx + 1 }}</span>
+            <span class="text-xs text-base-content truncate flex-1 min-w-0">{{ post.title }}</span>
+            <span class="text-[10px] text-base-content/30 shrink-0">{{ post.createdAt?.slice(0, 10) }}</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -435,33 +456,16 @@ const dayOptions = [
       <div class="base-container p-5">
         <div class="mb-4">
           <h3 class="text-sm font-semibold text-base-content">今日时段分布</h3>
-          <p class="text-xs text-base-content/40 mt-0.5">24 小时 PV 分布</p>
+          <p class="text-xs text-base-content/40 mt-0.5">24 小时 PV / UV 分布</p>
         </div>
         <LineChart :labels="hourlyLabels" :series="hourlySeries" :height="260" :fill="false" />
       </div>
       <div class="lg:col-span-2 base-container p-5">
         <div class="mb-4">
-          <h3 class="text-sm font-semibold text-base-content">新增文章</h3>
-          <p class="text-xs text-base-content/40 mt-0.5">最近 20 篇文章</p>
+          <h3 class="text-sm font-semibold text-base-content">文章阅读量 Top 10</h3>
+          <p class="text-xs text-base-content/40 mt-0.5">按阅读量排序</p>
         </div>
-        <div
-          ref="scrollContainer"
-          class="overflow-y-auto"
-          :style="{ height: '260px' }"
-          @mouseenter="pauseScroll = true"
-          @mouseleave="pauseScroll = false"
-        >
-          <div
-            v-for="(post, idx) in recentPosts"
-            :key="post.id"
-            class="flex items-center gap-3 py-2.5 px-1 border-b border-[var(--color-base-border)] last:border-0 cursor-pointer hover:bg-primary/5 rounded transition-colors"
-            @click="goToPost(post.id)"
-          >
-            <span class="text-xs text-base-content/40 w-6 shrink-0">{{ idx + 1 }}</span>
-            <span class="text-sm text-base-content truncate flex-1">{{ post.title }}</span>
-            <span class="text-xs text-base-content/40 shrink-0">{{ new Date(post.createdAt).toLocaleDateString('zh-CN') }}</span>
-          </div>
-        </div>
+        <BarChart :items="topPosts" :height="260" color="#f472b6" />
       </div>
     </div>
 

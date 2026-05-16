@@ -207,30 +207,46 @@ router.get("/referrers", (req, res) => {
 
 /**
  * GET /api/v2/admin/analytics/hourly
- * 返回今天 24 小时 PV 分布
+ * 返回今日 24 小时 PV/UV 分布（按 Asia/Shanghai 时区）
  */
 router.get("/hourly", (req, res) => {
   const db = openDb();
-  const today = new Date().toISOString().slice(0, 10);
-  const start = `${today}T00:00:00.000Z`;
-  const end = `${today}T23:59:59.999Z`;
+
+  // 获取 Asia/Shanghai (UTC+8) 本地日期
+  const now = new Date();
+  const OFFSET_8 = 8 * 60 * 60 * 1000;
+  const localNow = new Date(now.getTime() + OFFSET_8);
+  const localYear = localNow.getUTCFullYear();
+  const localMonth = localNow.getUTCMonth();
+  const localDay = localNow.getUTCDate();
 
   const labels = [];
   const pv = [];
+  const uv = [];
 
   for (let h = 0; h < 24; h++) {
-    const hourStart = `${today}T${String(h).padStart(2, '0')}:00:00.000Z`;
-    const hourEnd = `${today}T${String(h).padStart(2, '0')}:59:59.999Z`;
-    const count = db.prepare(`SELECT COUNT(*) as c FROM page_views WHERE created_at >= ? AND created_at < ?`)
-      .get(hourStart, hourEnd)?.c || 0;
+    // 本地小时 h → UTC 时间范围（本地 = UTC + 8h，即 UTC = 本地 - 8h）
+    const utcStart = new Date(Date.UTC(localYear, localMonth, localDay, h - 8, 0, 0));
+    const utcEnd = new Date(utcStart.getTime() + 3600 * 1000 - 1);
+
+    const utcStartStr = utcStart.toISOString();
+    const utcEndStr = utcEnd.toISOString();
+
+    const pvCount = db.prepare(`SELECT COUNT(*) as c FROM page_views WHERE created_at >= ? AND created_at <= ?`)
+      .get(utcStartStr, utcEndStr)?.c || 0;
+
+    const uvCount = db.prepare(`SELECT COUNT(DISTINCT session_id) as c FROM page_views WHERE created_at >= ? AND created_at <= ?`)
+      .get(utcStartStr, utcEndStr)?.c || 0;
+
     labels.push(`${String(h).padStart(2, '0')}:00`);
-    pv.push(count);
+    pv.push(pvCount);
+    uv.push(uvCount);
   }
 
   res.json({
     code: 200,
     message: "success",
-    data: { labels, pv },
+    data: { labels, pv, uv },
   });
 });
 

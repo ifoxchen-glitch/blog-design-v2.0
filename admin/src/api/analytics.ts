@@ -88,6 +88,7 @@ export async function apiGetReferrers(
 export interface HourlyData {
   labels: string[]
   pv: number[]
+  uv: number[]
 }
 
 export async function apiGetHourly(
