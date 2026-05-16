@@ -484,10 +484,51 @@ async function getCardHistory(req, res) {
 }
 
 // GET /api/v2/admin/iot/cards/usage-by-region
-// 返回过去 24h 每小时各区域流量用量
+// 各区域流量用量，支持 ?date=YYYY-MM-DD&period=day|week|month
 function getUsageByRegion(req, res) {
   const db = openDb();
-  // recorded_at 存的是 UTC，转换为 Asia/Shanghai (UTC+8)
+  const period = (req.query.period || 'day').trim();
+  const dateStr = (req.query.date || '').trim();
+
+  // 计算查询范围的本地起始/结束时间
+  const localNow = new Date(Date.now() + 8 * 3600 * 1000);
+  const refDate = dateStr || localNow.toISOString().slice(0, 10);
+  let startLocal, endLocal;
+
+  if (period === 'day') {
+    startLocal = `${refDate} 00:00:00`;
+    endLocal = `${refDate} 23:59:59`;
+  } else if (period === 'week') {
+    // 找到 refDate 所在周的周一
+    const d = new Date(Date.parse(refDate + 'T00:00:00+08:00'));
+    const day = d.getUTCDay(); // 0=Sun
+    const monOffset = day === 0 ? -6 : 1 - day;
+    const mon = new Date(d.getTime() + monOffset * 86400000);
+    const sun = new Date(mon.getTime() + 6 * 86400000);
+    startLocal = mon.toISOString().slice(0, 10) + ' 00:00:00';
+    endLocal = sun.toISOString().slice(0, 10) + ' 23:59:59';
+  } else { // month
+    const y = parseInt(refDate.slice(0, 4), 10);
+    const m = parseInt(refDate.slice(5, 7), 10);
+    startLocal = `${refDate.slice(0, 7)}-01 00:00:00`;
+    const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    endLocal = `${refDate.slice(0, 7)}-${String(lastDay).padStart(2, '0')} 23:59:59`;
+  }
+
+  // 本地时间转 UTC 用于 SQL 查询（recorded_at 存的是 UTC）
+  function localToUtc(localStr) {
+    const [d, t] = localStr.split(' ');
+    return new Date(Date.parse(`${d}T${t}+08:00`)).toISOString();
+  }
+
+  const utcStart = localToUtc(startLocal);
+  const utcEnd = localToUtc(endLocal);
+
+  // 按日/周/月选择不同粒度
+  const timeFmt = period === 'day'
+    ? "strftime('%Y-%m-%d %H:00', datetime(recorded_at, '+8 hours'))"
+    : "strftime('%Y-%m-%d', datetime(recorded_at, '+8 hours'))";
+
   const rows = db.prepare(`
     WITH ranked AS (
       SELECT s.card_no, c.real_position AS region,
@@ -497,31 +538,37 @@ function getUsageByRegion(req, res) {
              ) AS prev_used
       FROM iot_card_snapshots s
       JOIN iot_cards c ON s.card_no = c.card_no
-      WHERE datetime(s.recorded_at, '+8 hours') >= datetime('now', '+8 hours', '-1 day')
+      WHERE s.recorded_at >= ? AND s.recorded_at <= ?
         AND c.real_position IS NOT NULL AND c.real_position != ''
     )
-    SELECT strftime('%Y-%m-%d %H:00', datetime(recorded_at, '+8 hours')) AS hour,
+    SELECT ${timeFmt} AS label,
            region,
            ROUND(SUM(combo_used - COALESCE(prev_used, 0)), 3) AS usage_mb
     FROM ranked
     WHERE prev_used IS NOT NULL AND (combo_used - prev_used) >= 0
-    GROUP BY hour, region
-    ORDER BY hour, usage_mb DESC
-  `).all();
+    GROUP BY label, region
+    ORDER BY label, usage_mb DESC
+  `).all(utcStart, utcEnd);
 
-  const hours = Array.from(hourSet).sort();
+  const labelSet = new Set();
+  const regionMap = {};
+  for (const r of rows) {
+    labelSet.add(r.label);
+    if (!regionMap[r.region]) regionMap[r.region] = {};
+    regionMap[r.region][r.label] = (regionMap[r.region][r.label] || 0) + Number(r.usage_mb);
+  }
+
+  const labels = Array.from(labelSet).sort();
   const regionLabels = Object.keys(regionMap).sort();
   const series = regionLabels.map(region => ({
     name: region,
-    data: hours.map(h => Math.round((regionMap[region][h] || 0) * 100) / 100),
+    data: labels.map(l => Math.round((regionMap[region][l] || 0) * 100) / 100),
   }));
-
-  // Also include a total per hour line
-  const totals = hours.map(h =>
-    series.reduce((sum, s) => sum + (s.data[hours.indexOf(h)] || 0), 0)
+  const totals = labels.map(l =>
+    series.reduce((sum, s) => sum + (s.data[labels.indexOf(l)] || 0), 0)
   );
 
-  res.json({ code: 200, data: { hours, regions: regionLabels, series, totals } });
+  res.json({ code: 200, data: { labels, regions: regionLabels, series, totals, period } });
 }
 
 // Snapshot all cards for hourly usage tracking

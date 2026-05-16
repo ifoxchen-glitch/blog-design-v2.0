@@ -103,17 +103,19 @@ export async function apiGetCardHistory(
 }
 
 export interface UsageByRegionData {
-  hours: string[]
+  labels: string[]
   regions: string[]
   series: Array<{ name: string; data: number[] }>
   totals: number[]
+  period: string
 }
 
 export async function apiGetUsageByRegion(
+  params?: { date?: string; period?: string },
   client: AxiosInstance = request,
 ): Promise<UsageByRegionData> {
   const res = await client.get<ApiResponse<UsageByRegionData>>(
-    '/api/v2/admin/iot/cards/usage-by-region',
+    '/api/v2/admin/iot/cards/usage-by-region', { params },
   )
   return res.data.data
 }

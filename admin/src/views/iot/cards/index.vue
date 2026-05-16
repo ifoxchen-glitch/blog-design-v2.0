@@ -167,9 +167,22 @@ const stats = ref<StatsData | null>(null)
 const statsLoading = ref(false)
 
 // Usage by region chart
-const usageByRegion = ref<{ hours: string[]; series: Array<{ name: string; data: number[] }> } | null>(null)
+const usageByRegion = ref<{ labels: string[]; series: Array<{ name: string; data: number[] }>; period: string } | null>(null)
 const usageByRegionRef = ref<HTMLDivElement | null>(null)
 let usageByRegionChart: echarts.ECharts | null = null
+const usageRegionPeriod = ref<'day' | 'week' | 'month'>('day')
+const usageRegionDate = ref(new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10))
+
+function formatLocalDate(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+function adjustDate(deltaDays: number) {
+  const d = new Date(Date.parse(usageRegionDate.value + 'T00:00:00+08:00'))
+  d.setDate(d.getDate() + deltaDays)
+  usageRegionDate.value = formatLocalDate(d)
+  loadUsageByRegion()
+}
 
 function renderUsageByRegionChart() {
   if (!usageByRegionRef.value || !usageByRegion.value) return
@@ -177,6 +190,7 @@ function renderUsageByRegionChart() {
     usageByRegionChart = echarts.init(usageByRegionRef.value)
   }
   const data = usageByRegion.value
+  const isDay = data.period === 'day'
   const colors = ['#60a5fa','#f472b6','#2dd4bf','#f59e0b','#a78bfa','#ef4444','#34d399','#fbbf24','#6366f1','#fb7185']
   usageByRegionChart.setOption({
     tooltip: {
@@ -197,8 +211,12 @@ function renderUsageByRegionChart() {
       },
     },
     legend: { data: data.series.map(s => s.name), bottom: 0, type: 'scroll', itemWidth: 10, itemHeight: 10, fontSize: 10 },
-    grid: { left: '3%', right: '3%', bottom: '20%', top: '6%', containLabel: true },
-    xAxis: { type: 'category', data: data.hours, axisLabel: { fontSize: 10, rotate: 45 } },
+    grid: { left: '3%', right: '3%', bottom: '22%', top: '6%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: data.labels.map(l => isDay ? l.slice(-8) : l.slice(5)),
+      axisLabel: { fontSize: 10, rotate: isDay ? 45 : 30 },
+    },
     yAxis: { type: 'value', name: 'MB', axisLabel: { fontSize: 10 } },
     animation: true,
     animationDuration: 1000,
@@ -213,16 +231,21 @@ function renderUsageByRegionChart() {
     })),
   }, true)
 }
+
+async function loadUsageByRegion() {
+  try {
+    const res = await apiGetUsageByRegion({ date: usageRegionDate.value, period: usageRegionPeriod.value })
+    usageByRegion.value = res
+    nextTick(() => setTimeout(() => renderUsageByRegionChart(), 100))
+  } catch {
+    usageByRegion.value = null
+  }
+}
 async function loadStats() {
   statsLoading.value = true
   try {
-    const [res, usage] = await Promise.all([
-      apiGetStats(),
-      apiGetUsageByRegion().catch(() => null),
-    ])
+    const res = await apiGetStats()
     stats.value = res
-    usageByRegion.value = usage
-    nextTick(() => setTimeout(() => renderUsageByRegionChart(), 200))
     regionOptions.value = [
       { label: '全部区域', value: '' },
       ...res.regionDist.map((r) => ({ label: r.region, value: r.region })),
@@ -239,6 +262,7 @@ async function loadStats() {
 }
 onMounted(() => {
   loadStats()
+  loadUsageByRegion()
   window.addEventListener('resize', handleHistoryChartResize)
 })
 
@@ -944,9 +968,26 @@ function extractError(e: unknown, fallback: string): string {
         <NCard title="全国分布热力图" size="small" class="md:col-span-2">
           <ChinaMap :data="stats.regionDist.map(d => ({ name: d.region, value: d.count }))" :height="300" />
         </NCard>
-        <NCard title="各区域小时用量" size="small" class="md:col-span-2">
+        <NCard title="各区域用量" size="small" class="md:col-span-2">
+          <template #header-extra>
+            <div class="flex items-center gap-2">
+              <NButton size="tiny" quaternary @click="adjustDate(-1)">‹</NButton>
+              <input
+                type="date"
+                :value="usageRegionDate"
+                @input="usageRegionDate = ($event.target as HTMLInputElement).value; loadUsageByRegion()"
+                class="w-32 text-xs bg-transparent border border-slate-600 rounded px-1 py-0.5 text-slate-200"
+              />
+              <NButton size="tiny" quaternary @click="adjustDate(1)">›</NButton>
+              <NRadioGroup v-model:value="usageRegionPeriod" size="small" @update:value="loadUsageByRegion">
+                <NRadioButton value="day">日</NRadioButton>
+                <NRadioButton value="week">周</NRadioButton>
+                <NRadioButton value="month">月</NRadioButton>
+              </NRadioGroup>
+            </div>
+          </template>
           <div v-if="!usageByRegion" class="text-center text-sm text-slate-400 py-10">暂无快照数据</div>
-          <div v-else ref="usageByRegionRef" class="w-full" style="height:280px" />
+          <div v-else ref="usageByRegionRef" class="w-full" style="height:300px" />
         </NCard>
       </div>
     </div>
