@@ -6,6 +6,7 @@ const {
   batchCards,
   getBalance,
   getStats,
+  getUsageByRegion,
   getCardHistory,
   deleteCard,
   disableCard,
@@ -21,6 +22,7 @@ router.get("/balance",      jwtAuth, requirePermission("iot:card:list"),   getBa
 router.get("/stats",        jwtAuth, requirePermission("iot:card:list"),   getStats);
 router.post("/sync",        jwtAuth, requirePermission("iot:card:list"),   syncCards);
 router.post("/batch",       jwtAuth, requirePermission("iot:card:list"),   batchCards);
+router.get("/usage-by-region", jwtAuth, requirePermission("iot:card:list"), getUsageByRegion);
 router.get("/:cardNo",      jwtAuth, requirePermission("iot:card:query"),  getCard);
 router.get("/:cardNo/history", jwtAuth, requirePermission("iot:card:query"), getCardHistory);
 router.delete("/:cardNo",   jwtAuth, requirePermission("iot:card:delete"), deleteCard);

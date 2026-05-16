@@ -102,6 +102,22 @@ export async function apiGetCardHistory(
   return res.data.data
 }
 
+export interface UsageByRegionData {
+  hours: string[]
+  regions: string[]
+  series: Array<{ name: string; data: number[] }>
+  totals: number[]
+}
+
+export async function apiGetUsageByRegion(
+  client: AxiosInstance = request,
+): Promise<UsageByRegionData> {
+  const res = await client.get<ApiResponse<UsageByRegionData>>(
+    '/api/v2/admin/iot/cards/usage-by-region',
+  )
+  return res.data.data
+}
+
 export async function apiSyncCards(
   client: AxiosInstance = request,
 ): Promise<{ cardCount: number }> {

@@ -483,6 +483,56 @@ async function getCardHistory(req, res) {
   return res.status(200).json({ code: 200, message: "success", data: { items: rows, precision } });
 }
 
+// GET /api/v2/admin/iot/cards/usage-by-region
+// 返回过去 24h 每小时各区域流量用量
+function getUsageByRegion(req, res) {
+  const db = openDb();
+  const rows = db.prepare(`
+    WITH ranked AS (
+      SELECT s.card_no, c.real_position AS region,
+             s.combo_used, s.recorded_at,
+             LAG(s.combo_used) OVER (
+               PARTITION BY s.card_no ORDER BY s.recorded_at
+             ) AS prev_used
+      FROM iot_card_snapshots s
+      JOIN iot_cards c ON s.card_no = c.card_no
+      WHERE s.recorded_at >= datetime('now', '-1 day')
+        AND c.real_position IS NOT NULL AND c.real_position != ''
+    )
+    SELECT strftime('%Y-%m-%d %H:00', recorded_at) AS hour,
+           region,
+           ROUND(SUM(combo_used - COALESCE(prev_used, 0)), 3) AS usage_mb
+    FROM ranked
+    WHERE prev_used IS NOT NULL AND (combo_used - prev_used) >= 0
+    GROUP BY hour, region
+    ORDER BY hour, usage_mb DESC
+  `).all();
+
+  // Build { hours: [...], regions: [...], series: { regionName: [usagePerHour] } }
+  const hourSet = new Set();
+  const regionMap = {}; // region -> array[24] indexed by hour position
+  for (const r of rows) {
+    const hourKey = r.hour.slice(-6, -3); // "HH" from "YYYY-MM-DD HH:00"
+    hourSet.add(hourKey);
+    if (!regionMap[r.region]) regionMap[r.region] = {};
+    regionMap[r.region][hourKey] = (regionMap[r.region][hourKey] || 0) + Number(r.usage_mb);
+  }
+
+  const hours = Array.from(hourSet).sort();
+  const regionLabels = Object.keys(regionMap).sort();
+  const series = regionLabels.map(region => ({
+    name: region,
+    data: hours.map(h => Math.round((regionMap[region][h] || 0) * 100) / 100),
+  }));
+
+  // Also include a total per hour line
+  const totals = hours.map(h =>
+    series.reduce((sum, s) => sum + (s.data[hours.indexOf(h)] || 0), 0)
+  );
+
+  res.json({ code: 200, data: { hours, regions: regionLabels, series, totals } });
+}
+
 // Snapshot all cards for hourly usage tracking
 function snapshotCards() {
   const db = openDb();
@@ -509,6 +559,7 @@ module.exports = {
   batchCards,
   getBalance,
   getStats,
+  getUsageByRegion,
   getCardHistory,
   snapshotCards,
   deleteCard: deleteCardHandler,

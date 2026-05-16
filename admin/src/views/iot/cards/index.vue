@@ -44,6 +44,7 @@ import {
   apiBatchCards,
   apiGetBalance,
   apiGetStats,
+  apiGetUsageByRegion,
   apiDeleteCard,
   apiEnableCard,
   apiDisableCard,
@@ -164,11 +165,64 @@ loadBalance()
 // Stats / Dashboard
 const stats = ref<StatsData | null>(null)
 const statsLoading = ref(false)
+
+// Usage by region chart
+const usageByRegion = ref<{ hours: string[]; series: Array<{ name: string; data: number[] }> } | null>(null)
+const usageByRegionRef = ref<HTMLDivElement | null>(null)
+let usageByRegionChart: echarts.ECharts | null = null
+
+function renderUsageByRegionChart() {
+  if (!usageByRegionRef.value || !usageByRegion.value) return
+  if (!usageByRegionChart) {
+    usageByRegionChart = echarts.init(usageByRegionRef.value)
+  }
+  const data = usageByRegion.value
+  const colors = ['#60a5fa','#f472b6','#2dd4bf','#f59e0b','#a78bfa','#ef4444','#34d399','#fbbf24','#6366f1','#fb7185']
+  usageByRegionChart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      confine: true,
+      formatter: (params: any[]) => {
+        if (!params || params.length === 0) return ''
+        let html = `<b>${params[0].name}</b><br/>`
+        let total = 0
+        for (const p of params) {
+          if (p.value > 0) {
+            html += `${p.marker} ${p.seriesName}: <b>${p.value}</b> MB<br/>`
+            total += p.value
+          }
+        }
+        html += `合计: <b>${total.toFixed(2)}</b> MB`
+        return html
+      },
+    },
+    legend: { data: data.series.map(s => s.name), bottom: 0, type: 'scroll', itemWidth: 10, itemHeight: 10, fontSize: 10 },
+    grid: { left: '3%', right: '3%', bottom: '20%', top: '6%', containLabel: true },
+    xAxis: { type: 'category', data: data.hours, axisLabel: { fontSize: 10, rotate: 45 } },
+    yAxis: { type: 'value', name: 'MB', axisLabel: { fontSize: 10 } },
+    animation: true,
+    animationDuration: 1000,
+    animationEasing: 'cubicOut',
+    series: data.series.map((s, i) => ({
+      name: s.name,
+      type: 'bar',
+      stack: 'total',
+      data: s.data,
+      itemStyle: { color: colors[i % colors.length], borderRadius: 0 },
+      barWidth: '70%',
+    })),
+  }, true)
+}
 async function loadStats() {
   statsLoading.value = true
   try {
-    const res = await apiGetStats()
+    const [res, usage] = await Promise.all([
+      apiGetStats(),
+      apiGetUsageByRegion().catch(() => null),
+    ])
     stats.value = res
+    usageByRegion.value = usage
+    nextTick(() => setTimeout(() => renderUsageByRegionChart(), 200))
     regionOptions.value = [
       { label: '全部区域', value: '' },
       ...res.regionDist.map((r) => ({ label: r.region, value: r.region })),
@@ -192,6 +246,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleHistoryChartResize)
   historyChart?.dispose()
   historyChart = null
+  usageByRegionChart?.dispose()
+  usageByRegionChart = null
 })
 
 // Sync
@@ -360,6 +416,7 @@ function renderHistoryChart() {
 
 function handleHistoryChartResize() {
   historyChart?.resize()
+  usageByRegionChart?.resize()
 }
 
 watch(historyPrecision, () => {
@@ -902,6 +959,10 @@ function extractError(e: unknown, fallback: string): string {
         </NCard>
         <NCard title="全国分布热力图" size="small" class="md:col-span-2">
           <ChinaMap :data="stats.regionDist.map(d => ({ name: d.region, value: d.count }))" :height="300" />
+        </NCard>
+        <NCard title="各区域小时用量" size="small" class="md:col-span-2">
+          <div v-if="!usageByRegion" class="text-center text-sm text-slate-400 py-10">暂无快照数据</div>
+          <div v-else ref="usageByRegionRef" class="w-full" style="height:280px" />
         </NCard>
       </div>
     </div>
