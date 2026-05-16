@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, h, type Component } from 'vue'
+import { onMounted, ref, watch, h, type Component, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import * as echarts from 'echarts'
 import {
   apiGetDashboardStats,
   apiGetTrend,
@@ -52,6 +53,90 @@ const referrers = ref<Array<{ name: string; value: number }>>([])
 
 const hourlyLabels = ref<string[]>([])
 const hourlySeries = ref<Array<{ name: string; data: number[]; color?: string }>>([])
+const hourlyChartRef = ref<HTMLDivElement | null>(null)
+let hourlyChart: echarts.ECharts | null = null
+
+// Time-region colors for hourly bars
+const TIME_COLORS: Record<string, string> = {
+  late_night: '#6366f1', // 0-6 凌晨
+  morning: '#60a5fa',    // 6-12 上午
+  afternoon: '#f59e0b',  // 12-18 下午
+  evening: '#ef4444',    // 18-24 晚上
+}
+function getTimeRegion(h: number): string {
+  if (h < 6) return 'late_night'
+  if (h < 12) return 'morning'
+  if (h < 18) return 'afternoon'
+  return 'evening'
+}
+
+function renderHourlyChart(labels: string[], pv: number[], uv: number[]) {
+  if (!hourlyChartRef.value) return
+
+  if (!hourlyChart) {
+    hourlyChart = echarts.init(hourlyChartRef.value)
+  }
+
+  hourlyChart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      confine: true,
+      formatter: (params: any[]) => {
+        if (!params || params.length === 0) return ''
+        const hour = params[0].name
+        const pvVal = params.find((p: any) => p.seriesName === 'PV')?.value ?? 0
+        const uvVal = params.find((p: any) => p.seriesName === 'UV')?.value ?? 0
+        const region = getTimeRegion(parseInt(hour))
+        const regionLabels: Record<string, string> = {
+          late_night: '凌晨',
+          morning: '上午',
+          afternoon: '下午',
+          evening: '晚上',
+        }
+        return `<div style="font-size:13px;line-height:1.8">
+          <b>${hour}</b> (${regionLabels[region] || ''})<br/>
+          PV: <b>${pvVal}</b> 次<br/>
+          UV: <b>${uvVal}</b> 人
+        </div>`
+      },
+    },
+    legend: { data: ['PV', 'UV'], bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8 },
+    grid: { left: '4%', right: '3%', bottom: '14%', top: '6%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: labels,
+      axisLabel: { fontSize: 10, interval: 2 },
+    },
+    yAxis: { type: 'value', min: 0 },
+    animation: true,
+    animationDuration: 1200,
+    animationEasing: 'cubicOut',
+    series: [
+      {
+        name: 'PV',
+        type: 'bar',
+        data: labels.map((_, i) => ({
+          value: pv[i] || 0,
+          itemStyle: {
+            color: TIME_COLORS[getTimeRegion(i)],
+            borderRadius: [4, 4, 0, 0],
+          },
+        })),
+        barWidth: '60%',
+      },
+      {
+        name: 'UV',
+        type: 'line',
+        data: uv,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 2, color: '#30d158' },
+        itemStyle: { color: '#30d158' },
+      },
+    ],
+  }, true)
+}
 
 async function loadAll() {
   loading.value = true
@@ -85,6 +170,8 @@ async function loadAll() {
       { name: 'PV', data: hourly.pv, color: '#64d2ff' },
       { name: 'UV', data: hourly.uv, color: '#30d158' },
     ]
+    // 延迟确保 DOM 已渲染
+    setTimeout(() => renderHourlyChart(hourly.labels, hourly.pv, hourly.uv), 100)
   } catch (e) {
     console.error('Dashboard load failed:', e)
   } finally {
@@ -136,10 +223,21 @@ function startAutoScroll() {
 
 const lastUpdated = ref('')
 
+function handleHourlyResize() {
+  hourlyChart?.resize()
+}
+
 onMounted(() => {
   loadAll()
   startAutoScroll()
   lastUpdated.value = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  window.addEventListener('resize', handleHourlyResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleHourlyResize)
+  hourlyChart?.dispose()
+  hourlyChart = null
 })
 
 watch(trendDays, loadAll)
@@ -458,7 +556,7 @@ const dayOptions = [
           <h3 class="text-sm font-semibold text-base-content">今日时段分布</h3>
           <p class="text-xs text-base-content/40 mt-0.5">24 小时 PV / UV 分布</p>
         </div>
-        <LineChart :labels="hourlyLabels" :series="hourlySeries" :height="260" :fill="false" />
+        <div ref="hourlyChartRef" :style="{ width: '100%', height: '260px' }" />
       </div>
       <div class="lg:col-span-2 base-container p-5">
         <div class="mb-4">
