@@ -1,7 +1,7 @@
 ﻿<script setup lang="ts">
 import { ref, h, onMounted } from 'vue'
 import {
-  NButton, NCard, NSpace, NModal, NInput, NSelect, NSwitch, NTag,
+  NButton, NCard, NSpace, NInput, NSelect, NSwitch, NTag,
   NDataTable, NDrawer, NDrawerContent, NPopconfirm, useMessage,
 } from 'naive-ui'
 import { AddOutline, TrashOutline, CreateOutline, SyncOutline } from '@vicons/ionicons5'
@@ -13,14 +13,12 @@ import {
   apiGetSyncSourceStatus,
   apiTriggerSyncSourceImport,
   type SyncSource,
-  type SyncSourceCreatePayload,
-  type SyncSourceUpdatePayload,
   type SyncSourceStatus,
 } from '../../api/kb'
-import { usePermissionStore } from '../../stores/permission'
+
 
 const message = useMessage()
-const permissionStore = usePermissionStore()
+
 
 const sources = ref<SyncSource[]>([])
 const loading = ref(false)
@@ -112,7 +110,7 @@ async function viewStatus(src: SyncSource) {
 
 async function triggerImport(src: SyncSource) {
   try {
-    const result = await apiTriggerSyncSourceImport(src.id)
+    await apiTriggerSyncSourceImport(src.id)
     message.success('导入任务已触发')
     await load()
   } catch (e: any) {
@@ -201,12 +199,12 @@ onMounted(load)
     <NDrawer v-model:show="statusDrawer" :width="480" placement="right">
       <NDrawerContent title="同步源状态" closable>
         <div v-if="sourceStatus">
-          <p class="mb-2"><strong>名称:</strong> {{ sourceStatus.source.name }}</p>
-          <p class="mb-2"><strong>类型:</strong> {{ typeOptions.find(t => t.value === sourceStatus.source.type)?.label || sourceStatus.source.type }}</p>
-          <p class="mb-2"><strong>上次同步:</strong> {{ sourceStatus.source.last_sync_at || '从未' }}</p>
+          <p class="mb-2"><strong>名称:</strong> {{ sourceStatus!.source.name }}</p>
+          <p class="mb-2"><strong>类型:</strong> {{ typeOptions.find(t => t.value === sourceStatus!.source.type)?.label || sourceStatus!.source.type }}</p>
+          <p class="mb-2"><strong>上次同步:</strong> {{ sourceStatus!.source.last_sync_at || '从未' }}</p>
           <p class="mb-2"><strong>最近日志:</strong></p>
-          <div v-if="sourceStatus.recentLogs.length === 0" class="text-gray-400 text-sm">暂无日志</div>
-          <div v-for="log in sourceStatus.recentLogs" :key="log.id" class="text-sm mb-1 flex gap-2">
+          <div v-if="sourceStatus!.recentLogs.length === 0" class="text-gray-400 text-sm">暂无日志</div>
+          <div v-for="log in sourceStatus!.recentLogs" :key="log.id" class="text-sm mb-1 flex gap-2">
             <span class="text-gray-400">{{ log.created_at }}</span>
             <NTag :type="log.status === 'success' ? 'success' : 'error'" size="tiny">{{ log.status }}</NTag>
             <span class="truncate">{{ log.sync_type }}</span>
