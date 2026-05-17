@@ -84,4 +84,6 @@ adminApp.listen(ADMIN_PORT, BIND_HOST, () => {
 require('./jobs/backupScheduler').register();
 require('./jobs/cleanupAuditLogs').register();
 require('./jobs/kbSync').register();
-require('./jobs/iotHourlySync').register();
+// Phase 11: Multi-source sync migration
+require('./migrate-phase11')(db);
+  require('./jobs/iotHourlySync').register();

@@ -1,3 +1,6 @@
+var syncSourcesRouter = require('./syncSourcesRouter');
+router.use('/sync-sources', syncSourcesRouter);
+
 const express = require("express");
 const documentsRouter = require("./documentsRouter");
 const publishRouter = require("./publishRouter");

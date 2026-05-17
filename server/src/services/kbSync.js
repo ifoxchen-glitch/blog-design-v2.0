@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 知识库单向同步服务
  * 将 blog 的 kb_documents 同步到 Open WebUI 的向量库（Chroma）
  *
@@ -669,6 +669,62 @@ async function deleteDocumentFromKB(docId) {
   }
 }
 
+async function importFromOpenWebUI() {
+  const token = getApiKey();
+  const knowledgeBaseId = await ensureKnowledgeBase(token);
+  if (!knowledgeBaseId) return { success: false, error: 'knowledge_base_not_available' };
+
+  try {
+    const listRes = await makeRequest(`/api/v1/knowledge/${knowledgeBaseId}`, 'GET', null, token);
+    if (listRes.status < 200 || listRes.status >= 300 || !listRes.data?.files) {
+      return { success: false, error: 'failed_to_list_files' };
+    }
+
+    const db = openDb();
+    let imported = 0, skipped = 0;
+
+    for (const file of listRes.data.files) {
+      const slug = file.filename ? file.filename.replace(/\.md$/i, '') : `ow-${file.id}`;
+      const existing = db.prepare('SELECT id FROM kb_documents WHERE slug = ?').get(slug);
+      
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      // Download file content
+      const contentRes = await makeRequest(`/api/v1/knowledge/${knowledgeBaseId}/file/content`, 'POST', { file_id: file.id }, token);
+      const content = contentRes.data?.content || contentRes.data?.text || '';
+
+      const now = nowIso();
+      db.prepare(`INSERT INTO kb_documents (slug, title, content, source, source_id, source_type, created_at, updated_at) 
+                   VALUES (?, ?, ?, ?, ?, 'openwebui', ?, ?)`)
+        .run(slug, file.meta?.name || slug, content, 'openwebui', file.id, now, now);
+      imported++;
+    }
+
+    console.log(`[KBSync] importFromOpenWebUI: ${imported} imported, ${skipped} skipped`);
+    return { success: true, imported, skipped };
+  } catch (err) {
+    console.error('[KBSync] importFromOpenWebUI error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// Full sync from a sync source (called by syncSourcesHandlers)
+async function fullSyncFromOpenWebUI(source) {
+  console.log(`[KBSync] fullSyncFromOpenWebUI for source "${source.name}" (id=${source.id})`);
+  const config = typeof source.config === 'string' ? JSON.parse(source.config) : (source.config || {});
+  const result = await importFromOpenWebUI();
+  
+  const db = openDb();
+  db.prepare(`INSERT INTO kb_sync_logs (source_id, sync_type, status, result, created_at)
+               VALUES (?, 'import', ?, ?, ?)`)
+    .run(source.id, result.success ? 'success' : 'failed', JSON.stringify(result), nowIso());
+  
+  return result;
+}
+
 module.exports = {
   getApiKey,
   isConfigured,
@@ -679,4 +735,6 @@ module.exports = {
   testConnection,
   getSyncProgress,
   listKnowledgeBases,
+  importFromOpenWebUI,
+  fullSyncFromOpenWebUI,
 };

@@ -816,5 +816,5 @@ module.exports = {
   setPostTags,
   listCategoriesForPost,
   setPostCategories,
-};
+  // Phase 11: Multi-source sync};
 

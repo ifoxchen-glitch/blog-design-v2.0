@@ -22,3 +22,20 @@ server/open-webui/backend/data/
 server/open-webui/backend/*.db
 server/tmp/
 
+
+# Dev scratch files
+.patcher.js
+.s
+.temp_*.js
+.test_*.js
+.testw.js
+.tmp_*.txt
+.writer.js
+gen*.js
+part1.js
+server/src/test-output.txt
+test-*.txt
+test_*.js
+test_*.txt
+.PHONY
+

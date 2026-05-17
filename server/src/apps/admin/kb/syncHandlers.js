@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const { openDb } = require("../../../db");
 const { nowIso, toInt } = require("../../../utils");
 const syncEngine = require("./syncEngine");
@@ -466,9 +466,28 @@ async function getKnowledgeBases(_req, res) {
   res.json({ code: 200, data: kbs });
 }
 
+
+
+// Import from Open WebUI (reverse direction)
+async function triggerOpenWebUIImport(req, res) {
+  var db = openDb();
+  if (!kbSync.isConfigured()) {
+    return res.status(400).json({code:400,message:'OPEN_WEBUI_API_KEY not configured'});
+  }
+  auditLog(db, req, 'trigger_openwebui_import', null, 'Trigger Open WebUI import');
+  res.status(202).json({code:202,message:'Import started',data:{status:'started'}});
+  try {
+    var result = await kbSync.importFromOpenWebUI();
+    console.log('[SyncHandler] Open WebUI import complete:', result);
+  } catch(err) {
+    console.error('[SyncHandler] Open WebUI import failed:', err.message);
+  }
+}
+
+
 module.exports = {
   getSyncConfig, updateSyncConfig, triggerImport, triggerExport,
   listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles,
-  getSyncedFiles, clearSyncedData, getOpenWebUIStatus, triggerOpenWebUISync,
+  getSyncedFiles, clearSyncedData, getOpenWebUIStatus, triggerOpenWebUISync, triggerOpenWebUIImport,
   testOpenWebUIConnection, getOpenWebUISyncProgress, getKnowledgeBases,
 };
