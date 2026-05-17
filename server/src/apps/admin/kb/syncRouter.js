@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const jwtAuth = require("../../../middleware/jwtAuth");
 const requirePermission = require("../../../middleware/rbac");
 const handlers = require("./syncHandlers");
@@ -22,5 +22,7 @@ router.get("/sync/knowledge-bases", jwtAuth, requirePermission("kb:sync"), handl
 router.post("/sync/openwebui-sync", jwtAuth, requirePermission("kb:sync"), handlers.triggerOpenWebUISync);
 router.post("/sync/openwebui-test", jwtAuth, requirePermission("kb:sync"), handlers.testOpenWebUIConnection);
 router.get("/sync/openwebui-progress", jwtAuth, requirePermission("kb:sync"), handlers.getOpenWebUISyncProgress);
+router.post("/sync/openwebui-import", jwtAuth, requirePermission("kb:sync"), handlers.triggerOpenWebUIImport);
+
 
 module.exports = router;

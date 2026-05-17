@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import {
   NButton,
@@ -25,6 +25,7 @@ import {
 import PageHeader from '../../../components/common/PageHeader.vue'
 import SyncFileTree from '../../../components/kb/SyncFileTree.vue'
 import FolderCheckItem from '../../../components/kb/FolderCheckItem.vue'
+import SyncSourcesManager from '../../../components/kb/SyncSourcesManager.vue'
 import {
   apiGetSyncConfig,
   apiUpdateSyncConfig,
@@ -1054,5 +1055,6 @@ onMounted(() => {
         </template>
       </NDrawerContent>
     </NDrawer>
+    <SyncSourcesManager class='mt-6' />
   </div>
 </template>

@@ -1,4 +1,4 @@
-import { request, type ApiResponse } from './request'
+﻿import { request, type ApiResponse } from './request'
 import type { AxiosInstance } from 'axios'
 
 // ============================================================
@@ -1052,3 +1052,72 @@ export async function apiUpdateSearchConfig(
 }
 
 
+
+// ===== Sync Sources (Phase 11) =====
+export interface SyncSource {
+  id: number
+  name: string
+  type: 'obsidian' | 'local_folder' | 'openwebui'
+  config: string
+  enabled: number
+  last_sync_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SyncSourceCreatePayload {
+  name: string
+  type: 'obsidian' | 'local_folder' | 'openwebui'
+  config?: Record<string, unknown>
+}
+
+export interface SyncSourceUpdatePayload {
+  name?: string
+  type?: 'obsidian' | 'local_folder' | 'openwebui'
+  config?: Record<string, unknown>
+  enabled?: boolean
+}
+
+export interface SyncSourceStatus {
+  source: SyncSource
+  recentLogs: Array<{
+    id: number
+    sync_type: string
+    status: string
+    result: string
+    created_at: string
+  }>
+}
+
+export async function apiListSyncSources(client: AxiosInstance = request): Promise<SyncSource[]> {
+  const res = await client.get<ApiResponse<SyncSource[]>>('/api/v2/admin/kb/sync-sources')
+  return res.data.data
+}
+
+export async function apiCreateSyncSource(data: SyncSourceCreatePayload, client: AxiosInstance = request): Promise<{ id: number }> {
+  const res = await client.post<ApiResponse<{ id: number }>>('/api/v2/admin/kb/sync-sources', data)
+  return res.data.data
+}
+
+export async function apiUpdateSyncSource(id: number, data: SyncSourceUpdatePayload, client: AxiosInstance = request): Promise<void> {
+  await client.put<ApiResponse<void>>('/api/v2/admin/kb/sync-sources/' + id, data)
+}
+
+export async function apiDeleteSyncSource(id: number, client: AxiosInstance = request): Promise<void> {
+  await client.delete<ApiResponse<void>>('/api/v2/admin/kb/sync-sources/' + id)
+}
+
+export async function apiGetSyncSourceStatus(id: number, client: AxiosInstance = request): Promise<SyncSourceStatus> {
+  const res = await client.get<ApiResponse<SyncSourceStatus>>('/api/v2/admin/kb/sync-sources/' + id + '/status')
+  return res.data.data
+}
+
+export async function apiTriggerSyncSourceImport(id: number, client: AxiosInstance = request): Promise<{ code: number; data?: unknown; message?: string }> {
+  const res = await client.post<{ code: number; data?: unknown; message?: string }>('/api/v2/admin/kb/sync-sources/' + id + '/trigger-import')
+  return res.data
+}
+
+export async function apiTriggerOpenWebUIImport(client: AxiosInstance = request): Promise<{ code: number; message: string; data?: unknown }> {
+  const res = await client.post<{ code: number; message: string; data?: unknown }>('/api/v2/admin/kb/sync/openwebui-import')
+  return res.data
+}
