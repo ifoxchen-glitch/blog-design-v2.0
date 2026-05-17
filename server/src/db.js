@@ -1,4 +1,4 @@
-const path = require("node:path");
+﻿const path = require("node:path");
 const fs = require("node:fs");
 const Database = require("better-sqlite3");
 const { nowIso, normalizeSlug } = require("./utils");
@@ -816,5 +816,6 @@ module.exports = {
   setPostTags,
   listCategoriesForPost,
   setPostCategories,
-  // Phase 11: Multi-source sync};
+  // Phase 11: Multi-source sync
+};
 
