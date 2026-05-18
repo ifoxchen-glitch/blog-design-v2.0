@@ -383,17 +383,23 @@ function getKbGraph(req, res) {
 
   const colors = { entity: '#8b5cf6', concept: '#6366f1', source: '#0ea5e9', synthesis: '#f59e0b' }
 
-  const nodes = rows.map(row => ({
-    id: String(row.id),
-    title: row.title,
-    slug: row.slug,
-    category: row.category || null,
-    doc_type: row.doc_type || null,
-    review_status: row.review_status || null,
-    tags: parseTags(row.tags),
-    excerpt: row.excerpt || null,
-    color: colors[row.doc_type] || '#6366f1',
-  }))
+  const nodes = rows.map(row => {
+    const filename = row.original_path
+      ? String(row.original_path).replace(/\.md$/i, '').split('/').pop()
+      : null
+    return {
+      id: String(row.id),
+      title: row.title,
+      slug: row.slug,
+      filename,
+      category: row.category || null,
+      doc_type: row.doc_type || null,
+      review_status: row.review_status || null,
+      tags: parseTags(row.tags),
+      excerpt: row.excerpt || null,
+      color: colors[row.doc_type] || '#6366f1',
+    }
+  })
 
   const edgeSet = new Set()
   const edges = []

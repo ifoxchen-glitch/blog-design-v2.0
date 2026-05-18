@@ -73,6 +73,7 @@ export interface KbGraphNode {
   id: string
   title: string
   slug: string
+  filename: string | null
   category: string | null
   doc_type: string | null
   review_status: string | null

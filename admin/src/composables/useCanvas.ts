@@ -684,8 +684,19 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     let titleToNode = new Map<string, KbGraphNode>()
     try {
       const graphData = await apiGetKbGraph()
+      // Build multi-key lookup: title, slug, filename, lowercase variants
+      const addKey = (k: string | null | undefined, node: KbGraphNode) => {
+        if (!k) return
+        const key = String(k).trim()
+        if (!key) return
+        if (!titleToNode.has(key)) titleToNode.set(key, node)
+        const lc = key.toLowerCase()
+        if (!titleToNode.has(lc)) titleToNode.set(lc, node)
+      }
       for (const n of graphData.nodes) {
-        titleToNode.set(n.title, n)
+        addKey(n.title, n)
+        addKey(n.slug, n)
+        addKey(n.filename, n)
       }
     } catch {
       return mainNodeId
@@ -698,19 +709,39 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
     const addedTitles = new Set<string>([doc.title])
 
     let offsetRow = 0
-    for (const title of connectedTitles) {
+    for (const rawTitle of connectedTitles) {
+      // Normalize the connection ref: strip [[ ]], alias |..., .md
+      let title = String(rawTitle || '').trim()
+        .replace(/^\[\[/, '').replace(/\]\]$/, '').trim()
+      const pipeIdx = title.indexOf('|')
+      if (pipeIdx >= 0) title = title.slice(0, pipeIdx).trim()
+      title = title.replace(/\.md$/i, '')
+      if (!title) continue
       if (addedTitles.has(title)) continue
+
+      // Try multiple lookup variants
+      let graphNode = titleToNode.get(title) || titleToNode.get(title.toLowerCase())
+      if (!graphNode && title.includes('/')) {
+        const lastSeg = title.split('/').pop() || ''
+        graphNode = titleToNode.get(lastSeg) || titleToNode.get(lastSeg.toLowerCase())
+      }
+      if (!graphNode) {
+        addedTitles.add(title)
+        continue
+      }
+
+      // Dedup by resolved title (avoids adding same doc twice if referenced by both filename and title)
+      const resolvedTitle = graphNode.title
+      if (addedTitles.has(resolvedTitle)) continue
       addedTitles.add(title)
+      addedTitles.add(resolvedTitle)
 
-      const graphNode = titleToNode.get(title)
-      if (!graphNode) continue
-
-      // Check if this doc already exists on the canvas (by doc_title in metadata)
-      if (existingTitles.has(title)) {
+      // Check if this doc already exists on the canvas (by resolved doc title)
+      if (existingTitles.has(resolvedTitle)) {
         // Find existing node and create edge to it
         const existingNodes = cy.value.nodes().filter(n => {
           const meta = n.data('metadata') as Record<string, unknown> | undefined
-          return meta?.['doc_title'] === title
+          return meta?.['doc_title'] === resolvedTitle
         })
         if (existingNodes.length > 0) {
           await addEdge(mainNodeId, existingNodes[0].id())
@@ -741,7 +772,7 @@ export function useCanvas(initialCanvasId: number): UseCanvasReturn {
 
       const connectedNodeId = await addDocNode(connectedDoc, x + dx, y + dy)
       if (connectedNodeId) {
-        existingTitles.add(title)
+        existingTitles.add(resolvedTitle)
         await addEdge(mainNodeId, connectedNodeId)
       }
     }
