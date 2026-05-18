@@ -10,6 +10,8 @@ const iotAppId = ref('')
 const iotAppSecret = ref('')
 const iotSyncEnabled = ref(true)
 const iotSyncInterval = ref(60)
+const publishApiKey = ref('')
+const publishApiKeyEnabled = ref(true)
 const loading = ref(false)
 const saving = ref(false)
 const message = ref('')
@@ -28,6 +30,8 @@ async function loadSettings() {
       iotAppSecret.value = data.data?.iot_app_secret || ''
       iotSyncEnabled.value = data.data?.iot_sync_enabled !== 0
       iotSyncInterval.value = data.data?.iot_sync_interval || 60
+      publishApiKey.value = data.data?.publish_api_key || ''
+      publishApiKeyEnabled.value = data.data?.publish_api_key_enabled !== 0
     }
   } catch (err) {
     console.error('Failed to load settings:', err)
@@ -51,6 +55,8 @@ async function saveSettings() {
         iot_app_secret: iotAppSecret.value,
         iot_sync_enabled: iotSyncEnabled.value,
         iot_sync_interval: iotSyncInterval.value,
+        publish_api_key: publishApiKey.value,
+        publish_api_key_enabled: publishApiKeyEnabled.value,
       }),
     })
     const data = await res.json()
@@ -77,6 +83,15 @@ function testConnection() {
     return
   }
   window.open(url, '_blank')
+}
+
+function generateNewKey() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let key = ''
+  for (let i = 0; i < 32; i++) {
+    key += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  publishApiKey.value = key
 }
 
 onMounted(() => {
@@ -193,6 +208,49 @@ onMounted(() => {
           </template>
           <div class="text-sm text-gray-400">
             物联网卡平台接口凭证，用于同步卡片数据、查询余额、启用/禁用卡片等操作。
+          </div>
+        </NFormItem>
+
+        <NSpace>
+          <NButton type="primary" :loading="saving" @click="saveSettings">
+            保存设置
+          </NButton>
+        </NSpace>
+      </NForm>
+    </NCard>
+
+    <NCard class="max-w-2xl">
+      <NForm label-placement="left" label-width="160px">
+        <div class="text-sm font-medium mb-2 text-gray-500">发布 API</div>
+        <NFormItem label="启用 API Key">
+          <NSwitch v-model:value="publishApiKeyEnabled" :loading="loading" />
+          <span class="text-xs text-gray-400 ml-2">启用后，外部应用可通过 API Key 访问发布接口</span>
+        </NFormItem>
+
+        <NFormItem label="API Key">
+          <NInput
+            v-model:value="publishApiKey"
+            placeholder="留空则保持当前密钥"
+            type="password"
+            show-password-on="click"
+            :loading="loading"
+          />
+          <template #feedback>
+            <div class="text-xs text-gray-400 mt-1">
+              用于外部系统调用发布接口。
+              <NButton size="tiny" @click="generateNewKey">生成新密钥</NButton>
+            </div>
+          </template>
+        </NFormItem>
+
+        <NFormItem>
+          <template #label>
+            <span class="text-gray-500">接口地址</span>
+          </template>
+          <div class="text-sm text-gray-500">
+            <div>发布博客文章：<code class="bg-gray-100 px-1 rounded">POST /api/v2/publish/blog</code></div>
+            <div>发布知识库文档：<code class="bg-gray-100 px-1 rounded">POST /api/v2/publish/kb</code></div>
+            <div class="text-xs text-gray-400 mt-1">认证方式：Header <code>X-API-Key</code> 或 Query <code>api_key</code></div>
           </div>
         </NFormItem>
 

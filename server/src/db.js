@@ -513,6 +513,10 @@ function migrate(db) {
   try { db.exec(`ALTER TABLE system_settings ADD COLUMN iot_sync_interval INTEGER NOT NULL DEFAULT 60`); } catch { /* exists */ }
   db.prepare(`INSERT OR IGNORE INTO system_settings (id, open_webui_url, open_webui_api_key, iot_api_base_url, iot_app_id, iot_app_secret, iot_sync_enabled, iot_sync_interval, created_at, updated_at) VALUES (1, '', '', '', '', '', 1, 60, datetime('now'), datetime('now'))`).run();
 
+  // Phase 11: Publish API key
+  try { db.exec(`ALTER TABLE system_settings ADD COLUMN publish_api_key TEXT NOT NULL DEFAULT ''`); } catch { /* exists */ }
+  try { db.exec(`ALTER TABLE system_settings ADD COLUMN publish_api_key_enabled INTEGER NOT NULL DEFAULT 1`); } catch { /* exists */ }
+
   // Seed default prompt templates
   const tmplCount = db.prepare("SELECT COUNT(*) AS c FROM kb_prompt_templates").get().c;
   if (tmplCount === 0) {
