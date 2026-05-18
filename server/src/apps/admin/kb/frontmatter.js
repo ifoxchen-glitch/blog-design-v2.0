@@ -35,7 +35,7 @@ function parseFrontMatter(content) {
  * @returns {string} Full document content with YAML front matter + body
  */
 function buildFrontMatter(attributes, body) {
-  const knownKeys = ["title", "type", "tags", "connections", "sources", "last_updated", "status"];
+  const knownKeys = ["title", "type", "tags", "connections", "sources", "excerpt", "description", "category", "last_updated", "status"];
   const written = new Set();
   const lines = [];
 
