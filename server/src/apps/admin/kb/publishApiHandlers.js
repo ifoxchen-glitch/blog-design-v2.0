@@ -87,7 +87,21 @@ function publishBlogPost(req, res) {
 }
 
 function publishKbDocument(req, res) {
-  const { title, slug: inputSlug, excerpt, contentMarkdown, contentHtml, category, doc_type, tags, status } = req.body;
+  const {
+    title,
+    slug: inputSlug,
+    excerpt,
+    contentMarkdown,
+    contentHtml,
+    category,
+    doc_type,
+    connections,
+    sources,
+    doc_date,
+    review_status,
+    tags,
+    status,
+  } = req.body;
 
   if (!title || !contentMarkdown) {
     return res.status(400).json({ error: "title and contentMarkdown are required" });
@@ -100,21 +114,27 @@ function publishKbDocument(req, res) {
   const slug = ensureUniqueSlug(db, baseSlug, "kb_documents");
 
   const wordCount = contentMarkdown.split(/\s+/).filter(Boolean).length;
+  const docType = ["entity", "concept", "source", "synthesis"].includes(doc_type) ? doc_type : "concept";
+  const reviewStatus = ["seed", "developing", "mature"].includes(review_status) ? review_status : "seed";
 
   const doc = db.prepare(`
-    INSERT INTO kb_documents (title, slug, excerpt, content_markdown, content_html, source, category, doc_type, status, word_count, tags, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, 'api', ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO kb_documents (title, slug, excerpt, content_markdown, content_html, source, category, doc_type, connections, sources, doc_date, review_status, status, word_count, tags, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, 'api', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     title,
     slug,
     excerpt || "",
     contentMarkdown,
     contentHtml || contentMarkdown,
-    category || "",
-    doc_type || "concept",
+    category || null,
+    docType,
+    JSON.stringify(Array.isArray(connections) ? connections.filter(Boolean) : []),
+    JSON.stringify(Array.isArray(sources) ? sources.filter(Boolean) : []),
+    doc_date || null,
+    reviewStatus,
     status === "archived" ? "archived" : "active",
     wordCount,
-    JSON.stringify(tags || []),
+    JSON.stringify(Array.isArray(tags) ? tags.filter(Boolean) : []),
     now,
     now
   );
