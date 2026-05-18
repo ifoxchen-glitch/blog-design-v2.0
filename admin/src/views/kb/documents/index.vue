@@ -116,6 +116,7 @@ const SOURCE_OPTIONS = [
   { label: '手动创建', value: 'manual' },
   { label: 'Obsidian', value: 'obsidian' },
   { label: 'API', value: 'api' },
+  { label: 'Open WebUI', value: 'openwebui' },
 ]
 
 const STATUS_OPTIONS = [
@@ -163,14 +164,16 @@ function sourceLabel(source: string): string {
   switch (source) {
     case 'obsidian': return 'Obsidian'
     case 'api': return 'API'
+    case 'openwebui': return 'Open WebUI'
     default: return '手动'
   }
 }
 
-function sourceTagType(source: string): 'success' | 'info' | 'default' {
+function sourceTagType(source: string): 'success' | 'info' | 'warning' | 'default' {
   switch (source) {
     case 'obsidian': return 'success'
     case 'api': return 'info'
+    case 'openwebui': return 'warning'
     default: return 'default'
   }
 }
