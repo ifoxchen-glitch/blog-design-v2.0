@@ -507,11 +507,21 @@ async function triggerNotesSync(req, res) {
   }
 }
 
+// Test Open WebUI Notes connection
+async function testNotesConnection(req, res) {
+  try {
+    var result = await kbSync.testNotesConnection();
+    res.json({ code: 200, data: result });
+  } catch (err) {
+    res.status(500).json({ code: 500, message: err.message });
+  }
+}
+
 
 module.exports = {
   getSyncConfig, updateSyncConfig, triggerImport, triggerExport,
   listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles,
   getSyncedFiles, clearSyncedData, getOpenWebUIStatus, triggerOpenWebUISync, triggerOpenWebUIImport,
   testOpenWebUIConnection, getOpenWebUISyncProgress, getKnowledgeBases,
-  triggerNotesSync,
+  triggerNotesSync, testNotesConnection,
 };

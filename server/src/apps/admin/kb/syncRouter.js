@@ -24,6 +24,7 @@ router.post("/sync/openwebui-test", jwtAuth, requirePermission("kb:sync"), handl
 router.get("/sync/openwebui-progress", jwtAuth, requirePermission("kb:sync"), handlers.getOpenWebUISyncProgress);
 router.post("/sync/openwebui-import", jwtAuth, requirePermission("kb:sync"), handlers.triggerOpenWebUIImport);
 router.post("/sync/notes-sync", jwtAuth, requirePermission("kb:sync"), handlers.triggerNotesSync);
+router.get("/sync/notes-test", jwtAuth, requirePermission("kb:sync"), handlers.testNotesConnection);
 
 
 module.exports = router;

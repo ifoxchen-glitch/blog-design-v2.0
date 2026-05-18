@@ -44,6 +44,8 @@ import {
   apiGetOpenWebUISyncProgress,
   apiGetKnowledgeBases,
   apiTriggerNotesSync,
+  apiTestNotesConnection,
+  type NotesTestResult,
   type SyncConfig,
   type SyncLogEntry,
   type FileTreeData,
@@ -246,6 +248,32 @@ async function handleSyncNotes() {
     message.error('笔记同步启动失败')
   } finally {
     notesSyncing.value = false
+  }
+}
+
+const notesTesting = ref(false)
+const notesTestResult = ref<NotesTestResult | null>(null)
+
+async function handleTestNotes() {
+  if (!openWebUIStatus.value.configured) {
+    message.warning('请先在系统设置中配置 Open WebUI API Key')
+    return
+  }
+  notesTesting.value = true
+  notesTestResult.value = null
+  try {
+    const result = await apiTestNotesConnection()
+    notesTestResult.value = result
+    if (result.ok) {
+      message.success('Open WebUI 笔记连接测试通过')
+    } else {
+      message.error('连接测试失败')
+    }
+  } catch (err: unknown) {
+    const error = err as { message?: string }
+    message.error(`测试失败: ${error?.message || '未知错误'}`)
+  } finally {
+    notesTesting.value = false
   }
 }
 
@@ -977,6 +1005,16 @@ onMounted(() => {
             <div class="flex items-center gap-2">
               <NButton
                 size="small"
+                secondary
+                :loading="notesTesting"
+                :disabled="!hasSyncPerm"
+                @click="handleTestNotes"
+              >
+                <template #icon><FlashOutline class="w-4 h-4" /></template>
+                测试连接
+              </NButton>
+              <NButton
+                size="small"
                 type="primary"
                 :loading="notesSyncing"
                 :disabled="!hasSyncPerm"
@@ -985,6 +1023,29 @@ onMounted(() => {
                 <template #icon><DocumentTextOutline class="w-4 h-4" /></template>
                 同步笔记
               </NButton>
+            </div>
+          </div>
+        </div>
+
+        <!-- Test result -->
+        <div v-if="notesTestResult" class="px-4 py-3 border-b border-base-content/5">
+          <div class="text-xs font-medium mb-2" :class="notesTestResult.ok ? 'text-green-500' : 'text-red-500'">
+            {{ notesTestResult.ok ? '连接测试通过' : '连接测试失败' }}
+          </div>
+          <div class="space-y-1">
+            <div v-for="step in notesTestResult.steps" :key="step.name" class="flex items-center gap-2 text-xs">
+              <span
+                class="inline-block w-1.5 h-1.5 rounded-full"
+                :class="step.status === 'ok' ? 'bg-green-500' : step.status === 'warn' ? 'bg-amber-500' : 'bg-red-500'"
+              />
+              <span class="text-base-content/60">{{ step.name }}</span>
+              <span v-if="step.httpStatus" class="text-base-content/30">(HTTP {{ step.httpStatus }})</span>
+              <span v-if="step.total !== undefined" class="text-base-content/60">共 {{ step.total }} 条, 有内容 {{ step.withContent }} 条</span>
+              <span v-if="step.error" class="text-red-400">{{ step.error }}</span>
+              <span v-if="step.detail && step.total === undefined" class="text-base-content/40">{{ step.detail }}</span>
+            </div>
+            <div v-if="notesTestResult.steps.find(s => s.samples)" class="mt-1 text-[10px] text-base-content/30">
+              示例: {{ notesTestResult.steps.find(s => s.samples)?.samples?.map(s => s.title + '(' + s.contentLength + '字)').join(', ') }}
             </div>
           </div>
         </div>
