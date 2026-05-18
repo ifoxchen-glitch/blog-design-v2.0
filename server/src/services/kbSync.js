@@ -720,8 +720,8 @@ async function fullSyncFromOpenWebUI(source) {
   const db = openDb();
   db.prepare(`INSERT INTO kb_sync_logs (source_id, sync_type, direction, status, result, created_at)
                VALUES (?, 'import', 'import', ?, ?, ?)`)
-    .run(source.id, result.success ? 'success' : 'failed', JSON.stringify(result), nowIso());
-  
+    .run(source.id, result.success ? 'success' : 'error', JSON.stringify(result), nowIso());
+
   return result;
 }
 
