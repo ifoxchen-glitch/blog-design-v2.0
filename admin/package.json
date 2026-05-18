@@ -16,6 +16,7 @@
     "echarts": "^6.0.0",
     "fabric": "^7.3.1",
     "highlight.js": "^11.11.1",
+    "js-yaml": "^4.1.1",
     "marked": "^18.0.3",
     "naive-ui": "^2.44.1",
     "pinia": "^3.0.4",
