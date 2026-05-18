@@ -134,6 +134,10 @@ function importDocument(db, fileInfo, conflictStrategy, now, source) {
   const reviewStatus = ["seed", "developing", "mature"].includes(attributes.status)
     ? attributes.status : null;
 
+  const excerpt = (attributes.excerpt && String(attributes.excerpt).trim())
+    || (attributes.description && String(attributes.description).trim())
+    || null;
+
   // Extract category from the first path segment under the content dir
   // e.g., "wiki/project-a/file.md" → "project-a", "notes/daily/todo.md" → "daily"
   const parts = fileInfo.relativePath.split("/");
@@ -158,10 +162,10 @@ function importDocument(db, fileInfo, conflictStrategy, now, source) {
     const wordCount = body.split(/\s+/).filter(Boolean).length;
     const info = db
       .prepare(
-        `INSERT INTO kb_documents (title, slug, content_markdown, source, original_path, checksum, tags, status, category, doc_type, connections, sources, doc_date, review_status, word_count, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO kb_documents (title, slug, excerpt, content_markdown, source, original_path, checksum, tags, status, category, doc_type, connections, sources, doc_date, review_status, word_count, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(title, slug, body, src, fileInfo.relativePath, fileInfo.checksum, tags, category, docType, connections, sources, docDate, reviewStatus, wordCount, now, now);
+      .run(title, slug, excerpt, body, src, fileInfo.relativePath, fileInfo.checksum, tags, category, docType, connections, sources, docDate, reviewStatus, wordCount, now, now);
     return { action: "imported", id: info.lastInsertRowid, path: fileInfo.relativePath };
   }
 
@@ -184,18 +188,18 @@ function importDocument(db, fileInfo, conflictStrategy, now, source) {
     const wordCount = body.split(/\s+/).filter(Boolean).length;
     const info = db
       .prepare(
-        `INSERT INTO kb_documents (title, slug, content_markdown, source, original_path, checksum, tags, status, category, doc_type, connections, sources, doc_date, review_status, word_count, created_at, updated_at)
-       VALUES (?, ?, ?, 'obsidian', ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO kb_documents (title, slug, excerpt, content_markdown, source, original_path, checksum, tags, status, category, doc_type, connections, sources, doc_date, review_status, word_count, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'obsidian', ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(newTitle, newSlug, body, fileInfo.relativePath, fileInfo.checksum, tags, category, docType, connections, sources, docDate, reviewStatus, wordCount, now, now);
+      .run(newTitle, newSlug, excerpt, body, fileInfo.relativePath, fileInfo.checksum, tags, category, docType, connections, sources, docDate, reviewStatus, wordCount, now, now);
     return { action: "conflict", id: info.lastInsertRowid, path: fileInfo.relativePath, detail: "created conflict copy" };
   }
 
   // last_write_wins
   const wordCount = body.split(/\s+/).filter(Boolean).length;
   db.prepare(
-    `UPDATE kb_documents SET title=?, slug=?, content_markdown=?, checksum=?, content_html=NULL, tags=?, category=?, doc_type=?, connections=?, sources=?, doc_date=?, review_status=?, word_count=?, updated_at=? WHERE id=?`,
-  ).run(title, existing.slug, body, fileInfo.checksum, tags, category, docType, connections, sources, docDate, reviewStatus, wordCount, now, existing.id);
+    `UPDATE kb_documents SET title=?, slug=?, excerpt=?, content_markdown=?, checksum=?, content_html=NULL, tags=?, category=?, doc_type=?, connections=?, sources=?, doc_date=?, review_status=?, word_count=?, updated_at=? WHERE id=?`,
+  ).run(title, existing.slug, excerpt, body, fileInfo.checksum, tags, category, docType, connections, sources, docDate, reviewStatus, wordCount, now, existing.id);
   return { action: "updated", id: existing.id, path: fileInfo.relativePath };
 }
 
@@ -424,6 +428,8 @@ async function fullExport(vaultPath, selectedPaths) {
           tags: parseTags(doc.tags),
           connections: parseTags(doc.connections),
           sources: parseTags(doc.sources),
+          excerpt: doc.excerpt || undefined,
+          category: doc.category || undefined,
           last_updated: lastUpdated,
           status: doc.review_status || undefined,
         };
