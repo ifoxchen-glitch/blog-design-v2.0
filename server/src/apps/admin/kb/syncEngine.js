@@ -27,6 +27,31 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const CONTENT_DIRS = ['wiki', 'notes'];
 
 /**
+ * Walk a content directory recursively, calling callback for each .md file.
+ * Skips hidden files (dot-prefixed), protects against symlink escapes.
+ */
+function walkContentDir(dirPath, callback) {
+  const resolved = path.resolve(dirPath);
+  const normalized = path.normalize(resolved).toLowerCase();
+  function walk(dir) {
+    if (dir.length > 4000) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name.startsWith(".")) continue;
+      const full = path.join(dir, e.name);
+      const real = path.resolve(full).toLowerCase();
+      if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
+      if (e.isDirectory()) { walk(full); }
+      else if (e.isFile() && e.name.endsWith(".md")) {
+        callback(full, path.relative(dirPath, full).replace(/\\/g, "/"));
+      }
+    }
+  }
+  walk(dirPath);
+}
+
+/**
  * Recursively scan content directories (wiki/, notes/) for .md files, returning file info with checksums.
  */
 function matchSelectedPaths(relPath, selectedPaths) {
@@ -49,35 +74,15 @@ function scanVault(vaultPath, selectedPaths) {
   for (const dir of CONTENT_DIRS) {
     const dirPath = path.join(vaultPath, dir);
     if (!fs.existsSync(dirPath)) { console.log(`[kb-sync] scanVault: ${dir} not found: ${dirPath}`); continue; }
-
-    const resolved = path.resolve(dirPath);
-    const normalized = path.normalize(resolved).toLowerCase();
-
-    function walk(dir) {
-      if (dir.length > 4000) return;
-      let entries;
-      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { console.log(`[kb-sync] scanVault: cannot read dir ${dir}: ${e.message}`); return; }
-      for (const e of entries) {
-        if (e.name.startsWith(".")) continue;
-        const full = path.join(dir, e.name);
-        const real = path.resolve(full).toLowerCase();
-        if (!real.startsWith(normalized + path.sep) && real !== normalized) {
-          console.log(`[kb-sync] scanVault: symlink/escape blocked: ${full} (real=${real})`); continue;
-        }
-        if (e.isDirectory()) {
-          walk(full);
-        } else if (e.isFile() && e.name.endsWith(".md")) {
-          scanned++;
-          const relPath = path.relative(dirPath, full).replace(/\\/g, "/");
-          const prefixed = dir + "/" + relPath;
-          if (!matchSelectedPaths(prefixed, selectedPaths)) continue;
-          matched++;
-          const content = fs.readFileSync(full, "utf8");
-          results.push({ relativePath: prefixed, content, checksum: computeChecksum(content), size: fs.statSync(full).size });
-        }
-      }
-    }
-    walk(dirPath);
+    walkContentDir(dirPath, (full, relPath) => {
+      scanned++;
+      const prefixed = dir + "/" + relPath;
+      if (!matchSelectedPaths(prefixed, selectedPaths)) return;
+      matched++;
+      const content = fs.readFileSync(full, "utf8");
+      if (!content && content !== "") return;
+      results.push({ relativePath: prefixed, content, checksum: computeChecksum(content), size: fs.statSync(full).size });
+    });
   }
 
   console.log(`[kb-sync] scanVault: scanned=${scanned} matched=${matched} results=${results.length} selected=${JSON.stringify(selectedPaths)}`);
@@ -282,30 +287,12 @@ function scanVaultPaths(vaultPath) {
   for (const dir of CONTENT_DIRS) {
     const dirPath = path.join(vaultPath, dir);
     if (!fs.existsSync(dirPath)) continue;
-    const resolved = path.resolve(dirPath);
-    const normalized = path.normalize(resolved).toLowerCase();
-
-    function walk(dir) {
-      if (dir.length > 4000) return;
-      let entries;
-      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-      for (const e of entries) {
-        if (e.name.startsWith(".")) continue;
-        const full = path.join(dir, e.name);
-        const real = path.resolve(full).toLowerCase();
-        if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
-        if (e.isDirectory()) {
-          walk(full);
-        } else if (e.isFile() && e.name.endsWith(".md")) {
-          let size = 0;
-          try { size = fs.statSync(full).size; } catch { /* skip */ }
-          if (size > MAX_FILE_SIZE) continue;
-          const relPath = path.relative(dirPath, full).replace(/\\/g, "/");
-          results.push({ relativePath: dir + "/" + relPath, size, checksum: null });
-        }
-      }
-    }
-    walk(dirPath);
+    walkContentDir(dirPath, (full, relPath) => {
+      let size = 0;
+      try { size = fs.statSync(full).size; } catch { return; }
+      if (size > MAX_FILE_SIZE) return;
+      results.push({ relativePath: dir + "/" + relPath, size, checksum: null });
+    });
   }
 
   return results;
@@ -320,30 +307,14 @@ function scanVaultChecksums(vaultPath) {
   for (const dir of CONTENT_DIRS) {
     const dirPath = path.join(vaultPath, dir);
     if (!fs.existsSync(dirPath)) continue;
-    const resolved = path.resolve(dirPath);
-    const normalized = path.normalize(resolved).toLowerCase();
-
-    function walk(dir) {
-      if (dir.length > 4000) return;
-      let entries;
-      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-      for (const e of entries) {
-        if (e.name.startsWith(".")) continue;
-        const full = path.join(dir, e.name);
-        const real = path.resolve(full).toLowerCase();
-        if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
-        if (e.isDirectory()) { walk(full); }
-        else if (e.isFile() && e.name.endsWith(".md")) {
-          let stat;
-          try { stat = fs.statSync(full); } catch { continue; }
-          if (stat.size > MAX_FILE_SIZE) continue;
-          const relPath = path.relative(dirPath, full).replace(/\\/g, "/");
-          const content = fs.readFileSync(full, "utf8");
-          results.push({ relativePath: dir + "/" + relPath, checksum: computeChecksum(content), size: stat.size });
-        }
-      }
-    }
-    walk(dirPath);
+    walkContentDir(dirPath, (full, relPath) => {
+      let stat;
+      try { stat = fs.statSync(full); } catch { return; }
+      if (stat.size > MAX_FILE_SIZE) return;
+      const content = fs.readFileSync(full, "utf8");
+      if (!content && content !== "") return;
+      results.push({ relativePath: dir + "/" + relPath, checksum: computeChecksum(content), size: stat.size });
+    });
   }
 
   return results;
