@@ -358,9 +358,21 @@ function getKbGraph(req, res) {
     `)
     .all()
 
-  // Build title→id map for edge creation
-  const titleToId = {}
-  rows.forEach(row => { titleToId[row.title] = row.id })
+  // Build multi-key lookup: title, slug, and lowercase variants → id
+  // Tolerates wiki-link [[ ]], whitespace, case mismatches between connection refs and node titles
+  const lookup = {}
+  rows.forEach(row => {
+    const t = row.title ? String(row.title).trim() : ''
+    const s = row.slug ? String(row.slug).trim() : ''
+    if (t) {
+      lookup[t] = row.id
+      lookup[t.toLowerCase()] = lookup[t.toLowerCase()] || row.id
+    }
+    if (s) {
+      lookup[s] = lookup[s] || row.id
+      lookup[s.toLowerCase()] = lookup[s.toLowerCase()] || row.id
+    }
+  })
 
   const colors = { entity: '#8b5cf6', concept: '#6366f1', source: '#0ea5e9', synthesis: '#f59e0b' }
 
@@ -381,13 +393,17 @@ function getKbGraph(req, res) {
   rows.forEach(row => {
     const conns = parseTags(row.connections)
     for (const conn of conns) {
-      const targetId = titleToId[conn]
+      // Normalize: flatten nested arrays, strip wiki-link [[ ]], trim
+      const raw = Array.isArray(conn) ? String(conn[0] || '') : String(conn)
+      const normConn = raw.trim().replace(/^\[\[|\]\]$/g, '').trim()
+      if (!normConn) continue
+      const targetId = lookup[normConn] || lookup[normConn.toLowerCase()]
       if (targetId && targetId !== row.id) {
         const key = `${row.id}-${targetId}`
         const revKey = `${targetId}-${row.id}`
         if (!edgeSet.has(key) && !edgeSet.has(revKey)) {
           edgeSet.add(key)
-          edges.push({ source: String(row.id), target: String(targetId), label: conn })
+          edges.push({ source: String(row.id), target: String(targetId), label: normConn })
         }
       }
     }

@@ -27,6 +27,22 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const CONTENT_DIRS = ['wiki', 'notes'];
 
 /**
+ * Normalize an array of reference strings (connections, sources).
+ * - Flattens nested arrays (js-yaml may parse [[Doc A]] as [["Doc A"]])
+ * - Strips wiki-link [[ ]] brackets
+ * - Trims whitespace
+ * - Filters out empty values
+ */
+function normalizeRefs(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .flat(Infinity)
+    .filter(v => v !== null && v !== undefined)
+    .map(v => String(v).trim().replace(/^\[\[|\]\]$/g, '').trim())
+    .filter(Boolean);
+}
+
+/**
  * Walk a content directory recursively, calling callback for each .md file.
  * Skips hidden files (dot-prefixed), protects against symlink escapes.
  */
@@ -120,13 +136,8 @@ function importDocument(db, fileInfo, conflictStrategy, now, source) {
     ? JSON.stringify(attributes.tags.filter(Boolean))
     : JSON.stringify([]);
 
-  const connections = Array.isArray(attributes.connections)
-    ? JSON.stringify(attributes.connections.filter(Boolean))
-    : JSON.stringify([]);
-
-  const sources = Array.isArray(attributes.sources)
-    ? JSON.stringify(attributes.sources.filter(Boolean))
-    : JSON.stringify([]);
+  const connections = JSON.stringify(normalizeRefs(attributes.connections));
+  const sources = JSON.stringify(normalizeRefs(attributes.sources));
 
   const docDate = (attributes.last_updated && typeof attributes.last_updated === "string")
     ? attributes.last_updated.trim() : null;
@@ -138,11 +149,14 @@ function importDocument(db, fileInfo, conflictStrategy, now, source) {
     || (attributes.description && String(attributes.description).trim())
     || null;
 
-  // Extract category from the first path segment under the content dir
+  // Category priority: YAML attribute first, fall back to path segment
   // e.g., "wiki/project-a/file.md" → "project-a", "notes/daily/todo.md" → "daily"
-  const parts = fileInfo.relativePath.split("/");
-  const catStart = parts.length > 0 && CONTENT_DIRS.includes(parts[0]) ? 1 : 0;
-  const category = parts.length > catStart + 1 ? parts[catStart] : null;
+  let category = (attributes.category && String(attributes.category).trim()) || null;
+  if (!category) {
+    const parts = fileInfo.relativePath.split("/");
+    const catStart = parts.length > 0 && CONTENT_DIRS.includes(parts[0]) ? 1 : 0;
+    category = parts.length > catStart + 1 ? parts[catStart] : null;
+  }
 
   const existing = db
     .prepare("SELECT * FROM kb_documents WHERE original_path = ? AND source = ?")
@@ -421,7 +435,8 @@ async function fullExport(vaultPath, selectedPaths) {
 
       try {
         // Build YAML front matter from DB fields
-        const lastUpdated = doc.doc_date || doc.updated_at ? doc.updated_at.slice(0, 10) : null;
+        const lastUpdated = doc.doc_date
+          || (doc.updated_at ? doc.updated_at.slice(0, 10) : null);
         const yamlAttrs = {
           title: doc.title || undefined,
           type: doc.doc_type || undefined,
