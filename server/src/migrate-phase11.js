@@ -43,5 +43,10 @@ module.exports = function migratePhase11(db) {
     }
   } catch(e) { console.log('[P11c]', e.message); }
   
+  // Update existing obsidian original_path values to include "wiki/" prefix
+  try {
+    db.exec("UPDATE kb_documents SET original_path = 'wiki/' || original_path WHERE source = 'obsidian' AND original_path IS NOT NULL AND original_path NOT LIKE 'wiki/%' AND original_path NOT LIKE 'notes/%'");
+  } catch(e) { console.log('[P11d]', e.message); }
+
   console.log('[Phase 11] done');
 };

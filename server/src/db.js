@@ -361,10 +361,7 @@ function migrate(db) {
   }
   try { db.exec(`CREATE INDEX IF NOT EXISTS idx_kb_docs_category ON kb_documents(category)`); } catch { /* ignore */ }
 
-  // Migrate existing obsidian original_path to strip wiki/ prefix
-  try {
-    db.exec(`UPDATE kb_documents SET original_path = SUBSTR(original_path, 6), checksum = NULL, updated_at = datetime('now') WHERE source = 'obsidian' AND original_path LIKE 'wiki/%'`);
-  } catch { /* ignore */ }
+  // original_path now includes content dir prefix (e.g., "wiki/file.md") — see migrate-phase11.js
 
   // Add selected_paths column for sync folder selection
   try { db.exec(`ALTER TABLE kb_sync_config ADD COLUMN selected_paths TEXT NOT NULL DEFAULT '[]'`); } catch { /* already exists */ }

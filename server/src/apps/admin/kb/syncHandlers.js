@@ -1,8 +1,15 @@
 ﻿const fs = require("fs");
+const path = require("path");
 const { openDb } = require("../../../db");
 const { nowIso, toInt } = require("../../../utils");
 const syncEngine = require("./syncEngine");
 const kbSync = require("../../../services/kbSync");
+
+const CONTENT_DIRS = syncEngine.CONTENT_DIRS || ['wiki', 'notes'];
+
+function hasContentDir(vaultPath) {
+  return CONTENT_DIRS.some(d => fs.existsSync(path.join(vaultPath, d)));
+}
 
 function parseJsonArray(raw) {
   if (!raw) return [];
@@ -132,10 +139,9 @@ async function triggerExport(req, res) {
     return res.status(409).json({ code: 409, message: "同步正在进行中" });
   }
 
-  // Validate wiki/ exists
-  const wikiPath = require("path").join(config.vault_path, "wiki");
-  if (!require("fs").existsSync(wikiPath)) {
-    return res.status(400).json({ code: 400, message: "仓库路径下未找到 wiki/ 子目录，请先创建或导入数据" });
+  // Validate at least one content directory exists
+  if (!hasContentDir(config.vault_path)) {
+    return res.status(400).json({ code: 400, message: `仓库路径下未找到 ${CONTENT_DIRS.join('/')} 子目录，请先创建或导入数据` });
   }
 
   auditLog(db, req, "trigger_export", config.vault_path, "触发平台→Obsidian导出");
@@ -244,7 +250,7 @@ async function testFilesystem(req, res) {
   }
 
   try {
-    const resolved = require("path").resolve(vaultPath);
+    const resolved = path.resolve(vaultPath);
     if (!fs.existsSync(resolved)) {
       db.prepare(
         "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -260,17 +266,17 @@ async function testFilesystem(req, res) {
       return res.json({ code: 200, data: { ok: false, message: "路径不是目录", path: resolved } });
     }
 
-    // Only scan the wiki/ subdirectory
-    const wikiPath = require("path").join(resolved, "wiki");
-    if (!fs.existsSync(wikiPath)) {
-      const detail = `路径下未找到 wiki/ 子目录: ${resolved}`;
+    // Validate at least one content directory exists
+    const foundDirs = CONTENT_DIRS.filter(d => fs.existsSync(path.join(resolved, d)));
+    if (foundDirs.length === 0) {
+      const detail = `路径下未找到 ${CONTENT_DIRS.join('/')} 子目录: ${resolved}`;
       db.prepare(
         "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
       ).run("import", vaultPath, "error", detail, now);
-      return res.json({ code: 200, data: { ok: false, message: detail, path: wikiPath } });
+      return res.json({ code: 200, data: { ok: false, message: detail, path: resolved } });
     }
 
-    // Scan for .md files in wiki/
+    // Scan for .md files in all content directories
     let mdCount = 0;
     let totalSize = 0;
     function walk(dir, depth) {
@@ -279,7 +285,7 @@ async function testFilesystem(req, res) {
       try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
       for (const e of entries) {
         if (e.name.startsWith(".")) continue;
-        const full = require("path").join(dir, e.name);
+        const full = path.join(dir, e.name);
         if (e.isDirectory()) { walk(full, depth + 1); }
         else if (e.isFile() && e.name.endsWith(".md")) {
           try {
@@ -289,7 +295,7 @@ async function testFilesystem(req, res) {
         }
       }
     }
-    walk(wikiPath, 0);
+    for (const dir of foundDirs) walk(path.join(resolved, dir), 0);
 
     const detail = `连接成功: 找到 ${mdCount} 个 .md 文件 (${(totalSize / 1024 / 1024).toFixed(1)} MB)`;
     db.prepare(
@@ -318,7 +324,7 @@ function getRemoteFiles(_req, res) {
     let files = [];
 
     if (config && config.vault_path) {
-      const vaultPath = require("path").resolve(config.vault_path);
+      const vaultPath = path.resolve(config.vault_path);
       // Use checksum scan so frontend can compare with synced files
       files = syncEngine.scanVaultChecksums(vaultPath);
     }
