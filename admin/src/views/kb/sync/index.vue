@@ -21,6 +21,7 @@ import {
   SettingsOutline,
   CloudOutline,
   FlashOutline,
+  DocumentTextOutline,
 } from '@vicons/ionicons5'
 import PageHeader from '../../../components/common/PageHeader.vue'
 import SyncFileTree from '../../../components/kb/SyncFileTree.vue'
@@ -42,6 +43,7 @@ import {
   apiTestOpenWebUIConnection,
   apiGetOpenWebUISyncProgress,
   apiGetKnowledgeBases,
+  apiTriggerNotesSync,
   type SyncConfig,
   type SyncLogEntry,
   type FileTreeData,
@@ -219,6 +221,31 @@ async function handleSyncToOpenWebUI() {
     openWebUISyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: `同步失败: ${error?.message || '未知错误'}`, type: 'error' })
     message.error('同步启动失败')
     openWebUISyncing.value = false
+  }
+}
+
+// ---- Open WebUI Notes Sync ----
+const notesSyncing = ref(false)
+const notesSyncLogs = ref<Array<{ time: string; message: string; type: 'info' | 'success' | 'error' }>>([])
+const notesLogsCollapsed = ref(false)
+
+async function handleSyncNotes() {
+  if (!openWebUIStatus.value.configured) {
+    message.warning('请先在系统设置中配置 Open WebUI API Key')
+    return
+  }
+  notesSyncing.value = true
+  notesSyncLogs.value = [{ time: new Date().toLocaleTimeString(), message: '开始同步 Open WebUI 笔记...', type: 'info' }]
+  try {
+    await apiTriggerNotesSync()
+    notesSyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: '笔记同步任务已启动', type: 'success' })
+    message.success('笔记同步已启动')
+  } catch (err: unknown) {
+    const error = err as { message?: string }
+    notesSyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: `同步失败: ${error?.message || '未知错误'}`, type: 'error' })
+    message.error('笔记同步启动失败')
+  } finally {
+    notesSyncing.value = false
   }
 }
 
@@ -920,6 +947,69 @@ onMounted(() => {
             <div v-else class="space-y-1.5">
               <div
                 v-for="(log, idx) in openWebUISyncLogs"
+                :key="idx"
+                class="flex items-start gap-2 text-xs"
+              >
+                <span class="text-base-content/30 whitespace-nowrap">{{ log.time }}</span>
+                <span
+                  class="whitespace-nowrap"
+                  :class="{
+                    'text-blue-500': log.type === 'info',
+                    'text-green-500': log.type === 'success',
+                    'text-red-500': log.type === 'error',
+                  }"
+                >{{ log.type === 'info' ? 'ℹ' : log.type === 'success' ? '✓' : '✗' }}</span>
+                <span class="text-base-content/60">{{ log.message }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Open WebUI 笔记同步 -->
+      <div class="bg-base-100 rounded-xl border border-base-content/5 mb-4">
+        <div class="px-4 py-3 border-b border-base-content/5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <h3 class="font-medium text-sm">同步 Open WebUI 笔记</h3>
+              <span class="text-xs text-base-content/40">从 /api/v1/notes/ 导入到 vault/notes/</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <NButton
+                size="small"
+                type="primary"
+                :loading="notesSyncing"
+                :disabled="!hasSyncPerm"
+                @click="handleSyncNotes"
+              >
+                <template #icon><DocumentTextOutline class="w-4 h-4" /></template>
+                同步笔记
+              </NButton>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sync logs -->
+        <div
+          class="px-4 py-3 cursor-pointer hover:bg-base-200/30"
+          @click="notesLogsCollapsed = !notesLogsCollapsed"
+        >
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-base-content/60">同步日志</span>
+            <svg class="w-4 h-4 text-base-content/30 transition-transform" :class="notesLogsCollapsed ? '' : 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+
+        <div v-if="!notesLogsCollapsed" class="px-4 pb-4">
+          <div class="bg-base-200/50 rounded-lg p-3 max-h-48 overflow-y-auto">
+            <div v-if="notesSyncLogs.length === 0" class="text-xs text-base-content/30 text-center py-4">
+              暂无同步日志
+            </div>
+            <div v-else class="space-y-1.5">
+              <div
+                v-for="(log, idx) in notesSyncLogs"
                 :key="idx"
                 class="flex items-start gap-2 text-xs"
               >
