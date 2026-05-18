@@ -24,9 +24,10 @@ function computeChecksum(content) {
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const CONTENT_DIRS = ['wiki', 'notes'];
 
 /**
- * Recursively scan the wiki/ subdirectory for .md files, returning file info with checksums.
+ * Recursively scan content directories (wiki/, notes/) for .md files, returning file info with checksums.
  */
 function matchSelectedPaths(relPath, selectedPaths) {
   if (!selectedPaths || selectedPaths.length === 0) return true; // no filter = include all
@@ -43,41 +44,42 @@ function matchSelectedPaths(relPath, selectedPaths) {
 
 function scanVault(vaultPath, selectedPaths) {
   const results = [];
-  const wikiPath = path.join(vaultPath, "wiki");
-  if (!fs.existsSync(wikiPath)) { console.log(`[kb-sync] scanVault: wikiPath not found: ${wikiPath}`); return results; }
-
-  const resolved = path.resolve(wikiPath);
-  const normalized = path.normalize(resolved).toLowerCase();
   let scanned = 0, matched = 0;
 
-  function walk(dir) {
-    if (dir.length > 4000) return;
-    let entries;
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch (e) {
-      console.log(`[kb-sync] scanVault: cannot read dir ${dir}: ${e.message}`); return;
-    }
-    for (const e of entries) {
-      if (e.name.startsWith(".")) continue;
-      const full = path.join(dir, e.name);
-      const real = path.resolve(full).toLowerCase();
-      if (!real.startsWith(normalized + path.sep) && real !== normalized) {
-        console.log(`[kb-sync] scanVault: symlink/escape blocked: ${full} (real=${real})`); continue;
+  for (const dir of CONTENT_DIRS) {
+    const dirPath = path.join(vaultPath, dir);
+    if (!fs.existsSync(dirPath)) { console.log(`[kb-sync] scanVault: ${dir} not found: ${dirPath}`); continue; }
+
+    const resolved = path.resolve(dirPath);
+    const normalized = path.normalize(resolved).toLowerCase();
+
+    function walk(dir) {
+      if (dir.length > 4000) return;
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { console.log(`[kb-sync] scanVault: cannot read dir ${dir}: ${e.message}`); return; }
+      for (const e of entries) {
+        if (e.name.startsWith(".")) continue;
+        const full = path.join(dir, e.name);
+        const real = path.resolve(full).toLowerCase();
+        if (!real.startsWith(normalized + path.sep) && real !== normalized) {
+          console.log(`[kb-sync] scanVault: symlink/escape blocked: ${full} (real=${real})`); continue;
+        }
+        if (e.isDirectory()) {
+          walk(full);
+        } else if (e.isFile() && e.name.endsWith(".md")) {
+          scanned++;
+          const relPath = path.relative(dirPath, full).replace(/\\/g, "/");
+          const prefixed = dir + "/" + relPath;
+          if (!matchSelectedPaths(prefixed, selectedPaths)) continue;
+          matched++;
+          const content = fs.readFileSync(full, "utf8");
+          results.push({ relativePath: prefixed, content, checksum: computeChecksum(content), size: fs.statSync(full).size });
+        }
       }
-      if (e.isDirectory()) {
-        walk(full);
-      } else if (e.isFile() && e.name.endsWith(".md")) {
-        scanned++;
-        const relPath = path.relative(wikiPath, full).replace(/\\/g, "/");
-        if (!matchSelectedPaths(relPath, selectedPaths)) continue;
-        matched++;
-        const content = fs.readFileSync(full, "utf8");
-        results.push({ relativePath: relPath, content, checksum: computeChecksum(content), size: fs.statSync(full).size });
-      }
     }
+    walk(dirPath);
   }
-  walk(wikiPath);
+
   console.log(`[kb-sync] scanVault: scanned=${scanned} matched=${matched} results=${results.length} selected=${JSON.stringify(selectedPaths)}`);
   return results;
 }
@@ -127,9 +129,11 @@ function importDocument(db, fileInfo, conflictStrategy, now, source) {
   const reviewStatus = ["seed", "developing", "mature"].includes(attributes.status)
     ? attributes.status : null;
 
-  // Extract category from the first path segment (subdirectory under wiki/)
+  // Extract category from the first path segment under the content dir
+  // e.g., "wiki/project-a/file.md" → "project-a", "notes/daily/todo.md" → "daily"
   const parts = fileInfo.relativePath.split("/");
-  const category = parts.length > 1 ? parts[0] : null;
+  const catStart = parts.length > 0 && CONTENT_DIRS.includes(parts[0]) ? 1 : 0;
+  const category = parts.length > catStart + 1 ? parts[catStart] : null;
 
   const existing = db
     .prepare("SELECT * FROM kb_documents WHERE original_path = ? AND source = ?")
@@ -248,8 +252,7 @@ async function fullImport(vaultPath, conflictStrategy, selectedPaths) {
   const db = openDb();
   const now = new Date().toISOString();
   try {
-    const wikiPath = path.join(vaultPath, "wiki");
-    console.log(`[kb-sync] fullImport starting: vault=${vaultPath} wiki=${wikiPath} selected=${JSON.stringify(selectedPaths)} wikiExists=${fs.existsSync(wikiPath)}`);
+    console.log(`[kb-sync] fullImport starting: vault=${vaultPath} dirs=${JSON.stringify(CONTENT_DIRS)} selected=${JSON.stringify(selectedPaths)}`);
     const files = scanVault(vaultPath, selectedPaths);
     console.log(`[kb-sync] scanVault found ${files.length} files, starting import...`);
     const result = await importFromFiles(files, conflictStrategy, "obsidian");
@@ -271,40 +274,40 @@ async function fullImport(vaultPath, conflictStrategy, selectedPaths) {
 }
 
 /**
- * Lightweight scan: only return file paths (no content) from wiki/ subdirectory, for building file trees.
+ * Lightweight scan: only return file paths (no content) from content directories, for building file trees.
  */
 function scanVaultPaths(vaultPath) {
   const results = [];
-  const wikiPath = path.join(vaultPath, "wiki");
-  if (!fs.existsSync(wikiPath)) return results;
 
-  const resolved = path.resolve(wikiPath);
-  const normalized = path.normalize(resolved).toLowerCase();
+  for (const dir of CONTENT_DIRS) {
+    const dirPath = path.join(vaultPath, dir);
+    if (!fs.existsSync(dirPath)) continue;
+    const resolved = path.resolve(dirPath);
+    const normalized = path.normalize(resolved).toLowerCase();
 
-  function walk(dir) {
-    if (dir.length > 4000) return;
-    let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
-      if (e.name.startsWith(".")) continue;
-      const full = path.join(dir, e.name);
-      const real = path.resolve(full).toLowerCase();
-      if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
-      if (e.isDirectory()) {
-        walk(full);
-      } else if (e.isFile() && e.name.endsWith(".md")) {
-        let size = 0;
-        try { size = fs.statSync(full).size; } catch { /* skip */ }
-        if (size > MAX_FILE_SIZE) continue;
-        results.push({
-          relativePath: path.relative(wikiPath, full).replace(/\\/g, "/"),
-          size,
-          checksum: null, // not computed for tree view
-        });
+    function walk(dir) {
+      if (dir.length > 4000) return;
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of entries) {
+        if (e.name.startsWith(".")) continue;
+        const full = path.join(dir, e.name);
+        const real = path.resolve(full).toLowerCase();
+        if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
+        if (e.isDirectory()) {
+          walk(full);
+        } else if (e.isFile() && e.name.endsWith(".md")) {
+          let size = 0;
+          try { size = fs.statSync(full).size; } catch { /* skip */ }
+          if (size > MAX_FILE_SIZE) continue;
+          const relPath = path.relative(dirPath, full).replace(/\\/g, "/");
+          results.push({ relativePath: dir + "/" + relPath, size, checksum: null });
+        }
       }
     }
+    walk(dirPath);
   }
-  walk(wikiPath);
+
   return results;
 }
 
@@ -313,31 +316,36 @@ function scanVaultPaths(vaultPath) {
  */
 function scanVaultChecksums(vaultPath) {
   const results = [];
-  const wikiPath = path.join(vaultPath, "wiki");
-  if (!fs.existsSync(wikiPath)) return results;
-  const resolved = path.resolve(wikiPath);
-  const normalized = path.normalize(resolved).toLowerCase();
-  function walk(dir) {
-    if (dir.length > 4000) return;
-    let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
-      if (e.name.startsWith(".")) continue;
-      const full = path.join(dir, e.name);
-      const real = path.resolve(full).toLowerCase();
-      if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
-      if (e.isDirectory()) { walk(full); }
-      else if (e.isFile() && e.name.endsWith(".md")) {
-        let stat;
-        try { stat = fs.statSync(full); } catch { continue; }
-        if (stat.size > MAX_FILE_SIZE) continue;
-        const relPath = path.relative(wikiPath, full).replace(/\\/g, "/");
-        const content = fs.readFileSync(full, "utf8");
-        results.push({ relativePath: relPath, checksum: computeChecksum(content), size: stat.size });
+
+  for (const dir of CONTENT_DIRS) {
+    const dirPath = path.join(vaultPath, dir);
+    if (!fs.existsSync(dirPath)) continue;
+    const resolved = path.resolve(dirPath);
+    const normalized = path.normalize(resolved).toLowerCase();
+
+    function walk(dir) {
+      if (dir.length > 4000) return;
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of entries) {
+        if (e.name.startsWith(".")) continue;
+        const full = path.join(dir, e.name);
+        const real = path.resolve(full).toLowerCase();
+        if (!real.startsWith(normalized + path.sep) && real !== normalized) continue;
+        if (e.isDirectory()) { walk(full); }
+        else if (e.isFile() && e.name.endsWith(".md")) {
+          let stat;
+          try { stat = fs.statSync(full); } catch { continue; }
+          if (stat.size > MAX_FILE_SIZE) continue;
+          const relPath = path.relative(dirPath, full).replace(/\\/g, "/");
+          const content = fs.readFileSync(full, "utf8");
+          results.push({ relativePath: dir + "/" + relPath, checksum: computeChecksum(content), size: stat.size });
+        }
       }
     }
+    walk(dirPath);
   }
-  walk(wikiPath);
+
   return results;
 }
 
@@ -406,7 +414,6 @@ async function fullExport(vaultPath, selectedPaths) {
   if (!acquireLock()) throw new Error("同步正在进行中，请稍后重试");
   const db = openDb();
   const now = new Date().toISOString();
-  const wikiPath = path.join(vaultPath, "wiki");
 
   const logStmt = db.prepare(
     `INSERT INTO kb_sync_logs (direction, file_path, document_id, status, checksum, detail, created_at)
@@ -416,8 +423,8 @@ async function fullExport(vaultPath, selectedPaths) {
   const summary = { exported: 0, skipped: 0, errors: 0 };
 
   try {
-    // Ensure wiki/ directory exists
-    fs.mkdirSync(wikiPath, { recursive: true });
+    // Ensure content directories exist
+    for (const dir of CONTENT_DIRS) fs.mkdirSync(path.join(vaultPath, dir), { recursive: true });
 
     const docs = db
       .prepare("SELECT * FROM kb_documents WHERE source = 'obsidian'")
@@ -461,8 +468,8 @@ async function fullExport(vaultPath, selectedPaths) {
           continue;
         }
 
-        // Write file
-        const fullPath = path.join(wikiPath, targetPath);
+        // Write file (targetPath includes content dir prefix, e.g. "wiki/file.md")
+        const fullPath = path.join(vaultPath, targetPath);
         fs.mkdirSync(path.dirname(fullPath), { recursive: true });
         fs.writeFileSync(fullPath, fullContent, "utf8");
 
@@ -495,4 +502,4 @@ async function fullExport(vaultPath, selectedPaths) {
   }
 }
 
-module.exports = { scanVault, scanVaultPaths, scanVaultChecksums, buildFileTree, importDocument, fullImport, importFromFiles, fullExport, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE };
+module.exports = { scanVault, scanVaultPaths, scanVaultChecksums, buildFileTree, importDocument, fullImport, importFromFiles, fullExport, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE, CONTENT_DIRS };
