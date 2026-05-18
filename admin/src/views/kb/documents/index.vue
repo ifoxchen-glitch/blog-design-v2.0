@@ -364,8 +364,11 @@ const tableColumns = computed(() => [
         clearable
         style="width: 130px"
       />
-      <NButton quaternary circle :loading="table.loading.value" @click="table.refresh()">
+      <NButton quaternary circle :loading="table.loading.value" @click="table.refresh()" title="刷新">
         <RefreshOutline class="w-4 h-4" />
+      </NButton>
+      <NButton quaternary size="tiny" @click="table.reset()" title="清除所有筛选">
+        重置
       </NButton>
       <div class="ml-auto flex items-center gap-1 bg-base-200 rounded-lg p-0.5 border border-base-content/10">
         <NButton size="tiny" :type="viewMode === 'card' ? 'primary' : 'default'" quaternary @click="viewMode = 'card'" title="卡片视图">
