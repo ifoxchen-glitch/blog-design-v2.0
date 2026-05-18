@@ -351,26 +351,33 @@ function getKbGraph(req, res) {
 
   const rows = db
     .prepare(`
-      SELECT id, title, slug, excerpt, source, tags, status, category, doc_type, review_status, connections, sources, word_count, created_at, updated_at
+      SELECT id, title, slug, excerpt, source, tags, status, category, doc_type, review_status, connections, sources, word_count, created_at, updated_at, original_path
         FROM kb_documents
        WHERE status = 'active'
        ORDER BY updated_at DESC
     `)
     .all()
 
-  // Build multi-key lookup: title, slug, and lowercase variants → id
-  // Tolerates wiki-link [[ ]], whitespace, case mismatches between connection refs and node titles
+  // Build multi-key lookup: title, slug, filename, and lowercase variants → id
+  // Tolerates wiki-link [[ ]], whitespace, case mismatches, and filename-based refs
   const lookup = {}
+  const addKey = (k, id) => {
+    if (!k) return
+    const key = String(k).trim()
+    if (!key) return
+    if (!lookup[key]) lookup[key] = id
+    const lc = key.toLowerCase()
+    if (!lookup[lc]) lookup[lc] = id
+  }
   rows.forEach(row => {
-    const t = row.title ? String(row.title).trim() : ''
-    const s = row.slug ? String(row.slug).trim() : ''
-    if (t) {
-      lookup[t] = row.id
-      lookup[t.toLowerCase()] = lookup[t.toLowerCase()] || row.id
-    }
-    if (s) {
-      lookup[s] = lookup[s] || row.id
-      lookup[s.toLowerCase()] = lookup[s.toLowerCase()] || row.id
+    addKey(row.title, row.id)
+    addKey(row.slug, row.id)
+    // Extract filename from original_path (e.g., "wiki/entities/Entity-Quickadd.md" → "Entity-Quickadd")
+    if (row.original_path) {
+      const filename = String(row.original_path)
+        .replace(/\.md$/i, '')
+        .split('/').pop()
+      addKey(filename, row.id)
     }
   })
 
@@ -398,11 +405,22 @@ function getKbGraph(req, res) {
     if (!Array.isArray(conns)) return
     for (const conn of conns) {
       totalRefs++
-      // Normalize: flatten nested arrays, strip wiki-link [[ ]], trim
-      const raw = Array.isArray(conn) ? String(conn[0] || '') : String(conn || '')
-      const normConn = raw.trim().replace(/^\[\[/, '').replace(/\]\]$/, '').trim()
+      // Normalize: flatten nested arrays, strip wiki-link [[ ]], strip alias |..., trim
+      let raw = Array.isArray(conn) ? String(conn[0] || '') : String(conn || '')
+      raw = raw.trim().replace(/^\[\[/, '').replace(/\]\]$/, '').trim()
+      // Strip wiki-link alias: "Doc|Display" → "Doc"
+      const pipeIdx = raw.indexOf('|')
+      if (pipeIdx >= 0) raw = raw.slice(0, pipeIdx).trim()
+      // Strip .md extension if present
+      raw = raw.replace(/\.md$/i, '')
+      const normConn = raw
       if (!normConn) continue
-      const targetId = lookup[normConn] || lookup[normConn.toLowerCase()]
+      // Try multiple variants: exact, lowercase, last path segment (e.g., "concepts/foo" → "foo")
+      let targetId = lookup[normConn] || lookup[normConn.toLowerCase()]
+      if (!targetId && normConn.includes('/')) {
+        const lastSeg = normConn.split('/').pop()
+        targetId = lookup[lastSeg] || lookup[lastSeg.toLowerCase()]
+      }
       if (targetId && targetId !== row.id) {
         matchedRefs++
         const key = `${row.id}-${targetId}`
