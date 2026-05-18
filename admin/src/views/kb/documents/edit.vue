@@ -113,7 +113,7 @@ function parseYamlFrontMatter(content: string): { attributes: Record<string, unk
   const body = content.slice(match[0].length)
 
   try {
-    const data = yaml.load(yamlStr)
+    const data = yaml.load(yamlStr) as Record<string, unknown>
     return {
       attributes: (data && typeof data === 'object' && !Array.isArray(data)) ? data : {},
       body,
