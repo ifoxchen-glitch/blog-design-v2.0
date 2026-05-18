@@ -17,6 +17,15 @@ const saving = ref(false)
 const message = ref('')
 const messageType = ref<'success' | 'error'>('success')
 
+function generateNewKey() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let key = ''
+  for (let i = 0; i < 32; i++) {
+    key += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  publishApiKey.value = key
+}
+
 async function loadSettings() {
   loading.value = true
   try {
@@ -32,6 +41,10 @@ async function loadSettings() {
       iotSyncInterval.value = data.data?.iot_sync_interval || 60
       publishApiKey.value = data.data?.publish_api_key || ''
       publishApiKeyEnabled.value = data.data?.publish_api_key_enabled !== 0
+      // Auto-generate key if empty
+      if (!publishApiKey.value) {
+        generateNewKey()
+      }
     }
   } catch (err) {
     console.error('Failed to load settings:', err)
@@ -75,6 +88,10 @@ async function saveSettings() {
   }
 }
 
+function clearApiKey() {
+  publishApiKey.value = ''
+}
+
 function testConnection() {
   const url = openWebUIUrl.value.trim()
   if (!url) {
@@ -83,15 +100,6 @@ function testConnection() {
     return
   }
   window.open(url, '_blank')
-}
-
-function generateNewKey() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  let key = ''
-  for (let i = 0; i < 32; i++) {
-    key += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  publishApiKey.value = key
 }
 
 onMounted(() => {
@@ -228,29 +236,75 @@ onMounted(() => {
         </NFormItem>
 
         <NFormItem label="API Key">
-          <NInput
-            v-model:value="publishApiKey"
-            placeholder="留空则保持当前密钥"
-            type="password"
-            show-password-on="click"
-            :loading="loading"
-          />
-          <template #feedback>
-            <div class="text-xs text-gray-400 mt-1">
-              用于外部系统调用发布接口。
-              <NButton size="tiny" @click="generateNewKey">生成新密钥</NButton>
-            </div>
-          </template>
+          <NSpace vertical>
+            <NInput
+              v-model:value="publishApiKey"
+              placeholder="请输入 API Key"
+              type="password"
+              show-password-on="click"
+              :loading="loading"
+              style="width: 400px"
+            />
+            <NSpace>
+              <NButton size="small" @click="generateNewKey">随机生成</NButton>
+              <NButton size="small" @click="clearApiKey">清空</NButton>
+            </NSpace>
+          </NSpace>
         </NFormItem>
 
         <NFormItem>
           <template #label>
-            <span class="text-gray-500">接口地址</span>
+            <span class="text-gray-500">接口文档</span>
           </template>
-          <div class="text-sm text-gray-500">
-            <div>发布博客文章：<code class="bg-gray-100 px-1 rounded">POST /api/v2/publish/blog</code></div>
-            <div>发布知识库文档：<code class="bg-gray-100 px-1 rounded">POST /api/v2/publish/kb</code></div>
-            <div class="text-xs text-gray-400 mt-1">认证方式：Header <code>X-API-Key</code> 或 Query <code>api_key</code></div>
+          <div class="text-sm text-gray-500 w-full">
+            <div class="mb-4 p-3 bg-gray-50 rounded">
+              <div class="font-medium mb-2">发布博客文章</div>
+              <div class="text-xs text-gray-600 mb-1"><code>POST /api/v2/publish/blog</code></div>
+              <div class="text-xs text-gray-500 mb-2">认证：Header <code>X-API-Key</code> 或 Query <code>api_key</code></div>
+              <div class="text-xs text-gray-500 font-medium">请求 Body（JSON）:</div>
+              <pre class="text-xs bg-white p-2 rounded border mt-1 overflow-x-auto">{
+  "title": "文章标题",
+  "slug": "url-slug（可选，自动生成）",
+  "excerpt": "摘要（可选）",
+  "coverImageUrl": "封面图（可选）",
+  "contentMarkdown": "# Markdown内容",
+  "tags": ["标签1", "标签2"],
+  "categories": ["分类"],
+  "status": "published|draft"
+}</pre>
+              <div class="text-xs text-gray-500 font-medium mt-2">响应:</div>
+              <pre class="text-xs bg-white p-2 rounded border mt-1 overflow-x-auto">{"code": 201, "message": "success", "data": {"postId": 42, "slug": "url-slug"}}</pre>
+            </div>
+
+            <div class="mb-4 p-3 bg-gray-50 rounded">
+              <div class="font-medium mb-2">发布知识库文档</div>
+              <div class="text-xs text-gray-600 mb-1"><code>POST /api/v2/publish/kb</code></div>
+              <div class="text-xs text-gray-500 mb-2">认证：Header <code>X-API-Key</code> 或 Query <code>api_key</code></div>
+              <div class="text-xs text-gray-500 font-medium">请求 Body（JSON）:</div>
+              <pre class="text-xs bg-white p-2 rounded border mt-1 overflow-x-auto">{
+  "title": "文档标题",
+  "slug": "url-slug（可选，自动生成）",
+  "excerpt": "摘要（可选）",
+  "contentMarkdown": "# Markdown内容",
+  "category": "分类",
+  "doc_type": "entity|concept|source|synthesis",
+  "tags": ["标签"],
+  "status": "active|archived"
+}</pre>
+              <div class="text-xs text-gray-500 font-medium mt-2">响应:</div>
+              <pre class="text-xs bg-white p-2 rounded border mt-1 overflow-x-auto">{"code": 201, "message": "success", "data": {"documentId": 42, "slug": "url-slug"}}</pre>
+            </div>
+
+            <div class="p-3 bg-yellow-50 rounded">
+              <div class="text-xs text-yellow-700">
+                <div class="font-medium">说明</div>
+                <ul class="mt-1 space-y-1">
+                  <li>- Slug 冲突时自动追加 -1, -2 等数字后缀</li>
+                  <li>- 支持 <code>X-API-Key</code> Header 或 <code>?api_key=</code> Query 参数认证</li>
+                  <li>- 接口地址：<code>http://你的博客域名:8787/api/v2/publish/...</code></li>
+                </ul>
+              </div>
+            </div>
           </div>
         </NFormItem>
 
