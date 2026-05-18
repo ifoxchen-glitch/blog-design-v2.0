@@ -59,6 +59,7 @@ ensureRbacSeed(db, {
 
 const frontApp = require("./apps/frontApp");
 const adminApp = require("./apps/adminApp");
+const publishApi = require("./apps/publishApi");
 const openWebUILauncher = require("./openwebui/launcher");
 
 const FRONT_PORT = parseInt(process.env.PORT, 10) || 8787;
@@ -71,6 +72,9 @@ openWebUILauncher.start().then((info) => {
 }).catch((err) => {
   console.error("[OpenWebUI] Launcher failed:", err.message);
 });
+
+// Mount publish API on frontApp at /api/v2/publish/*
+frontApp.use("/api/v2/publish", publishApi);
 
 frontApp.listen(FRONT_PORT, BIND_HOST, () => {
   console.log(`Front blog : http://${BIND_HOST}:${FRONT_PORT}`);
