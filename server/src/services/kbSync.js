@@ -815,30 +815,34 @@ async function exportNotesToOpenWebUI() {
     return { success: true, exported: 0, skipped: 0, note: 'notes_dir_not_found' };
   }
 
-  // Scan .md files in notes/ directory
+  // Only process files that have owui_id in frontmatter (imported from OWUI)
   const files = fs.readdirSync(notesDir).filter(f => f.endsWith('.md'));
-  if (files.length === 0) return { success: true, exported: 0, skipped: 0 };
+  const owuiFiles = files.filter(f => {
+    try {
+      const content = fs.readFileSync(path.join(notesDir, f), 'utf8');
+      return /^---\s*\n[\s\S]*?\nowui_id:/m.test(content);
+    } catch { return false; }
+  });
+
+  if (owuiFiles.length === 0) return { success: true, exported: 0, skipped: 0, note: 'no_owui_notes_to_export' };
 
   const db = openDb();
   const logStmt = db.prepare(
     `INSERT INTO kb_sync_logs (direction, file_path, status, detail, sync_type, created_at)
-     VALUES ('export', ?, ?, ?, 'notes_sync', ?)`
+     VALUES ('export', ?, 'skipped', ?, 'notes_sync', ?)`
   );
   const now = nowIso();
 
-  // OWUI Notes API doesn't support writes — log and report
-  for (const f of files) {
-    logStmt.run(f, 'error', 'OWUI Notes API 只读，不支持导出', now);
+  // OWUI Notes API is read-only — log and report
+  for (const f of owuiFiles) {
+    logStmt.run(f, 'OWUI Notes API 只读，不支持写入', now);
   }
 
-  console.log(`[KBSync] exportNotesToOpenWebUI: ${files.length} local notes found, but OWUI API is read-only`);
-
-  // OWUI Notes API doesn't support writes — log and report
-  console.log(`[KBSync] exportNotesToOpenWebUI: ${files.length} local notes found, but OWUI API is read-only`);
+  console.log(`[KBSync] exportNotesToOpenWebUI: ${owuiFiles.length} OWUI notes skipped (API read-only)`);
   return {
     success: false,
     exported: 0,
-    skipped: files.length,
+    skipped: owuiFiles.length,
     errors: files.length,
     note: 'owui_notes_api_read_only',
   };
