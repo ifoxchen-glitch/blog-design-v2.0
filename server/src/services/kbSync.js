@@ -752,6 +752,13 @@ async function importNotesFromOpenWebUI() {
     return { success: false, error: 'failed_to_list_notes', detail: listRes.data };
   }
 
+  const db = openDb();
+  const logStmt = db.prepare(
+    `INSERT INTO kb_sync_logs (direction, file_path, status, detail, sync_type, created_at)
+     VALUES ('import', ?, ?, ?, 'notes_sync', ?)`
+  );
+  const now = nowIso();
+
   const notes = Array.isArray(listRes.data) ? listRes.data : [];
   let imported = 0, skipped = 0;
 
@@ -775,13 +782,20 @@ async function importNotesFromOpenWebUI() {
     // Skip if already exists and unchanged
     if (fs.existsSync(filePath)) {
       const existing = fs.readFileSync(filePath, 'utf8');
-      if (existing === fullContent) { skipped++; continue; }
+      if (existing === fullContent) {
+        logStmt.run(filename, 'skipped', '内容无变化', now);
+        skipped++; continue;
+      }
     }
 
     fs.writeFileSync(filePath, fullContent, 'utf8');
     imported++;
+    logStmt.run(filename, 'success', `导入 ${md.length} 字符`, now);
     console.log(`[KBSync] Imported note: ${filename} (${md.length} chars)`);
   }
+
+  // Summary log
+  logStmt.run(`notes_import_${now}`, 'success', `导入完成: ${imported} 条导入, ${skipped} 条跳过`, now);
 
   console.log(`[KBSync] importNotesFromOpenWebUI: ${imported} imported, ${skipped} skipped`);
   return { success: true, imported, skipped };
@@ -804,6 +818,20 @@ async function exportNotesToOpenWebUI() {
   // Scan .md files in notes/ directory
   const files = fs.readdirSync(notesDir).filter(f => f.endsWith('.md'));
   if (files.length === 0) return { success: true, exported: 0, skipped: 0 };
+
+  const db = openDb();
+  const logStmt = db.prepare(
+    `INSERT INTO kb_sync_logs (direction, file_path, status, detail, sync_type, created_at)
+     VALUES ('export', ?, ?, ?, 'notes_sync', ?)`
+  );
+  const now = nowIso();
+
+  // OWUI Notes API doesn't support writes — log and report
+  for (const f of files) {
+    logStmt.run(f, 'error', 'OWUI Notes API 只读，不支持导出', now);
+  }
+
+  console.log(`[KBSync] exportNotesToOpenWebUI: ${files.length} local notes found, but OWUI API is read-only`);
 
   // OWUI Notes API doesn't support writes — log and report
   console.log(`[KBSync] exportNotesToOpenWebUI: ${files.length} local notes found, but OWUI API is read-only`);
