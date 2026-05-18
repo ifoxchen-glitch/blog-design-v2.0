@@ -390,26 +390,49 @@ function getKbGraph(req, res) {
 
   const edgeSet = new Set()
   const edges = []
+  const unmatchedRefs = []  // diagnostic: connection strings that don't match any node
+  let totalRefs = 0
+  let matchedRefs = 0
   rows.forEach(row => {
     const conns = parseTags(row.connections)
+    if (!Array.isArray(conns)) return
     for (const conn of conns) {
+      totalRefs++
       // Normalize: flatten nested arrays, strip wiki-link [[ ]], trim
-      const raw = Array.isArray(conn) ? String(conn[0] || '') : String(conn)
-      const normConn = raw.trim().replace(/^\[\[|\]\]$/g, '').trim()
+      const raw = Array.isArray(conn) ? String(conn[0] || '') : String(conn || '')
+      const normConn = raw.trim().replace(/^\[\[/, '').replace(/\]\]$/, '').trim()
       if (!normConn) continue
       const targetId = lookup[normConn] || lookup[normConn.toLowerCase()]
       if (targetId && targetId !== row.id) {
+        matchedRefs++
         const key = `${row.id}-${targetId}`
         const revKey = `${targetId}-${row.id}`
         if (!edgeSet.has(key) && !edgeSet.has(revKey)) {
           edgeSet.add(key)
           edges.push({ source: String(row.id), target: String(targetId), label: normConn })
         }
+      } else {
+        unmatchedRefs.push({ from_title: row.title, from_id: row.id, ref: conn, normalized: normConn })
       }
     }
   })
 
-  res.json({ code: 200, data: { nodes, edges } })
+  // Log diagnostics to server console for debugging
+  console.log(`[kb-graph] nodes=${nodes.length} refs=${totalRefs} matched=${matchedRefs} edges=${edges.length} unmatched=${unmatchedRefs.length}`)
+  if (unmatchedRefs.length > 0 && unmatchedRefs.length <= 10) {
+    console.log(`[kb-graph] unmatched samples:`, JSON.stringify(unmatchedRefs.slice(0, 10), null, 2))
+  }
+
+  // Include diagnostics in response when ?debug=1 query param is present
+  const debugInfo = req.query.debug === '1' ? {
+    totalRefs,
+    matchedRefs,
+    unmatchedCount: unmatchedRefs.length,
+    unmatchedSamples: unmatchedRefs.slice(0, 20),
+    lookupSize: Object.keys(lookup).length,
+  } : undefined
+
+  res.json({ code: 200, data: { nodes, edges, ...(debugInfo ? { debug: debugInfo } : {}) } })
 }
 
 module.exports = {
