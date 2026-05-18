@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, h, type Component, onBeforeUnmount } from 'vue'
+import { computed, onMounted, ref, watch, h, type Component, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import * as echarts from 'echarts'
@@ -366,6 +366,21 @@ const secondaryItems: SecondaryItem[] = [
   { label: '前端用户', key: 'frontUserCount', icon: IconUserGroup, color: 'text-accent', bg: 'bg-accent/10' },
 ]
 
+// ---- Change percent vs previous day ----
+function changePercent(seriesIndex: number): number | null {
+  const data = trendSeries.value[seriesIndex]?.data
+  if (!data || data.length < 2) return null
+  const today = data[data.length - 1]
+  const yesterday = data[data.length - 2]
+  if (yesterday === 0) return today > 0 ? 100 : 0
+  return Math.round(((today - yesterday) / yesterday) * 100)
+}
+
+const heroChanges = computed(() => ({
+  pv: changePercent(0),
+  uv: changePercent(1),
+}))
+
 function goToPost(postId: number) {
   router.push(`/cms/posts/edit?id=${postId}`)
 }
@@ -452,8 +467,11 @@ const dayOptions = [
           <div class="mt-1 text-3xl font-light tabular-nums text-white">
             {{ animatedNumbers[item.key] ?? 0 }}
           </div>
-          <div class="flex items-center gap-1 mt-1">
-            <span class="text-success text-xs font-medium">↑ --%</span>
+          <div v-if="item.sparklineKey" class="flex items-center gap-1 mt-1">
+            <span v-if="heroChanges[item.sparklineKey] !== null" class="text-xs font-medium" :class="heroChanges[item.sparklineKey]! >= 0 ? 'text-success' : 'text-error'">
+              {{ heroChanges[item.sparklineKey]! >= 0 ? '↑' : '↓' }} {{ Math.abs(heroChanges[item.sparklineKey]!) }}%
+            </span>
+            <span v-else class="text-base-content/30 text-xs">--%</span>
             <span class="text-base-content/40 text-xs">vs 昨日</span>
           </div>
         </div>
