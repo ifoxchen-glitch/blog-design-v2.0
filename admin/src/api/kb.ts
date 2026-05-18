@@ -473,6 +473,7 @@ export interface SyncLogEntry {
   status: 'success' | 'skipped' | 'conflict' | 'error'
   checksum: string | null
   detail: string | null
+  sync_type: string | null
   created_at: string
 }
 
