@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import axios from 'axios'
+import yaml from 'js-yaml'
 import {
   NButton,
   NForm,
@@ -100,34 +101,26 @@ const formRules = computed<FormRules>(() => ({
 // ---- YAML front matter helpers ----
 
 /**
- * Parse YAML front matter from markdown content (frontend lightweight parser).
+ * Parse YAML front matter from markdown content using js-yaml.
  */
 function parseYamlFrontMatter(content: string): { attributes: Record<string, unknown>; body: string } {
+  if (typeof content !== 'string') return { attributes: {}, body: '' }
+
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/)
   if (!match) return { attributes: {}, body: content }
 
   const yamlStr = match[1]
   const body = content.slice(match[0].length)
-  const attrs: Record<string, unknown> = {}
 
-  for (const line of yamlStr.split('\n')) {
-    const colonIdx = line.indexOf(':')
-    if (colonIdx === -1) continue
-    const key = line.slice(0, colonIdx).trim()
-    let val: unknown = line.slice(colonIdx + 1).trim()
-
-    if (typeof val === 'string' && val.startsWith('[') && val.endsWith(']')) {
-      val = val.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
-    } else if (typeof val === 'string' && (val.startsWith('"') && val.endsWith('"') || val.startsWith("'") && val.endsWith("'"))) {
-      val = val.slice(1, -1)
-    } else if (typeof val === 'string' && val.length === 0) {
-      continue
+  try {
+    const data = yaml.load(yamlStr) as Record<string, unknown>
+    return {
+      attributes: (data && typeof data === 'object' && !Array.isArray(data)) ? data : {},
+      body,
     }
-
-    attrs[key] = val
+  } catch {
+    return { attributes: {}, body: content }
   }
-
-  return { attributes: attrs, body }
 }
 
 /**
@@ -135,7 +128,7 @@ function parseYamlFrontMatter(content: string): { attributes: Record<string, unk
  * Writes all keys, with known keys ordered first.
  */
 function buildYamlFrontMatter(attrs: Record<string, unknown>): string {
-  const knownKeys = ['title', 'type', 'tags', 'connections', 'sources', 'last_updated', 'status']
+  const knownKeys = ['title', 'type', 'tags', 'connections', 'sources', 'excerpt', 'description', 'category', 'last_updated', 'status']
   const written = new Set<string>()
   const lines: string[] = []
 
@@ -193,7 +186,7 @@ async function loadDocument() {
     form.review_status = yaml.status as string ?? detail.review_status ?? ''
 
     // Preserve any extra YAML fields not in the known schema
-    const knownKeys = new Set(['title', 'type', 'tags', 'connections', 'sources', 'last_updated', 'status', 'category'])
+    const knownKeys = new Set(['title', 'type', 'tags', 'connections', 'sources', 'excerpt', 'description', 'category', 'last_updated', 'status'])
     for (const k of Object.keys(extraYamlFields)) delete extraYamlFields[k]
     for (const k of Object.keys(yaml)) {
       if (!knownKeys.has(k)) {
@@ -236,6 +229,9 @@ async function doSave(): Promise<boolean> {
       tags: form.tags,
       connections: form.connections,
       sources: form.sources,
+      excerpt: form.excerpt || undefined,
+      description: form.excerpt || undefined,
+      category: form.category || undefined,
       last_updated: form.doc_date || undefined,
       status: form.review_status || undefined,
       ...extraYamlFields,
