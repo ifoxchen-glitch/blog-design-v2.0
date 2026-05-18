@@ -29,46 +29,46 @@ function parseFrontMatter(content) {
 
 /**
  * Build YAML front matter string from attributes object, then append body.
- * Known keys are ordered first; extra keys follow alphabetically.
+ * Uses js-yaml.dump() for proper escaping of special characters.
+ * Known keys are ordered first; extra keys follow in their original order.
  * @param {Object} attributes
  * @param {string} body
  * @returns {string} Full document content with YAML front matter + body
  */
 function buildFrontMatter(attributes, body) {
   const knownKeys = ["title", "type", "tags", "connections", "sources", "excerpt", "description", "category", "last_updated", "status"];
+
+  // Build ordered attrs object: known keys first, then extra keys
+  const orderedAttrs = {};
   const written = new Set();
-  const lines = [];
 
   for (const k of knownKeys) {
     const v = attributes[k];
     if (v === undefined || v === null || v === "") continue;
+    if (Array.isArray(v) && v.length === 0) continue;
+    orderedAttrs[k] = v;
     written.add(k);
-    if (Array.isArray(v)) {
-      if (v.length === 0) continue;
-      const items = v.map(i => String(i).includes(" ") ? `"${i}"` : String(i)).join(", ");
-      lines.push(`${k}: [${items}]`);
-    } else if (typeof v === "string" && /[:\-\[\]]/.test(v)) {
-      lines.push(`${k}: "${v}"`);
-    } else {
-      lines.push(`${k}: ${v}`);
-    }
   }
 
-  // Extra keys (not in known set)
-  for (const k of Object.keys(attributes).sort()) {
+  // Preserve extra (unknown) keys in their original order
+  for (const k of Object.keys(attributes)) {
     if (written.has(k)) continue;
     const v = attributes[k];
     if (v === undefined || v === null || v === "") continue;
-    if (Array.isArray(v)) {
-      if (v.length === 0) continue;
-      lines.push(`${k}: [${v.join(", ")}]`);
-    } else {
-      lines.push(`${k}: ${v}`);
-    }
+    if (Array.isArray(v) && v.length === 0) continue;
+    orderedAttrs[k] = v;
   }
 
-  if (lines.length === 0) return body || "";
-  return `---\n${lines.join("\n")}\n---\n${body || ""}`;
+  if (Object.keys(orderedAttrs).length === 0) return body || "";
+
+  const yamlStr = yaml.dump(orderedAttrs, {
+    lineWidth: -1,
+    noRefs: true,
+    quotingType: '"',
+    forceQuotes: false,
+  });
+
+  return `---\n${yamlStr}---\n${body || ""}`;
 }
 
 module.exports = { parseFrontMatter, buildFrontMatter };

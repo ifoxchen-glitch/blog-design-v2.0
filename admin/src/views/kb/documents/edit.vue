@@ -124,45 +124,42 @@ function parseYamlFrontMatter(content: string): { attributes: Record<string, unk
 }
 
 /**
- * Build YAML front matter string from attributes object.
- * Writes all keys, with known keys ordered first.
+ * Build YAML front matter string from attributes object using js-yaml.dump.
+ * Known keys are written first; extra keys follow in their original order.
  */
 function buildYamlFrontMatter(attrs: Record<string, unknown>): string {
   const knownKeys = ['title', 'type', 'tags', 'connections', 'sources', 'excerpt', 'description', 'category', 'last_updated', 'status']
+
+  // Build ordered attrs: known keys first, then extra keys
+  const orderedAttrs: Record<string, unknown> = {}
   const written = new Set<string>()
-  const lines: string[] = []
 
   for (const k of knownKeys) {
     const v = attrs[k]
     if (v === undefined || v === null || v === '') continue
-    written.add(k)
     if (Array.isArray(v) && v.length === 0) continue
-    if (Array.isArray(v)) {
-      const items = v.map((i: unknown) => typeof i === 'string' && i.includes(' ') ? `"${i}"` : String(i)).join(', ')
-      lines.push(`${k}: [${items}]`)
-    } else if (typeof v === 'string' && /[:\-\[\]]/.test(v)) {
-      lines.push(`${k}: "${v}"`)
-    } else {
-      lines.push(`${k}: ${v}`)
-    }
+    orderedAttrs[k] = v
+    written.add(k)
   }
 
-  // Write extra keys (preserves unknown YAML fields)
   for (const k of Object.keys(attrs)) {
     if (written.has(k)) continue
     const v = attrs[k]
     if (v === undefined || v === null || v === '') continue
     if (Array.isArray(v) && v.length === 0) continue
-    if (Array.isArray(v)) {
-      const items = v.map((i: unknown) => typeof i === 'string' && i.includes(' ') ? `"${i}"` : String(i)).join(', ')
-      lines.push(`${k}: [${items}]`)
-    } else {
-      lines.push(`${k}: ${v}`)
-    }
+    orderedAttrs[k] = v
   }
 
-  if (lines.length === 0) return ''
-  return `---\n${lines.join('\n')}\n---\n`
+  if (Object.keys(orderedAttrs).length === 0) return ''
+
+  const yamlStr = yaml.dump(orderedAttrs, {
+    lineWidth: -1,
+    noRefs: true,
+    quotingType: '"',
+    forceQuotes: false,
+  })
+
+  return `---\n${yamlStr}---\n`
 }
 
 async function loadDocument() {
@@ -230,7 +227,6 @@ async function doSave(): Promise<boolean> {
       connections: form.connections,
       sources: form.sources,
       excerpt: form.excerpt || undefined,
-      description: form.excerpt || undefined,
       category: form.category || undefined,
       last_updated: form.doc_date || undefined,
       status: form.review_status || undefined,
