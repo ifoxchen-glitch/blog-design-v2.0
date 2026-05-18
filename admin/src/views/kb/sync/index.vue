@@ -239,13 +239,20 @@ async function handleSyncNotes() {
   notesSyncing.value = true
   notesSyncLogs.value = [{ time: new Date().toLocaleTimeString(), message: '开始同步 Open WebUI 笔记...', type: 'info' }]
   try {
-    await apiTriggerNotesSync()
-    notesSyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: '笔记同步任务已启动', type: 'success' })
-    message.success('笔记同步已启动')
+    const res = await apiTriggerNotesSync()
+    const data = res.data as { import?: { imported?: number; skipped?: number }; export?: { exported?: number } } | undefined
+    const imported = data?.import?.imported ?? 0
+    const skipped = data?.import?.skipped ?? 0
+    notesSyncLogs.value.push({
+      time: new Date().toLocaleTimeString(),
+      message: `同步完成: 导入 ${imported} 条, 跳过 ${skipped} 条`,
+      type: 'success',
+    })
+    message.success(`笔记同步完成: 导入 ${imported} 条`)
   } catch (err: unknown) {
     const error = err as { message?: string }
     notesSyncLogs.value.push({ time: new Date().toLocaleTimeString(), message: `同步失败: ${error?.message || '未知错误'}`, type: 'error' })
-    message.error('笔记同步启动失败')
+    message.error('笔记同步失败')
   } finally {
     notesSyncing.value = false
   }

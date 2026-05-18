@@ -498,12 +498,13 @@ async function triggerNotesSync(req, res) {
     return res.status(400).json({code:400,message:'OPEN_WEBUI_API_KEY not configured'});
   }
   auditLog(db, req, 'trigger_notes_sync', null, 'Trigger Open WebUI Notes sync');
-  res.status(202).json({code:202,message:'Notes sync started',data:{status:'started'}});
   try {
     var result = await kbSync.fullSyncNotes();
     console.log('[SyncHandler] Open WebUI Notes sync complete:', JSON.stringify(result));
+    res.json({ code: 200, message: 'Notes sync complete', data: result });
   } catch(err) {
     console.error('[SyncHandler] Open WebUI Notes sync failed:', err.message);
+    res.status(500).json({ code: 500, message: err.message });
   }
 }
 
