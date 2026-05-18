@@ -725,6 +725,112 @@ async function fullSyncFromOpenWebUI(source) {
   return result;
 }
 
+// ---- Open WebUI Notes sync (bidirectional: /api/v1/notes/ ↔ notes/ directory) ----
+
+function getVaultPath() {
+  try {
+    const db = openDb();
+    const config = db.prepare("SELECT vault_path FROM kb_sync_config WHERE id = 1").get();
+    return config?.vault_path || '';
+  } catch { return ''; }
+}
+
+/**
+ * Import: OWUI Notes → local notes/ directory
+ * Reads all notes from /api/v1/notes/ and writes them as .md files.
+ */
+async function importNotesFromOpenWebUI() {
+  const token = getApiKey();
+  const vaultPath = getVaultPath();
+  if (!vaultPath) return { success: false, error: 'vault_path_not_configured' };
+
+  const notesDir = path.join(vaultPath, 'notes');
+  fs.mkdirSync(notesDir, { recursive: true });
+
+  const listRes = await makeRequest('/api/v1/notes/', 'GET', null, token);
+  if (listRes.status < 200 || listRes.status >= 300) {
+    return { success: false, error: 'failed_to_list_notes', detail: listRes.data };
+  }
+
+  const notes = Array.isArray(listRes.data) ? listRes.data : [];
+  let imported = 0, skipped = 0;
+
+  for (const note of notes) {
+    const md = note.data?.content?.md || '';
+    if (!md.trim()) { skipped++; continue; }
+
+    // Sanitize title to a valid filename
+    const safeName = (note.title || `note-${note.id}`)
+      .replace(/[<>:"/\\|?*]/g, '-')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || `note-${note.id}`;
+    const filename = safeName + '.md';
+    const filePath = path.join(notesDir, filename);
+
+    // Build frontmatter + body
+    const frontmatter = `---\ntitle: ${note.title || ''}\nowui_id: ${note.id}\ncreated_at: ${note.created_at}\nupdated_at: ${note.updated_at}\n---\n\n`;
+    const fullContent = frontmatter + md;
+
+    // Skip if already exists and unchanged
+    if (fs.existsSync(filePath)) {
+      const existing = fs.readFileSync(filePath, 'utf8');
+      if (existing === fullContent) { skipped++; continue; }
+    }
+
+    fs.writeFileSync(filePath, fullContent, 'utf8');
+    imported++;
+    console.log(`[KBSync] Imported note: ${filename} (${md.length} chars)`);
+  }
+
+  console.log(`[KBSync] importNotesFromOpenWebUI: ${imported} imported, ${skipped} skipped`);
+  return { success: true, imported, skipped };
+}
+
+/**
+ * Export: local notes/ directory → OWUI Notes
+ * NOTE: OWUI Notes API is read-only (all write methods return 405).
+ * This function scans the directory and reports the limitation.
+ */
+async function exportNotesToOpenWebUI() {
+  const vaultPath = getVaultPath();
+  if (!vaultPath) return { success: false, error: 'vault_path_not_configured' };
+
+  const notesDir = path.join(vaultPath, 'notes');
+  if (!fs.existsSync(notesDir)) {
+    return { success: true, exported: 0, skipped: 0, note: 'notes_dir_not_found' };
+  }
+
+  // Scan .md files in notes/ directory
+  const files = fs.readdirSync(notesDir).filter(f => f.endsWith('.md'));
+  if (files.length === 0) return { success: true, exported: 0, skipped: 0 };
+
+  // OWUI Notes API doesn't support writes — log and report
+  console.log(`[KBSync] exportNotesToOpenWebUI: ${files.length} local notes found, but OWUI API is read-only`);
+  return {
+    success: false,
+    exported: 0,
+    skipped: files.length,
+    errors: files.length,
+    note: 'owui_notes_api_read_only',
+  };
+}
+
+/**
+ * Bidirectional sync: import then export
+ */
+async function fullSyncNotes() {
+  console.log('[KBSync] fullSyncNotes starting...');
+
+  const importResult = await importNotesFromOpenWebUI();
+  const exportResult = await exportNotesToOpenWebUI();
+
+  return {
+    import: importResult,
+    export: exportResult,
+  };
+}
+
 module.exports = {
   getApiKey,
   isConfigured,
@@ -737,4 +843,7 @@ module.exports = {
   listKnowledgeBases,
   importFromOpenWebUI,
   fullSyncFromOpenWebUI,
+  importNotesFromOpenWebUI,
+  exportNotesToOpenWebUI,
+  fullSyncNotes,
 };

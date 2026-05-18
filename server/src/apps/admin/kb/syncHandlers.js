@@ -491,9 +491,27 @@ async function triggerOpenWebUIImport(req, res) {
 }
 
 
+// Open WebUI Notes sync (bidirectional: /api/v1/notes/ ↔ notes/ directory)
+async function triggerNotesSync(req, res) {
+  var db = openDb();
+  if (!kbSync.isConfigured()) {
+    return res.status(400).json({code:400,message:'OPEN_WEBUI_API_KEY not configured'});
+  }
+  auditLog(db, req, 'trigger_notes_sync', null, 'Trigger Open WebUI Notes sync');
+  res.status(202).json({code:202,message:'Notes sync started',data:{status:'started'}});
+  try {
+    var result = await kbSync.fullSyncNotes();
+    console.log('[SyncHandler] Open WebUI Notes sync complete:', JSON.stringify(result));
+  } catch(err) {
+    console.error('[SyncHandler] Open WebUI Notes sync failed:', err.message);
+  }
+}
+
+
 module.exports = {
   getSyncConfig, updateSyncConfig, triggerImport, triggerExport,
   listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles,
   getSyncedFiles, clearSyncedData, getOpenWebUIStatus, triggerOpenWebUISync, triggerOpenWebUIImport,
   testOpenWebUIConnection, getOpenWebUISyncProgress, getKnowledgeBases,
+  triggerNotesSync,
 };

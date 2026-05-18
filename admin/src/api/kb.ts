@@ -1121,3 +1121,8 @@ export async function apiTriggerOpenWebUIImport(client: AxiosInstance = request)
   const res = await client.post<{ code: number; message: string; data?: unknown }>('/api/v2/admin/kb/sync/openwebui-import')
   return res.data
 }
+
+export async function apiTriggerNotesSync(client: AxiosInstance = request): Promise<{ code: number; message: string; data?: unknown }> {
+  const res = await client.post<{ code: number; message: string; data?: unknown }>('/api/v2/admin/kb/sync/notes-sync')
+  return res.data
+}
