@@ -624,7 +624,7 @@ onMounted(() => {
 
 <template>
   <div>
-    <PageHeader title="Obsidian 同步" subtitle="Obsidian Vault 双向同步管理">
+    <PageHeader title="同步管理" subtitle="多源同步管理中心">
       <NButton quaternary @click="handleRefreshAll">
         <template #icon><RefreshOutline class="w-4 h-4" /></template>
         刷新
@@ -632,6 +632,14 @@ onMounted(() => {
     </PageHeader>
 
     <NSpin :show="loading">
+
+      <!-- ============ Obsidian Vault ============ -->
+      <div class="flex items-center gap-2 mb-4 mt-2">
+        <div class="h-px flex-1 bg-base-content/10" />
+        <span class="text-xs font-medium text-base-content/30 tracking-wider uppercase">Obsidian Vault</span>
+        <div class="h-px flex-1 bg-base-content/10" />
+      </div>
+
       <!-- 同步状态 + 4 action buttons -->
       <div class="bg-base-100 rounded-xl border border-base-content/5 p-5 mb-6">
         <!-- Header row -->
@@ -796,14 +804,20 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Sync records (historical log) -->
+      <!-- ============ 同步记录 ============ -->
+      <div class="flex items-center gap-2 mb-4 mt-2">
+        <div class="h-px flex-1 bg-base-content/10" />
+        <span class="text-xs font-medium text-base-content/30 tracking-wider uppercase">同步记录</span>
+        <div class="h-px flex-1 bg-base-content/10" />
+      </div>
+
       <div class="bg-base-100 rounded-xl border border-base-content/5">
         <div
           class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-base-200/30"
           @click="logsCollapsed = !logsCollapsed"
         >
           <div class="flex items-center gap-2">
-            <span class="font-medium text-sm">同步记录</span>
+            <span class="font-medium text-sm">历史记录</span>
             <span class="text-[10px] text-base-content/30">{{ logsTotal }} 条</span>
           </div>
           <div class="flex items-center gap-2">
@@ -835,36 +849,27 @@ onMounted(() => {
                   <tr class="text-left text-base-content/40 border-b border-base-content/5">
                     <th class="py-2 pr-4 font-normal">时间</th>
                     <th class="py-2 pr-4 font-normal">方向</th>
+                    <th class="py-2 pr-4 font-normal">类型</th>
                     <th class="py-2 pr-4 font-normal">文件</th>
                     <th class="py-2 pr-4 font-normal">状态</th>
                     <th class="py-2 pr-4 font-normal">详情</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr
-                    v-for="log in logs"
-                    :key="log.id"
-                    class="border-b border-base-content/5 hover:bg-base-200/30"
-                  >
-                    <td class="py-2 pr-4 text-base-content/40 whitespace-nowrap">
-                      {{ new Date(log.created_at).toLocaleString() }}
+                  <tr v-for="log in logs" :key="log.id" class="border-b border-base-content/5 hover:bg-base-200/30">
+                    <td class="py-2 pr-4 text-base-content/40 whitespace-nowrap">{{ new Date(log.created_at).toLocaleString() }}</td>
+                    <td class="py-2 pr-4">
+                      <NTag :type="logDirTagType(log.direction)" size="tiny">{{ log.direction === 'import' ? '导入' : '导出' }}</NTag>
                     </td>
                     <td class="py-2 pr-4">
-                      <NTag :type="logDirTagType(log.direction)" size="tiny">
-                        {{ log.direction === 'import' ? '导入' : '导出' }}
-                      </NTag>
+                      <span v-if="log.sync_type" class="text-[10px] text-base-content/40 bg-base-200/50 px-1.5 py-0.5 rounded">{{ log.sync_type }}</span>
+                      <span v-else class="text-[10px] text-base-content/20">kb</span>
                     </td>
-                    <td class="py-2 pr-4 text-base-content/60 max-w-48 truncate">
-                      {{ log.file_path || '-' }}
-                    </td>
+                    <td class="py-2 pr-4 text-base-content/60 max-w-40 truncate">{{ log.file_path || '-' }}</td>
                     <td class="py-2 pr-4">
-                      <NTag :type="logStatusTagType(log.status)" size="tiny">
-                        {{ log.status === 'success' ? '成功' : log.status === 'skipped' ? '跳过' : log.status === 'conflict' ? '冲突' : log.status === 'error' ? '错误' : log.status }}
-                      </NTag>
+                      <NTag :type="logStatusTagType(log.status)" size="tiny">{{ log.status === 'success' ? '成功' : log.status === 'skipped' ? '跳过' : log.status === 'conflict' ? '冲突' : log.status === 'error' ? '错误' : log.status }}</NTag>
                     </td>
-                    <td class="py-2 pr-4 text-base-content/40 max-w-40 truncate">
-                      {{ log.detail || '-' }}
-                    </td>
+                    <td class="py-2 pr-4 text-base-content/40 max-w-40 truncate">{{ log.detail || '-' }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -880,12 +885,19 @@ onMounted(() => {
         </div>
       </div>
 
+      <!-- ============ Open WebUI ============ -->
+      <div class="flex items-center gap-2 mb-4 mt-2">
+        <div class="h-px flex-1 bg-base-content/10" />
+        <span class="text-xs font-medium text-base-content/30 tracking-wider uppercase">Open WebUI</span>
+        <div class="h-px flex-1 bg-base-content/10" />
+      </div>
+
       <!-- Open WebUI 知识库同步 -->
       <div class="bg-base-100 rounded-xl border border-base-content/5 mb-4">
         <div class="px-4 py-3 border-b border-base-content/5">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
-              <h3 class="font-medium text-sm">同步到 Open WebUI</h3>
+              <h3 class="font-medium text-sm">同步到知识库</h3>
               <NTag v-if="openWebUIStatus.configured" type="success" size="tiny">已配置</NTag>
               <NTag v-else type="warning" size="tiny">未配置</NTag>
               <span class="text-xs text-base-content/40">{{ openWebUIStatus.open_webui_url }}</span>
