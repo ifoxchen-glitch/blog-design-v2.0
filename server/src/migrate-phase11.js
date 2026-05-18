@@ -48,5 +48,27 @@ module.exports = function migratePhase11(db) {
     db.exec("UPDATE kb_documents SET original_path = 'wiki/' || original_path WHERE source = 'obsidian' AND original_path IS NOT NULL AND original_path NOT LIKE 'wiki/%' AND original_path NOT LIKE 'notes/%'");
   } catch(e) { console.log('[P11d]', e.message); }
 
+  // Add sync_type and result columns to kb_sync_logs (used by fullSyncFromOpenWebUI)
+  try { db.exec("ALTER TABLE kb_sync_logs ADD COLUMN sync_type TEXT"); } catch(e) {}
+  try { db.exec("ALTER TABLE kb_sync_logs ADD COLUMN result TEXT"); } catch(e) {}
+
+  // Clean up selected_paths: remove entries that are absolute paths or don't use content-dir prefix
+  try {
+    var row = db.prepare("SELECT id, selected_paths FROM kb_sync_config WHERE id = 1").get();
+    if (row && row.selected_paths) {
+      var paths;
+      try { paths = JSON.parse(row.selected_paths); } catch(e) { paths = []; }
+      if (Array.isArray(paths) && paths.length > 0) {
+        var cleaned = paths.filter(function(p) {
+          return typeof p === 'string' && !p.startsWith('/') && (p.startsWith('wiki/') || p.startsWith('notes/') || p === 'wiki' || p === 'notes');
+        });
+        if (cleaned.length !== paths.length) {
+          db.prepare("UPDATE kb_sync_config SET selected_paths = ?, updated_at = datetime('now') WHERE id = 1").run(JSON.stringify(cleaned));
+          console.log('[P11e] cleaned selected_paths: removed ' + (paths.length - cleaned.length) + ' old-style entries');
+        }
+      }
+    }
+  } catch(e) { console.log('[P11e]', e.message); }
+
   console.log('[Phase 11] done');
 };
