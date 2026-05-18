@@ -831,6 +831,70 @@ async function fullSyncNotes() {
   };
 }
 
+/**
+ * Test connection to OWUI Notes API
+ */
+async function testNotesConnection() {
+  const token = getApiKey();
+  if (!token) return { ok: false, error: 'api_key_not_configured' };
+
+  const vaultPath = getVaultPath();
+
+  const results = { steps: [], ok: false };
+
+  // Step 1: check vault path
+  results.steps.push({
+    name: 'vault_path',
+    status: vaultPath ? 'ok' : 'fail',
+    vaultPath: vaultPath || '(not configured)',
+  });
+  if (vaultPath) {
+    const notesDirExists = require('fs').existsSync(require('path').join(vaultPath, 'notes'));
+    results.steps.push({
+      name: 'notes_dir',
+      status: notesDirExists ? 'ok' : 'warn',
+      detail: notesDirExists ? 'notes/ 目录存在' : 'notes/ 目录不存在（将自动创建）',
+    });
+  }
+
+  // Step 2: call the notes API
+  try {
+    const listRes = await makeRequest('/api/v1/notes/', 'GET', null, token);
+    const httpOk = listRes.status >= 200 && listRes.status < 300;
+    results.steps.push({
+      name: 'notes_api',
+      status: httpOk ? 'ok' : 'fail',
+      httpStatus: listRes.status,
+      detail: httpOk ? '连接成功' : 'API 返回错误',
+      data: !httpOk ? listRes.data : undefined,
+    });
+
+    if (httpOk) {
+      const notes = Array.isArray(listRes.data) ? listRes.data : [];
+      const withContent = notes.filter(n => n.data?.content?.md?.trim());
+      results.steps.push({
+        name: 'notes_count',
+        status: 'ok',
+        total: notes.length,
+        withContent: withContent.length,
+        samples: withContent.slice(0, 3).map(n => ({
+          title: n.title,
+          contentLength: (n.data?.content?.md || '').length,
+        })),
+      });
+      results.ok = true;
+    }
+  } catch (err) {
+    results.steps.push({
+      name: 'notes_api',
+      status: 'fail',
+      error: err.message,
+    });
+  }
+
+  return results;
+}
+
 module.exports = {
   getApiKey,
   isConfigured,
@@ -846,4 +910,5 @@ module.exports = {
   importNotesFromOpenWebUI,
   exportNotesToOpenWebUI,
   fullSyncNotes,
+  testNotesConnection,
 };

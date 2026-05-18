@@ -1126,3 +1126,23 @@ export async function apiTriggerNotesSync(client: AxiosInstance = request): Prom
   const res = await client.post<{ code: number; message: string; data?: unknown }>('/api/v2/admin/kb/sync/notes-sync')
   return res.data
 }
+
+export interface NotesTestResult {
+  ok: boolean
+  steps: Array<{
+    name: string
+    status: string
+    httpStatus?: number
+    total?: number
+    withContent?: number
+    samples?: Array<{ title: string; contentLength: number }>
+    error?: string
+    detail?: string
+    data?: unknown
+  }>
+}
+
+export async function apiTestNotesConnection(client: AxiosInstance = request): Promise<NotesTestResult> {
+  const res = await client.get<ApiResponse<NotesTestResult>>('/api/v2/admin/kb/sync/notes-test')
+  return res.data.data
+}
