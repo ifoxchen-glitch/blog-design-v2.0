@@ -34,6 +34,8 @@ const graphData = ref<{ nodes: KbGraphNode[]; edges: KbGraphEdge[] }>({ nodes: [
 const categoryOptions = ref<Array<{ label: string; value: string }>>([])
 const selectedCategory = ref('')
 const selectedDocType = ref('')
+const selectedReviewStatus = ref('')
+const selectedLayout = ref('grid')
 const selectedNode = ref<KbGraphNode | null>(null)
 
 const DOC_TYPE_OPTIONS = [
@@ -42,6 +44,21 @@ const DOC_TYPE_OPTIONS = [
   { label: '概念 (concept)', value: 'concept' },
   { label: '来源 (source)', value: 'source' },
   { label: '综合 (synthesis)', value: 'synthesis' },
+]
+
+const REVIEW_OPTIONS = [
+  { label: '全部成熟度', value: '' },
+  { label: '成熟 (mature)', value: 'mature' },
+  { label: '完善中 (developing)', value: 'developing' },
+  { label: '草稿 (seed)', value: 'seed' },
+]
+
+const LAYOUT_OPTIONS = [
+  { label: '网格', value: 'grid' },
+  { label: '圆形', value: 'circle' },
+  { label: '同心圆', value: 'concentric' },
+  { label: '层级', value: 'breadthfirst' },
+  { label: '力导向', value: 'cose' },
 ]
 
 const TYPE_COLORS: Record<string, string> = {
@@ -90,6 +107,7 @@ function filterNodes(): { nodes: KbGraphNode[]; edges: KbGraphEdge[] } {
   const nds = graphData.value.nodes.filter(n => {
     if (selectedCategory.value && n.category !== selectedCategory.value) return false
     if (selectedDocType.value && n.doc_type !== selectedDocType.value) return false
+    if (selectedReviewStatus.value && n.review_status !== selectedReviewStatus.value) return false
     return true
   })
   const nidSet = new Set(nds.map(n => n.id))
@@ -97,6 +115,24 @@ function filterNodes(): { nodes: KbGraphNode[]; edges: KbGraphEdge[] } {
     nidSet.has(e.source) && nidSet.has(e.target)
   )
   return { nodes: nds, edges: eds }
+}
+
+function buildLayoutOptions(): Record<string, unknown> {
+  const name = selectedLayout.value
+  const base = { name, fit: true, animate: false, padding: 40 }
+  switch (name) {
+    case 'concentric':
+      return { ...base, minNodeSpacing: 40, levelWidth: () => 1 }
+    case 'breadthfirst':
+      return { ...base, directed: true, spacingFactor: 1.2 }
+    case 'cose':
+      return { ...base, idealEdgeLength: 100, nodeOverlap: 20, nodeRepulsion: 8000 }
+    case 'circle':
+      return { ...base, spacingFactor: 1.2 }
+    case 'grid':
+    default:
+      return { ...base, rows: undefined }
+  }
 }
 
 function renderGraph() {
@@ -184,7 +220,7 @@ function renderGraph() {
         style: { 'line-color': '#f59e0b', 'width': 2.5, 'opacity': 1 },
       },
     ],
-    layout: { name: 'grid', fit: true, rows: undefined, animate: false },
+    layout: buildLayoutOptions() as any,
     // Use default wheel sensitivity
     minZoom: 0.1,
     maxZoom: 4,
@@ -244,6 +280,8 @@ function handleOpenDoc() {
 
 function handleDocTypeChange() { renderGraph() }
 function handleCategoryChange() { renderGraph() }
+function handleReviewStatusChange() { renderGraph() }
+function handleLayoutChange() { renderGraph() }
 
 onMounted(async () => {
   await nextTick()
@@ -293,10 +331,26 @@ onBeforeUnmount(() => {
         style="width: 150px"
         @update:value="handleDocTypeChange"
       />
+      <NSelect
+        v-model:value="selectedReviewStatus"
+        :options="REVIEW_OPTIONS"
+        placeholder="成熟度筛选"
+        size="small"
+        clearable
+        style="width: 150px"
+        @update:value="handleReviewStatusChange"
+      />
       <div style="flex: 1" />
       <span style="font-size: 11px; color: var(--color-base-content); opacity: 0.5">
         {{ graphData.nodes.length }} 节点 / {{ graphData.edges.length }} 条关系
       </span>
+      <NSelect
+        v-model:value="selectedLayout"
+        :options="LAYOUT_OPTIONS"
+        size="small"
+        style="width: 110px"
+        @update:value="handleLayoutChange"
+      />
       <NButton size="tiny" @click="handleFit">
         <template #icon><ExpandOutline class="w-4 h-4" /></template>
         适应屏幕
