@@ -6,7 +6,7 @@ const app = express.Router();
 
 app.use(express.json({ limit: "2mb" }));
 
-app.post("/publish/blog", requirePublishApiKey, publishBlogPost);
-app.post("/publish/kb", requirePublishApiKey, publishKbDocument);
+app.post("/blog", requirePublishApiKey, publishBlogPost);
+app.post("/kb", requirePublishApiKey, publishKbDocument);
 
 module.exports = app;
