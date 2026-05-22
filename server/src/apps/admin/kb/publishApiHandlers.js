@@ -1,6 +1,6 @@
 const { openDb } = require("../../../db");
 const { nowIso, normalizeSlug, splitTags } = require("../../../utils");
-const { renderMarkdownToSafeHtml } = require("../../markdown");
+const { renderMarkdownToSafeHtml } = require("../../../markdown");
 
 function ensureUniqueSlug(db, baseSlug, table, column = "slug") {
   let slug = baseSlug;
