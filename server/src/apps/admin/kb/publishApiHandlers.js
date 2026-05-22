@@ -1,5 +1,6 @@
 const { openDb } = require("../../../db");
 const { nowIso, normalizeSlug, splitTags } = require("../../../utils");
+const { renderMarkdownToSafeHtml } = require("../../markdown");
 
 function ensureUniqueSlug(db, baseSlug, table, column = "slug") {
   let slug = baseSlug;
@@ -27,7 +28,7 @@ function publishBlogPost(req, res) {
   const slug = ensureUniqueSlug(db, baseSlug, "posts");
 
   const wordCount = contentMarkdown.split(/\s+/).filter(Boolean).length;
-  const contentHtml = contentMarkdown;
+  const contentHtml = renderMarkdownToSafeHtml(contentMarkdown);
 
   const post = db.prepare(`
     INSERT INTO posts (title, slug, excerpt, coverImageUrl, contentMarkdown, contentHtml, status, publishedAt, createdAt, updatedAt)
@@ -125,7 +126,7 @@ function publishKbDocument(req, res) {
     slug,
     excerpt || "",
     contentMarkdown,
-    contentHtml || contentMarkdown,
+    renderMarkdownToSafeHtml(contentHtml || contentMarkdown),
     category || null,
     docType,
     JSON.stringify(Array.isArray(connections) ? connections.filter(Boolean) : []),
