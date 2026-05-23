@@ -176,7 +176,7 @@ function createDocument(req, res) {
     const info = db
       .prepare(`
         INSERT INTO kb_documents (title, slug, excerpt, content_markdown, content_html, source, tags, checksum, category, doc_type, connections, sources, doc_date, review_status, word_count, created_at, updated_at)
-        VALUES (@title, @slug, @excerpt, @content_markdown, NULL, 'manual', @tags, @checksum, @category, @docType, @connections, @sources, @docDate, @reviewStatus, @word_count, @createdAt, @updatedAt)
+        VALUES (@title, @slug, @excerpt, @content_markdown, NULL, 'manual', @tags, @checksum, @category, @docType, @connections, @sources, @docDate, @reviewStatus, @word_count, @created_at, @updated_at)
       `)
       .run({ title, slug, excerpt, content_markdown, tags: tagsJson, checksum, category, docType, connections, sources, docDate, reviewStatus, word_count, created_at: createdAt, updated_at: updatedAt });
 
