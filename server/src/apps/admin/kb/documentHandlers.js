@@ -200,10 +200,11 @@ function createDocument(req, res) {
     return res.status(201).json({ code: 201, message: "success", data: pickDocumentPublic(row) });
   } catch (e) {
     const msg = String(e.message || "");
+    console.error("[createDocument] error:", msg);
     if (msg.includes("UNIQUE") && msg.includes("kb_documents.slug")) {
       return res.status(409).json({ code: 409, message: "slug_taken" });
     }
-    return res.status(500).json({ code: 500, message: "server_error" });
+    return res.status(500).json({ code: 500, message: "server_error", detail: msg });
   }
 }
 
@@ -300,10 +301,11 @@ function updateDocument(req, res) {
     return res.status(200).json({ code: 200, message: "success", data: pickDocumentPublic(row) });
   } catch (e) {
     const msg = String(e.message || "");
+    console.error("[updateDocument] error:", msg);
     if (msg.includes("UNIQUE") && msg.includes("kb_documents.slug")) {
       return res.status(409).json({ code: 409, message: "slug_taken" });
     }
-    return res.status(500).json({ code: 500, message: "server_error" });
+    return res.status(500).json({ code: 500, message: "server_error", detail: msg });
   }
 }
 
