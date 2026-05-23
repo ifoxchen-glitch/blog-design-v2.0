@@ -394,10 +394,11 @@ async function fullImport(vaultPath, conflictStrategy, selectedPaths, syncConfig
 /**
  * Lightweight scan: only return file paths (no content) from content directories, for building file trees.
  */
-function scanVaultPaths(vaultPath) {
+function scanVaultPaths(vaultPath, dirs) {
   const results = [];
+  const targetDirs = dirs || CONTENT_DIRS;
 
-  for (const dir of CONTENT_DIRS) {
+  for (const dir of targetDirs) {
     const dirPath = path.join(vaultPath, dir);
     if (!fs.existsSync(dirPath)) continue;
     walkContentDir(dirPath, (full, relPath) => {
@@ -414,10 +415,11 @@ function scanVaultPaths(vaultPath) {
 /**
  * Lightweight scan: return file paths with checksums (no content), for diff comparison.
  */
-function scanVaultChecksums(vaultPath) {
+function scanVaultChecksums(vaultPath, dirs) {
   const results = [];
+  const targetDirs = dirs || CONTENT_DIRS;
 
-  for (const dir of CONTENT_DIRS) {
+  for (const dir of targetDirs) {
     const dirPath = path.join(vaultPath, dir);
     if (!fs.existsSync(dirPath)) continue;
     walkContentDir(dirPath, (full, relPath) => {
