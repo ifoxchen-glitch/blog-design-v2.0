@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { PropType } from 'vue'
-import { NTag, NButton } from 'naive-ui'
+import { NTag, NButton, NPopconfirm } from 'naive-ui'
 import {
   ChevronForwardOutline,
   ChevronDownOutline,
   DocumentOutline,
   FolderOutline,
   FolderOpenOutline,
+  TrashOutline,
 } from '@vicons/ionicons5'
 import type { FileTreeNode } from '../../api/kb'
 
@@ -18,7 +19,10 @@ const props = defineProps({
   diffStatus: { type: String as PropType<'new' | 'old' | 'synced' | null>, default: null },
 })
 
-const emit = defineEmits<{ toggle: [path: string] }>()
+const emit = defineEmits<{
+  toggle: [path: string]
+  delete: [node: FileTreeNode]
+}>()
 
 const isFolder = props.node.type === 'folder'
 const isExpanded = () => props.expanded.has(props.node.path)
@@ -72,7 +76,7 @@ function formatSize(bytes: number): string {
 <template>
   <div>
     <div
-      class="flex items-center gap-1 py-0.5 px-1 hover:bg-base-200/50 rounded cursor-pointer"
+      class="flex items-center gap-1 py-0.5 px-1 hover:bg-base-200/50 rounded cursor-pointer group"
       :style="{ paddingLeft: `${depth * 16 + 4}px` }"
       @click="isFolder ? emit('toggle', node.path) : undefined"
     >
@@ -110,6 +114,28 @@ function formatSize(bytes: number): string {
       <span v-if="node.detail" class="text-[10px] text-gray-400 ml-2 truncate max-w-32">
         {{ node.detail }}
       </span>
+
+      <!-- Delete action (files only) -->
+      <NPopconfirm
+        v-if="!isFolder"
+        class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
+        @positive-click="emit('delete', node)"
+        @click.stop
+      >
+        <template #trigger>
+          <NButton
+            size="tiny"
+            quaternary
+            type="error"
+            @click.stop
+          >
+            <template #icon>
+              <TrashOutline style="width:12px;height:12px" />
+            </template>
+          </NButton>
+        </template>
+        <span>确定删除 {{ node.name }}？</span>
+      </NPopconfirm>
     </div>
 
     <!-- Children (recursive) -->
@@ -123,6 +149,7 @@ function formatSize(bytes: number): string {
         :show-status="showStatus"
         :diff-status="diffStatus"
         @toggle="emit('toggle', $event)"
+        @delete="emit('delete', $event)"
       />
     </template>
   </div>

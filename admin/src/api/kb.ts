@@ -673,6 +673,27 @@ export async function apiGetSyncedFiles(client: AxiosInstance = request): Promis
   return res.data.data
 }
 
+export async function apiDeleteRemoteFile(
+  path: string,
+  client: AxiosInstance = request,
+): Promise<{ code: number; message: string }> {
+  const res = await client.delete<ApiResponse<{ code: number; message: string }>>(
+    '/api/v2/admin/kb/sync/remote-file',
+    { params: { path } },
+  )
+  return res.data.data
+}
+
+export async function apiDeleteSyncedDocument(
+  id: number,
+  client: AxiosInstance = request,
+): Promise<{ code: number; message: string }> {
+  const res = await client.delete<ApiResponse<{ code: number; message: string }>>(
+    `/api/v2/admin/kb/sync/document/${id}`,
+  )
+  return res.data.data
+}
+
 // ============================================================
 // AI Models
 // ============================================================

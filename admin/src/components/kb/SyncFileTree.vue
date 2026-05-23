@@ -12,6 +12,10 @@ defineProps<{
   diffStatusMap?: Record<string, 'new' | 'old' | 'synced'>
 }>()
 
+const emit = defineEmits<{
+  delete: [node: FileTreeNode]
+}>()
+
 const expanded = ref<Set<string>>(new Set())
 function toggleExpand(path: string) {
   if (expanded.value.has(path)) {
@@ -33,6 +37,7 @@ function toggleExpand(path: string) {
         :show-status="showStatus"
         :diff-status="diffStatusMap?.[node.path] || null"
         @toggle="toggleExpand"
+        @delete="emit('delete', $event)"
       />
     </template>
   </div>
