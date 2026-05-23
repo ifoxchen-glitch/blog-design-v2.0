@@ -76,8 +76,8 @@ function updateSyncConfig(req, res) {
     conflict_strategy: conflict_strategy ?? existing.conflict_strategy,
     selected_paths: selected_paths !== undefined ? JSON.stringify(selected_paths) : existing.selected_paths,
     sync_sources: sync_sources !== undefined ? JSON.stringify(sync_sources) : existing.sync_sources,
-    api_export_dir: api_export_dir ?? existing.api_export_dir,
-    manual_export_dir: manual_export_dir ?? existing.manual_export_dir,
+    api_export_dir: (api_export_dir !== undefined ? api_export_dir : existing.api_export_dir) || 'raw/api',
+    manual_export_dir: (manual_export_dir !== undefined ? manual_export_dir : existing.manual_export_dir) || 'raw/manual',
     updated_at: now,
   };
 
