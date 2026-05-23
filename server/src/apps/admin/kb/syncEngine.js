@@ -26,6 +26,55 @@ function computeChecksum(content) {
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const CONTENT_DIRS = ['wiki', 'notes'];
 
+// Phase 12: Multi-source directory mapping
+const SOURCE_DIR_MAP = {
+  obsidian: ['wiki', 'notes'],
+  api: ['raw/api'],
+  manual: ['raw/manual'],
+};
+
+function getAllContentDirs(syncSources, apiExportDir, manualExportDir) {
+  const dirs = new Set();
+  const sources = Array.isArray(syncSources) ? syncSources : ['obsidian'];
+
+  if (sources.includes('obsidian')) {
+    CONTENT_DIRS.forEach(d => dirs.add(d));
+  }
+  if (sources.includes('api')) {
+    dirs.add(apiExportDir || 'raw/api');
+  }
+  if (sources.includes('manual')) {
+    dirs.add(manualExportDir || 'raw/manual');
+  }
+
+  return Array.from(dirs);
+}
+
+function getSourceFromPath(relativePath, apiExportDir, manualExportDir) {
+  const apiDir = (apiExportDir || 'raw/api').toLowerCase() + '/';
+  const manualDir = (manualExportDir || 'raw/manual').toLowerCase() + '/';
+  const lower = relativePath.toLowerCase();
+
+  if (lower.startsWith(apiDir)) return 'api';
+  if (lower.startsWith(manualDir)) return 'manual';
+  return 'obsidian';
+}
+
+function getExportTargetPath(doc, vaultPath, apiExportDir, manualExportDir) {
+  if (doc.source === 'obsidian') {
+    return doc.original_path;
+  }
+  if (doc.source === 'api') {
+    const dir = apiExportDir || 'raw/api';
+    return path.join(dir, `${doc.slug}.md`).replace(/\\/g, '/');
+  }
+  if (doc.source === 'manual') {
+    const dir = manualExportDir || 'raw/manual';
+    return path.join(dir, `${doc.slug}.md`).replace(/\\/g, '/');
+  }
+  return null;
+}
+
 /**
  * Normalize an array of reference strings (connections, sources).
  * - Flattens nested arrays (js-yaml may parse [[Doc A]] as [["Doc A"]])
@@ -83,11 +132,12 @@ function matchSelectedPaths(relPath, selectedPaths) {
   return result;
 }
 
-function scanVault(vaultPath, selectedPaths) {
+function scanVault(vaultPath, selectedPaths, dirs) {
   const results = [];
   let scanned = 0, matched = 0;
+  const contentDirs = Array.isArray(dirs) && dirs.length > 0 ? dirs : CONTENT_DIRS;
 
-  for (const dir of CONTENT_DIRS) {
+  for (const dir of contentDirs) {
     const dirPath = path.join(vaultPath, dir);
     if (!fs.existsSync(dirPath)) { console.log(`[kb-sync] scanVault: ${dir} not found: ${dirPath}`); continue; }
     walkContentDir(dirPath, (full, relPath) => {
@@ -101,7 +151,7 @@ function scanVault(vaultPath, selectedPaths) {
     });
   }
 
-  console.log(`[kb-sync] scanVault: scanned=${scanned} matched=${matched} results=${results.length} selected=${JSON.stringify(selectedPaths)}`);
+  console.log(`[kb-sync] scanVault: scanned=${scanned} matched=${matched} results=${results.length} selected=${JSON.stringify(selectedPaths)} dirs=${JSON.stringify(contentDirs)}`);
   return results;
 }
 
@@ -151,11 +201,16 @@ function importDocument(db, fileInfo, conflictStrategy, now, source) {
 
   // Category priority: YAML attribute first, fall back to path segment
   // e.g., "wiki/project-a/file.md" → "project-a", "notes/daily/todo.md" → "daily"
+  // Phase 12: For api/manual dirs, don't infer category from path (raw/api/file.md → null)
   let category = (attributes.category && String(attributes.category).trim()) || null;
   if (!category) {
     const parts = fileInfo.relativePath.split("/");
-    const catStart = parts.length > 0 && CONTENT_DIRS.includes(parts[0]) ? 1 : 0;
-    category = parts.length > catStart + 1 ? parts[catStart] : null;
+    const firstDir = parts[0]?.toLowerCase();
+    const isRawDir = firstDir === 'raw' || !CONTENT_DIRS.includes(firstDir);
+    if (!isRawDir) {
+      const catStart = 1;
+      category = parts.length > catStart + 1 ? parts[catStart] : null;
+    }
   }
 
   const existing = db
@@ -269,28 +324,68 @@ async function importFromFiles(files, conflictStrategy, source) {
 
 /**
  * Full import from filesystem: scan vault, import each file, log results.
+ * Phase 12: Supports multi-source directories (obsidian → wiki/notes, api → raw/api, manual → raw/manual)
  */
-async function fullImport(vaultPath, conflictStrategy, selectedPaths) {
+async function fullImport(vaultPath, conflictStrategy, selectedPaths, syncConfig) {
   if (!acquireLock()) throw new Error("同步正在进行中，请稍后重试");
   const db = openDb();
   const now = new Date().toISOString();
+
+  const config = syncConfig || db.prepare("SELECT sync_sources, api_export_dir, manual_export_dir FROM kb_sync_config WHERE id = 1").get();
+  const syncSources = config?.sync_sources ? parseJsonArray(config.sync_sources) : ['obsidian'];
+  const apiExportDir = config?.api_export_dir || 'raw/api';
+  const manualExportDir = config?.manual_export_dir || 'raw/manual';
+  const contentDirs = getAllContentDirs(syncSources, apiExportDir, manualExportDir);
+
   try {
-    console.log(`[kb-sync] fullImport starting: vault=${vaultPath} dirs=${JSON.stringify(CONTENT_DIRS)} selected=${JSON.stringify(selectedPaths)}`);
-    const files = scanVault(vaultPath, selectedPaths);
+    console.log(`[kb-sync] fullImport starting: vault=${vaultPath} dirs=${JSON.stringify(contentDirs)} selected=${JSON.stringify(selectedPaths)} sources=${JSON.stringify(syncSources)}`);
+    const files = scanVault(vaultPath, selectedPaths, contentDirs);
     console.log(`[kb-sync] scanVault found ${files.length} files, starting import...`);
-    const result = await importFromFiles(files, conflictStrategy, "obsidian");
-    console.log(`[kb-sync] fullImport complete:`, JSON.stringify(result));
-    return result;
+
+    // Phase 12: Infer source from file path for each file
+    for (const f of files) {
+      f.inferredSource = getSourceFromPath(f.relativePath, apiExportDir, manualExportDir);
+    }
+
+    const summary = { imported: 0, updated: 0, skipped: 0, conflicted: 0, errors: 0 };
+    const logStmt = db.prepare(
+      `INSERT INTO kb_sync_logs (direction, file_path, document_id, status, checksum, detail, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+
+    for (const f of files) {
+      try {
+        const result = importDocument(db, f, conflictStrategy, now, f.inferredSource);
+        const statusMap = { imported: "success", updated: "success", skipped: "skipped", conflict: "conflict" };
+        if (summary[result.action] !== undefined) summary[result.action]++;
+        logStmt.run(
+          "import",
+          f.relativePath,
+          result.id || null,
+          statusMap[result.action] || "error",
+          f.checksum,
+          result.detail || null,
+          now,
+        );
+      } catch (err) {
+        summary.errors++;
+        logStmt.run("import", f.relativePath, null, "error", f.checksum, err.message, now);
+      }
+    }
+
+    db.prepare("UPDATE kb_sync_config SET last_sync_at = ?, updated_at = ? WHERE id = 1").run(now, now);
+    try { db.pragma("wal_checkpoint(PASSIVE)"); } catch { /* ignore */ }
+
+    console.log(`[kb-sync] fullImport complete:`, JSON.stringify(summary));
+    return summary;
   } catch (err) {
     console.error("[kb-sync] fullImport error:", err.message);
-    // Write the error to sync logs so the UI can display it
     try {
       db.prepare(
         "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
       ).run("import", vaultPath, "error", `导入异常: ${err.message}`, now);
     } catch { /* ignore */ }
-    const summary = { imported: 0, updated: 0, skipped: 0, conflicted: 0, errors: 1 };
-    return summary;
+    return { imported: 0, updated: 0, skipped: 0, conflicted: 0, errors: 1 };
   } finally {
     releaseLock();
   }
@@ -396,13 +491,19 @@ function parseTags(raw) {
 }
 
 /**
- * Full export: write all obsidian-sourced documents back to the vault as .md files.
+ * Full export: write documents back to the vault as .md files.
+ * Phase 12: Supports multi-source export (obsidian, api, manual).
  * Builds YAML front matter from DB fields + body from content_markdown.
  */
-async function fullExport(vaultPath, selectedPaths) {
+async function fullExport(vaultPath, selectedPaths, syncConfig) {
   if (!acquireLock()) throw new Error("同步正在进行中，请稍后重试");
   const db = openDb();
   const now = new Date().toISOString();
+
+  const config = syncConfig || db.prepare("SELECT sync_sources, api_export_dir, manual_export_dir FROM kb_sync_config WHERE id = 1").get();
+  const syncSources = config?.sync_sources ? parseJsonArray(config.sync_sources) : ['obsidian'];
+  const apiExportDir = config?.api_export_dir || 'raw/api';
+  const manualExportDir = config?.manual_export_dir || 'raw/manual';
 
   const logStmt = db.prepare(
     `INSERT INTO kb_sync_logs (direction, file_path, document_id, status, checksum, detail, created_at)
@@ -412,18 +513,22 @@ async function fullExport(vaultPath, selectedPaths) {
   const summary = { exported: 0, skipped: 0, errors: 0 };
 
   try {
-    // Ensure content directories exist
+    // Ensure base content directories exist
     for (const dir of CONTENT_DIRS) fs.mkdirSync(path.join(vaultPath, dir), { recursive: true });
+    if (syncSources.includes('api')) fs.mkdirSync(path.join(vaultPath, apiExportDir), { recursive: true });
+    if (syncSources.includes('manual')) fs.mkdirSync(path.join(vaultPath, manualExportDir), { recursive: true });
 
+    // Build source IN clause
+    const placeholders = syncSources.map(() => '?').join(',');
     const docs = db
-      .prepare("SELECT * FROM kb_documents WHERE source = 'obsidian'")
-      .all();
+      .prepare(`SELECT * FROM kb_documents WHERE source IN (${placeholders})`)
+      .all(...syncSources);
 
     for (const doc of docs) {
-      const targetPath = doc.original_path;
+      const targetPath = getExportTargetPath(doc, vaultPath, apiExportDir, manualExportDir);
       if (!targetPath) {
         summary.errors++;
-        logStmt.run("export", `doc-${doc.id}`, doc.id, "error", null, "missing original_path", now);
+        logStmt.run("export", `doc-${doc.id}`, doc.id, "error", null, "missing target_path", now);
         continue;
       }
 
@@ -460,14 +565,20 @@ async function fullExport(vaultPath, selectedPaths) {
           continue;
         }
 
-        // Write file (targetPath includes content dir prefix, e.g. "wiki/file.md")
+        // Write file
         const fullPath = path.join(vaultPath, targetPath);
         fs.mkdirSync(path.dirname(fullPath), { recursive: true });
         fs.writeFileSync(fullPath, fullContent, "utf8");
 
-        // Update checksum in DB
-        db.prepare("UPDATE kb_documents SET checksum = ?, updated_at = ? WHERE id = ?")
-          .run(checksum, now, doc.id);
+        // Update original_path and checksum in DB for api/manual docs
+        const needsPathUpdate = (doc.source === 'api' || doc.source === 'manual') && doc.original_path !== targetPath;
+        if (needsPathUpdate) {
+          db.prepare("UPDATE kb_documents SET checksum = ?, updated_at = ?, original_path = ? WHERE id = ?")
+            .run(checksum, now, targetPath, doc.id);
+        } else {
+          db.prepare("UPDATE kb_documents SET checksum = ?, updated_at = ? WHERE id = ?")
+            .run(checksum, now, doc.id);
+        }
 
         summary.exported++;
         logStmt.run("export", targetPath, doc.id, "success", checksum, null, now);
@@ -494,4 +605,9 @@ async function fullExport(vaultPath, selectedPaths) {
   }
 }
 
-module.exports = { scanVault, scanVaultPaths, scanVaultChecksums, buildFileTree, importDocument, fullImport, importFromFiles, fullExport, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE, CONTENT_DIRS };
+function parseJsonArray(raw) {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+
+module.exports = { scanVault, scanVaultPaths, scanVaultChecksums, buildFileTree, importDocument, fullImport, importFromFiles, fullExport, computeChecksum, acquireLock, releaseLock, isRunning, MAX_FILE_SIZE, CONTENT_DIRS, getAllContentDirs, getSourceFromPath, getExportTargetPath, parseJsonArray };

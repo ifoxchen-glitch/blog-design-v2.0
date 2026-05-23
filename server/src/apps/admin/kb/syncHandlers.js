@@ -5,10 +5,9 @@ const { nowIso, toInt } = require("../../../utils");
 const syncEngine = require("./syncEngine");
 const kbSync = require("../../../services/kbSync");
 
-const CONTENT_DIRS = syncEngine.CONTENT_DIRS || ['wiki', 'notes'];
-
-function hasContentDir(vaultPath) {
-  return CONTENT_DIRS.some(d => fs.existsSync(path.join(vaultPath, d)));
+function hasContentDir(vaultPath, dirs) {
+  const checkDirs = Array.isArray(dirs) && dirs.length > 0 ? dirs : (syncEngine.CONTENT_DIRS || ['wiki', 'notes']);
+  return checkDirs.some(d => fs.existsSync(path.join(vaultPath, d)));
 }
 
 function parseJsonArray(raw) {
@@ -49,6 +48,9 @@ function getSyncConfig(_req, res) {
           conflict_strategy: config.conflict_strategy,
           last_sync_at: config.last_sync_at,
           selected_paths: parseJsonArray(config.selected_paths),
+          sync_sources: parseJsonArray(config.sync_sources),
+          api_export_dir: config.api_export_dir,
+          manual_export_dir: config.manual_export_dir,
         }
       : null,
   });
@@ -59,6 +61,7 @@ function updateSyncConfig(req, res) {
   const now = nowIso();
   const {
     vault_path, auto_sync_enabled, sync_interval_minutes, conflict_strategy, selected_paths,
+    sync_sources, api_export_dir, manual_export_dir,
   } = req.body || {};
 
   const existing = db.prepare("SELECT * FROM kb_sync_config WHERE id = 1").get();
@@ -72,17 +75,23 @@ function updateSyncConfig(req, res) {
     sync_interval_minutes: sync_interval_minutes ?? existing.sync_interval_minutes,
     conflict_strategy: conflict_strategy ?? existing.conflict_strategy,
     selected_paths: selected_paths !== undefined ? JSON.stringify(selected_paths) : existing.selected_paths,
+    sync_sources: sync_sources !== undefined ? JSON.stringify(sync_sources) : existing.sync_sources,
+    api_export_dir: api_export_dir ?? existing.api_export_dir,
+    manual_export_dir: manual_export_dir ?? existing.manual_export_dir,
     updated_at: now,
   };
 
   db.prepare(
-    `UPDATE kb_sync_config SET vault_path=?, auto_sync_enabled=?, sync_interval_minutes=?, conflict_strategy=?, selected_paths=?, updated_at=? WHERE id=1`,
+    `UPDATE kb_sync_config SET vault_path=?, auto_sync_enabled=?, sync_interval_minutes=?, conflict_strategy=?, selected_paths=?, sync_sources=?, api_export_dir=?, manual_export_dir=?, updated_at=? WHERE id=1`,
   ).run(
     updates.vault_path,
     updates.auto_sync_enabled,
     updates.sync_interval_minutes,
     updates.conflict_strategy,
     updates.selected_paths,
+    updates.sync_sources,
+    updates.api_export_dir,
+    updates.manual_export_dir,
     updates.updated_at,
   );
 
@@ -115,7 +124,12 @@ async function triggerImport(req, res) {
 
   try {
     const selected = parseJsonArray(config.selected_paths);
-    await syncEngine.fullImport(config.vault_path, config.conflict_strategy || "last_write_wins", selected.length > 0 ? selected : null);
+    await syncEngine.fullImport(
+      config.vault_path,
+      config.conflict_strategy || "last_write_wins",
+      selected.length > 0 ? selected : null,
+      config,
+    );
   } catch (err) {
     console.error("[kb-sync] import failed:", err.message);
     try {
@@ -140,8 +154,12 @@ async function triggerExport(req, res) {
   }
 
   // Validate at least one content directory exists
-  if (!hasContentDir(config.vault_path)) {
-    return res.status(400).json({ code: 400, message: `仓库路径下未找到 ${CONTENT_DIRS.join('/')} 子目录，请先创建或导入数据` });
+  const syncSources = config?.sync_sources ? parseJsonArray(config.sync_sources) : ['obsidian'];
+  const apiExportDir = config?.api_export_dir || 'raw/api';
+  const manualExportDir = config?.manual_export_dir || 'raw/manual';
+  const contentDirs = syncEngine.getAllContentDirs(syncSources, apiExportDir, manualExportDir);
+  if (!hasContentDir(config.vault_path, contentDirs)) {
+    return res.status(400).json({ code: 400, message: `仓库路径下未找到 ${contentDirs.join('/')} 子目录，请先创建或导入数据` });
   }
 
   auditLog(db, req, "trigger_export", config.vault_path, "触发平台→Obsidian导出");
@@ -149,7 +167,7 @@ async function triggerExport(req, res) {
 
   try {
     const selected = parseJsonArray(config.selected_paths);
-    await syncEngine.fullExport(config.vault_path, selected.length > 0 ? selected : null);
+    await syncEngine.fullExport(config.vault_path, selected.length > 0 ? selected : null, config);
   } catch (err) {
     console.error("[kb-sync] export failed:", err.message);
     try {
@@ -267,9 +285,13 @@ async function testFilesystem(req, res) {
     }
 
     // Validate at least one content directory exists
-    const foundDirs = CONTENT_DIRS.filter(d => fs.existsSync(path.join(resolved, d)));
+    const syncSources = config?.sync_sources ? parseJsonArray(config.sync_sources) : ['obsidian'];
+    const apiExportDir = config?.api_export_dir || 'raw/api';
+    const manualExportDir = config?.manual_export_dir || 'raw/manual';
+    const contentDirs = syncEngine.getAllContentDirs(syncSources, apiExportDir, manualExportDir);
+    const foundDirs = contentDirs.filter(d => fs.existsSync(path.join(resolved, d)));
     if (foundDirs.length === 0) {
-      const detail = `路径下未找到 ${CONTENT_DIRS.join('/')} 子目录: ${resolved}`;
+      const detail = `路径下未找到 ${contentDirs.join('/')} 子目录: ${resolved}`;
       db.prepare(
         "INSERT INTO kb_sync_logs (direction, file_path, status, detail, created_at) VALUES (?, ?, ?, ?, ?)",
       ).run("import", vaultPath, "error", detail, now);
@@ -325,8 +347,11 @@ function getRemoteFiles(_req, res) {
 
     if (config && config.vault_path) {
       const vaultPath = path.resolve(config.vault_path);
-      // Use checksum scan so frontend can compare with synced files
-      files = syncEngine.scanVaultChecksums(vaultPath);
+      const syncSources = config.sync_sources ? parseJsonArray(config.sync_sources) : ['obsidian'];
+      const apiExportDir = config.api_export_dir || 'raw/api';
+      const manualExportDir = config.manual_export_dir || 'raw/manual';
+      const contentDirs = syncEngine.getAllContentDirs(syncSources, apiExportDir, manualExportDir);
+      files = syncEngine.scanVaultChecksums(vaultPath, contentDirs);
     }
 
     const tree = syncEngine.buildFileTree(files);
@@ -338,10 +363,13 @@ function getRemoteFiles(_req, res) {
 
 function getSyncedFiles(_req, res) {
   const db = openDb();
+  const config = db.prepare("SELECT sync_sources FROM kb_sync_config WHERE id = 1").get();
+  const syncSources = config?.sync_sources ? parseJsonArray(config.sync_sources) : ['obsidian'];
+  const placeholders = syncSources.map(() => '?').join(',');
 
   const docs = db
-    .prepare("SELECT id, title, original_path, checksum, status, word_count, updated_at FROM kb_documents WHERE source = 'obsidian' ORDER BY original_path")
-    .all();
+    .prepare(`SELECT id, title, original_path, checksum, status, word_count, updated_at, source FROM kb_documents WHERE source IN (${placeholders}) ORDER BY original_path`)
+    .all(...syncSources);
 
   // Cross-reference with latest sync log for per-file status
   const logMap = {};
@@ -389,11 +417,15 @@ function getSyncedFiles(_req, res) {
 
 function clearSyncedData(req, res) {
   const db = openDb();
-  const docResult = db.prepare("DELETE FROM kb_documents WHERE source = 'obsidian'").run();
+  const config = db.prepare("SELECT sync_sources FROM kb_sync_config WHERE id = 1").get();
+  const syncSources = config?.sync_sources ? parseJsonArray(config.sync_sources) : ['obsidian'];
+  const placeholders = syncSources.map(() => '?').join(',');
+
+  const docResult = db.prepare(`DELETE FROM kb_documents WHERE source IN (${placeholders})`).run(...syncSources);
   const logResult = db.prepare("DELETE FROM kb_sync_logs").run();
   db.prepare("UPDATE kb_sync_config SET last_sync_at = NULL, updated_at = ? WHERE id = 1").run(nowIso());
 
-  auditLog(db, req, "clear_synced", "obsidian", `清空同步数据: ${docResult.changes} 个文档, ${logResult.changes} 条日志`);
+  auditLog(db, req, "clear_synced", syncSources.join(','), `清空同步数据: ${docResult.changes} 个文档, ${logResult.changes} 条日志`);
 
   res.json({ code: 200, message: "已清空", data: { documentsDeleted: docResult.changes, logsDeleted: logResult.changes } });
 }
