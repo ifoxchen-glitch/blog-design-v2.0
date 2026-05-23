@@ -40,6 +40,8 @@ import {
   apiClearSyncedData,
   apiGetRemoteFiles,
   apiGetSyncedFiles,
+  apiDeleteRemoteFile,
+  apiDeleteSyncedDocument,
   apiGetOpenWebUIStatus,
   apiTriggerOpenWebUISync,
   apiTestOpenWebUIConnection,
@@ -474,6 +476,32 @@ async function handleClearData() {
   }
 }
 
+async function handleDeleteRemoteFile(node: FileTreeNode) {
+  try {
+    await apiDeleteRemoteFile(node.path)
+    message.success(`已删除: ${node.name}`)
+    loadFileTrees()
+  } catch (err: unknown) {
+    const error = err as { response?: { data?: { message?: string } } }
+    message.error(`删除失败: ${error?.response?.data?.message || '未知错误'}`)
+  }
+}
+
+async function handleDeleteSyncedDoc(node: FileTreeNode) {
+  if (!node.documentId) {
+    message.error('该文件没有关联的文档 ID')
+    return
+  }
+  try {
+    await apiDeleteSyncedDocument(node.documentId)
+    message.success(`已删除: ${node.name}`)
+    loadFileTrees()
+  } catch (err: unknown) {
+    const error = err as { response?: { data?: { message?: string } } }
+    message.error(`删除失败: ${error?.response?.data?.message || '未知错误'}`)
+  }
+}
+
 // ---- polling ----
 let _pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -776,6 +804,7 @@ onMounted(() => {
                 empty-text="暂无远程文件，请先配置数据源"
                 :show-status="false"
                 :diff-status-map="remoteDiffMap"
+                @delete="handleDeleteRemoteFile"
               />
             </NSpin>
           </div>
@@ -806,6 +835,7 @@ onMounted(() => {
                 empty-text="暂无本地文件，点击拉取到本地开始同步"
                 :show-status="true"
                 :diff-status-map="localDiffMap"
+                @delete="handleDeleteSyncedDoc"
               />
             </NSpin>
           </div>

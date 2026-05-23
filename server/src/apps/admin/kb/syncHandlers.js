@@ -587,10 +587,71 @@ async function testNotesConnection(req, res) {
 }
 
 
+function deleteRemoteFile(req, res) {
+  const db = openDb();
+  const config = db.prepare("SELECT vault_path FROM kb_sync_config WHERE id = 1").get();
+  if (!config || !config.vault_path) {
+    return res.status(400).json({ code: 400, message: "vault_path not configured" });
+  }
+
+  const relativePath = String(req.query.path || "").trim();
+  if (!relativePath) {
+    return res.status(400).json({ code: 400, message: "path is required" });
+  }
+
+  if (relativePath.includes("..") || relativePath.startsWith("/") || relativePath.startsWith("\\")) {
+    return res.status(400).json({ code: 400, message: "invalid path" });
+  }
+
+  const vaultPath = path.resolve(config.vault_path);
+  const fullPath = path.join(vaultPath, relativePath);
+  const resolvedFullPath = path.resolve(fullPath);
+
+  if (!resolvedFullPath.startsWith(vaultPath + path.sep) && resolvedFullPath !== vaultPath) {
+    return res.status(403).json({ code: 403, message: "path outside vault" });
+  }
+
+  if (!resolvedFullPath.endsWith(".md")) {
+    return res.status(400).json({ code: 400, message: "only .md files can be deleted" });
+  }
+
+  try {
+    if (!fs.existsSync(resolvedFullPath)) {
+      return res.status(404).json({ code: 404, message: "file not found" });
+    }
+    fs.unlinkSync(resolvedFullPath);
+    auditLog(db, req, "delete_remote_file", null, relativePath);
+    res.json({ code: 200, message: "deleted" });
+  } catch (err) {
+    res.status(500).json({ code: 500, message: err.message });
+  }
+}
+
+function deleteSyncedDocument(req, res) {
+  const db = openDb();
+  const id = toInt(req.params.id, 0);
+  if (!id) {
+    return res.status(400).json({ code: 400, message: "invalid id" });
+  }
+
+  const doc = db.prepare("SELECT title, original_path FROM kb_documents WHERE id = ?").get(id);
+  if (!doc) {
+    return res.status(404).json({ code: 404, message: "document not found" });
+  }
+
+  try {
+    db.prepare("DELETE FROM kb_documents WHERE id = ?").run(id);
+    auditLog(db, req, "delete_synced_document", id, doc.title);
+    res.json({ code: 200, message: "deleted" });
+  } catch (err) {
+    res.status(500).json({ code: 500, message: err.message });
+  }
+}
+
 module.exports = {
   getSyncConfig, updateSyncConfig, triggerImport, triggerExport,
   listSyncLogs, getSyncStatus, testFilesystem, getRemoteFiles,
   getSyncedFiles, clearSyncedData, getOpenWebUIStatus, triggerOpenWebUISync, triggerOpenWebUIImport,
   testOpenWebUIConnection, getOpenWebUISyncProgress, getKnowledgeBases,
-  triggerNotesSync, testNotesConnection,
+  triggerNotesSync, testNotesConnection, deleteRemoteFile, deleteSyncedDocument,
 };
