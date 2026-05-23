@@ -11,6 +11,8 @@ import {
   NProgress,
   NDrawer,
   NDrawerContent,
+  NCheckbox,
+  NCheckboxGroup,
   useMessage,
 } from 'naive-ui'
 import {
@@ -94,6 +96,9 @@ const config = ref<SyncConfig>({
   conflict_strategy: 'last_write_wins',
   last_sync_at: null,
   selected_paths: [],
+  sync_sources: ['obsidian'],
+  api_export_dir: 'raw/api',
+  manual_export_dir: 'raw/manual',
 })
 
 // Folder selection toggle
@@ -342,7 +347,7 @@ async function loadConfig() {
   try {
     config.value = await apiGetSyncConfig()
     if (!config.value) {
-      config.value = { vault_path: '', auto_sync_enabled: false, sync_interval_minutes: 30, conflict_strategy: 'last_write_wins', last_sync_at: null, selected_paths: [] }
+      config.value = { vault_path: '', auto_sync_enabled: false, sync_interval_minutes: 30, conflict_strategy: 'last_write_wins', last_sync_at: null, selected_paths: [], sync_sources: ['obsidian'], api_export_dir: 'raw/api', manual_export_dir: 'raw/manual' }
     }
   } catch { /* ignore */ } finally {
     loading.value = false
@@ -370,6 +375,9 @@ async function handleSaveConfig() {
       sync_interval_minutes: config.value.sync_interval_minutes,
       conflict_strategy: config.value.conflict_strategy,
       selected_paths: config.value.selected_paths,
+      sync_sources: config.value.sync_sources,
+      api_export_dir: config.value.api_export_dir,
+      manual_export_dir: config.value.manual_export_dir,
     })
     message.success('配置已保存')
   } catch {
@@ -1138,6 +1146,42 @@ onMounted(() => {
               :disabled="!hasSyncPerm"
             />
             <span class="text-[10px] text-base-content/30 mt-0.5 block">容器内路径或挂载卷路径</span>
+          </div>
+
+          <!-- Sync sources -->
+          <div>
+            <label class="text-xs text-base-content/50 block mb-1.5">同步来源</label>
+            <NCheckboxGroup v-model:value="config.sync_sources">
+              <div class="flex flex-col gap-2">
+                <NCheckbox value="obsidian" label="Obsidian (wiki / notes)" :disabled="!hasSyncPerm" />
+                <NCheckbox value="api" label="API 文档 (raw / api)" :disabled="!hasSyncPerm" />
+                <NCheckbox value="manual" label="手动创建 (raw / manual)" :disabled="!hasSyncPerm" />
+              </div>
+            </NCheckboxGroup>
+          </div>
+
+          <!-- API export dir -->
+          <div v-if="config.sync_sources.includes('api')">
+            <label class="text-xs text-base-content/50 block mb-1.5">API 导出目录</label>
+            <NInput
+              v-model:value="config.api_export_dir"
+              placeholder="raw/api"
+              size="small"
+              :disabled="!hasSyncPerm"
+            />
+            <span class="text-[10px] text-base-content/30 mt-0.5 block">API 来源文档导出到该相对目录</span>
+          </div>
+
+          <!-- Manual export dir -->
+          <div v-if="config.sync_sources.includes('manual')">
+            <label class="text-xs text-base-content/50 block mb-1.5">手动导出目录</label>
+            <NInput
+              v-model:value="config.manual_export_dir"
+              placeholder="raw/manual"
+              size="small"
+              :disabled="!hasSyncPerm"
+            />
+            <span class="text-[10px] text-base-content/30 mt-0.5 block">手动创建文档导出到该相对目录</span>
           </div>
 
           <!-- Conflict strategy -->

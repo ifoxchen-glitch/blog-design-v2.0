@@ -366,6 +366,11 @@ function migrate(db) {
   // Add selected_paths column for sync folder selection
   try { db.exec(`ALTER TABLE kb_sync_config ADD COLUMN selected_paths TEXT NOT NULL DEFAULT '[]'`); } catch { /* already exists */ }
 
+  // Phase 12: Multi-source filesystem sync (api/manual → raw/)
+  try { db.exec(`ALTER TABLE kb_sync_config ADD COLUMN sync_sources TEXT NOT NULL DEFAULT '["obsidian"]'`); } catch { /* already exists */ }
+  try { db.exec(`ALTER TABLE kb_sync_config ADD COLUMN api_export_dir TEXT NOT NULL DEFAULT 'raw/api'`); } catch { /* already exists */ }
+ try { db.exec(`ALTER TABLE kb_sync_config ADD COLUMN manual_export_dir TEXT NOT NULL DEFAULT 'raw/manual'`); } catch { /* already exists */ }
+
   // Relax kb_canvas_nodes type CHECK constraint to allow kb-doc types
   try {
     db.exec(`
