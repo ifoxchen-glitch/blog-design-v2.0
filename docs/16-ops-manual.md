@@ -1,266 +1,118 @@
-# 运维手册
+# Ops Manual
 
-> ifoxchen.com 个人博客 v2 —— 生产运维指南。
->
-> 最后更新：2026-05-05
+Last updated: `2026-05-23`
 
----
+## Official Production Topology
 
-## 目录
+Production runs on Unraid with two separate containers:
 
-1. [首次部署](#1-首次部署)
-2. [日常运维](#2-日常运维)
-3. [备份与恢复](#3-备份与恢复)
-4. [故障处理](#4-故障处理)
-5. [安全事件响应](#5-安全事件响应)
-6. [回滚流程](#6-回滚流程)
+1. `blog`
+2. `open-webui`
 
----
+The `blog` image is built by GitHub Actions and published to GHCR.
 
-## 1. 首次部署
+The `blog` container must connect to Open WebUI through:
 
-### 1.1 前置条件
-
-- Docker 24+ & Docker Compose v2+
-- Nginx（用于 SSL 终止 + 反向代理）
-- 域名 DNS 已指向服务器公网 IP
-- Git clone 仓库到 `/var/www/blog`
-
-### 1.2 环境变量
-
-```bash
-cd /var/www/blog
-cp server/.env.example server/.env
-# 编辑 .env，填入以下值：
-#   JWT_SECRET=<openssl rand -hex 32>
-#   ADMIN_EMAIL=admin@ifoxchen.com
-#   ADMIN_PASSWORD_HASH=$(htpasswd -bnBC 10 "" "your-password" | tr -d ':\n')
-#   SESSION_SECRET=<openssl rand -hex 16>
+```env
+OPEN_WEBUI_URL=http://192.168.3.100:8080
 ```
 
-### 1.3 启动
+## First Deployment
+
+### Prerequisites
+
+- Unraid server is online
+- `open-webui` container is already deployed and reachable on port `8080`
+- GHCR image is available
+- the Unraid template for `blog` is imported from `unraid-template.xml`
+
+### Required Variables for `blog`
+
+- `JWT_SECRET`
+- `SESSION_SECRET`
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD` or `ADMIN_PASSWORD_HASH`
+- `OPEN_WEBUI_URL`
+
+### Validation
+
+After deployment, verify:
 
 ```bash
-# 构建并启动
-docker compose up -d --build
-
-# 检查健康状态
-curl http://localhost:8787/health
-curl http://localhost:3000/health
-
-# 查看日志
-docker compose logs -f
+curl http://192.168.3.100:8787/health
+curl http://192.168.3.100:3000/health
+curl http://192.168.3.100:8787/api/categories
 ```
 
-### 1.4 SSL 证书
+Then confirm in the admin UI:
 
-```bash
-chmod +x scripts/setup-ssl.sh
-sudo ./scripts/setup-ssl.sh
-```
+- `/workbench/health` is reachable
+- the workbench loads through the external Open WebUI service
+- KB sync can connect to Open WebUI
 
-### 1.5 Nginx
+## Daily Operations
 
-```bash
-sudo ln -s /var/www/blog/nginx/blog.conf /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-```
+### Update the `blog` Container
 
----
+1. Push changes to `main`
+2. Wait for GitHub Actions to publish the new GHCR image
+3. In Unraid, force the `blog` container to pull the latest image
+4. Restart the `blog` container
 
-## 2. 日常运维
+### Check Logs
 
-### 2.1 容器管理
+Use Unraid container logs for the `blog` container.
 
-```bash
-# 查看状态
-docker ps
+Focus on:
 
-# 查看日志
-docker compose logs --tail=50
-docker compose logs -f
+- startup logs
+- `/workbench` proxy errors
+- KB sync errors
+- Open WebUI connectivity errors
 
-# 重启
-docker compose restart
+### Check Data Persistence
 
-# 更新（拉取最新镜像并重启）
-docker compose pull && docker compose up -d
-```
+The following paths must stay mounted:
 
-### 2.2 备份检查
+- `/app/server/db`
+- `/app/server/public/uploads`
 
-```bash
-# 查看备份列表
-docker compose exec blog ls -la /app/server/db/backups/
+After updates, verify that:
 
-# 手动触发备份
-# 通过 Admin 后台 → 运维 → 备份管理 → 立即备份
-```
+- the SQLite database still exists
+- uploaded files are still accessible
+- backups remain available if enabled
 
-### 2.3 审计日志清理
+## Troubleshooting
 
-自动清理由定时任务管理（默认保留 90 天），无需手动操作。
+### Workbench Fails
 
-### 2.4 资源监控
+Check:
 
-- Admin 后台 → 运维 → 系统监控（CPU/内存/磁盘）
-- 命令行：
-  ```bash
-  docker stats --no-stream
-  df -h
-  free -m
-  ```
+1. `OPEN_WEBUI_URL` is set in the `blog` container
+2. the `open-webui` container is healthy
+3. the host IP and port in `OPEN_WEBUI_URL` are reachable from the `blog` container
 
----
+### KB Sync Fails
 
-## 3. 备份与恢复
+Check:
 
-### 3.1 数据库备份
+1. Open WebUI URL in settings or `OPEN_WEBUI_URL`
+2. Open WebUI API key in system settings
+3. network reachability from `blog` to `open-webui`
 
-自动备份每天凌晨 3:00 执行，保留最近 30 天。
+### Blog Starts but Workbench Is Unavailable
 
-备份文件位置：`server/db/backups/blog-YYYY-MM-DD.sqlite`
+This usually means the `blog` container started without `OPEN_WEBUI_URL`.
 
-### 3.2 全库数据导出（JSON）
+The current code treats this as a production misconfiguration and skips the embedded launcher.
 
-Admin 后台 → 数据导入导出 → 导出 JSON 备份
+Fix the container variable and restart `blog`.
 
-导出文件包含：文章、标签、分类、友链及其关联。
+## Rollback
 
-### 3.3 数据库恢复
+If a bad image is deployed:
 
-**从 SQLite 备份恢复：**
-
-```bash
-# 停止容器
-docker compose down
-
-# 替换数据库文件
-cp server/db/backups/blog-2026-05-05.sqlite server/db/blog.sqlite
-
-# 启动
-docker compose up -d
-```
-
-**从 JSON 备份恢复：**
-
-Admin 后台 → 数据导入导出 → 选择 JSON 文件 → 确认导入（覆盖式还原）
-
-注意：JSON 导入会清空并重新写入全库数据，不可恢复。
-
----
-
-## 4. 故障处理
-
-### 4.1 容器启动失败
-
-```bash
-# 查看错误日志
-docker compose logs --tail=100
-
-# 常见原因：
-# - 端口被占用 → 检查 lsof -i :8787 / :3000
-# - 环境变量缺失 → 检查 server/.env
-# - SQLite 文件损坏 → 从备份恢复
-```
-
-### 4.2 后台 500 错误
-
-1. 检查容器日志：`docker compose logs`
-2. 检查 API 响应体中的 `message` 字段
-3. 确认数据库文件权限：`ls -la server/db/blog.sqlite`
-4. 确认磁盘空间：`df -h`
-
-### 4.3 登录失败
-
-- 确认 ADMIN_EMAIL / ADMIN_PASSWORD_HASH 匹配
-- 查看审计日志（登录后会记录 401）
-- JWT_SECRET 变更会导致已有 token 失效——需重新登录
-
-### 4.4 页面白屏 / SPA 不加载
-
-1. 确认 admin 端口 3000 可访问：`curl http://localhost:3000`
-2. 检查 Nginx 反向代理配置
-3. 确认 `admin/dist/` 存在且包含 `index.html`
-4. 浏览器控制台查看 CSP 错误
-
-### 4.5 磁盘空间不足
-
-```bash
-# 清理旧备份
-docker compose exec blog find /app/server/db/backups -name "*.sqlite" -mtime +30 -delete
-
-# 清理 Docker 残留
-docker system prune -f
-
-# 清理 Nginx 日志
-sudo truncate -s 0 /var/log/nginx/access.log
-sudo truncate -s 0 /var/log/nginx/error.log
-```
-
----
-
-## 5. 安全事件响应
-
-### 5.1 密码泄露
-
-1. 立即更改 ADMIN_PASSWORD_HASH 并重启容器
-2. 更换 JWT_SECRET（使所有已签发 token 失效）
-3. 检查审计日志中是否有异常登录记录
-4. 检查 access log 中是否有异常 IP
-
-### 5.2 异常登录检测
-
-- Rate Limit 10 次/分钟 会自动拦截暴力破解
-- 审计日志记录每次登录的 IP、User-Agent、时间
-- 定期检查：Admin 后台 → 运维 → 审计日志
-
-### 5.3 数据库损坏
-
-```bash
-# 1. 停止容器
-docker compose down
-
-# 2. 尝试修复
-sqlite3 server/db/blog.sqlite "PRAGMA integrity_check;"
-
-# 3. 如果损坏，从备份恢复
-cp server/db/backups/$(ls -t server/db/backups/ | head -1) server/db/blog.sqlite
-
-# 4. 启动
-docker compose up -d
-```
-
----
-
-## 6. 回滚流程
-
-```bash
-# 回滚到上一版本
-git log --oneline -5              # 查看最近的提交
-git checkout <previous-commit>    # 切到上一个稳定版本
-docker compose up -d --build      # 重建并启动
-
-# 或拉取特定镜像标签
-docker compose up -d              # 默认使用 :latest 标签
-```
-
----
-
-## 附录：EJS 后台下线说明
-
-Phase 5 已完全移除旧的 EJS 后台（server/views/ 中的 .ejs 模板及 frontApp 中的 EJS 路由）。
-
-- 旧 `/admin/*` 页面：全部返回 410 Gone，引导用户访问新版 SPA 后台
-- 旧 `/api/admin/*` 接口：全部返回 410，引导使用 `/api/v2/`
-- v2 后台 SPA 由 adminApp（端口 3000）独立提供，不再依赖 frontApp 的 EJS 渲染
-
-如果从旧版升级，请确保 `admin/dist/` 已构建（`cd admin && npm run build`），且 Docker 镜像包含 multi-stage 构建。
-
-## 参考链接
-
-- GitHub 仓库：https://github.com/ifoxchen-glitch/blog-design-v2.0
-- 前台博客：https://ifoxchen.com
-- Admin 后台：https://ifoxchen.com/admin/
-- API v2：https://ifoxchen.com/api/v2/
-- 健康检查：https://ifoxchen.com/health
+1. select the previous working image tag in Unraid, or re-pull a known good digest
+2. restart the `blog` container
+3. verify `8787`, `3000`, and `/workbench/health`

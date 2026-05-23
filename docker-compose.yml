@@ -1,3 +1,14 @@
+# Development / local integration compose file
+#
+# This file is useful for local testing and development.
+# It is NOT the official production deployment entrypoint.
+#
+# Official production path:
+# - GitHub Actions publishes the blog image to GHCR
+# - Unraid deploys the blog container from the published image
+# - open-webui runs as a separate Unraid container
+# - blog connects to open-webui through OPEN_WEBUI_URL using the host IP and exposed port
+
 services:
   blog:
     build: .
@@ -15,8 +26,7 @@ services:
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - JWT_SECRET=${JWT_SECRET:-dev-secret-key-change-in-production}
-      # Open WebUI 外部服务地址
-      - OPEN_WEBUI_URL=http://open-webui:8080
+      - OPEN_WEBUI_URL=${OPEN_WEBUI_URL:-http://host.docker.internal:8080}
     volumes:
       - blog-data:/app/server/db
       - blog-uploads:/app/server/public/uploads
@@ -43,7 +53,6 @@ services:
       - SCARF_NO_ANALYTICS=true
       - DO_NOT_TRACK=true
       - ANONYMOUS_TELEMETRY=false
-      # 禁用内置认证，由 blog 代理处理
       - WEBUI_AUTH=false
     volumes:
       - openwebui-data:/app/backend/data

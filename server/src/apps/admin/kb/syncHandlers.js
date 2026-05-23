@@ -440,7 +440,7 @@ function getOpenWebUIStatus(_req, res) {
     data: {
       configured: !!settings?.open_webui_api_key?.trim(),
       api_key_set: !!settings?.open_webui_api_key?.trim(),
-      open_webui_url: settings?.open_webui_url || process.env.OPEN_WEBUI_URL || `http://${process.env.OPEN_WEBUI_HOST || "192.168.3.100"}:${process.env.OPEN_WEBUI_PORT || 8080}`,
+      open_webui_url: settings?.open_webui_url || process.env.OPEN_WEBUI_URL || `http://${process.env.OPEN_WEBUI_HOST || "127.0.0.1"}:${process.env.OPEN_WEBUI_PORT || 8080}`,
     },
   });
 }

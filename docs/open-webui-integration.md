@@ -1,157 +1,94 @@
-# Open WebUI 集成文档
+# Open WebUI Integration
 
-## 概述
+## Overview
 
-本项目已将 Open WebUI 嵌入为 AI 工作台，完全替代了原有的自定义聊天和知识库检索功能。
+The project uses Open WebUI as an external service for the admin workbench and knowledge-base sync features.
 
-## 架构
+Official production topology:
 
-```
-用户 → /cms/workspace → iframe → /workbench → Express代理 → Open WebUI (port 8080)
-                ↓
-           JWT 桥接（自动登录）
-                ↓
-        kb_documents → 同步 → Chroma 向量库
-```
+- `blog` container:
+  - serves the public blog on `8787`
+  - serves the admin SPA and API on `3000`
+- `open-webui` container:
+  - runs independently
+  - is exposed separately on `8080`
+- connection method:
+  - the `blog` container reaches Open WebUI through `OPEN_WEBUI_URL`
+  - in production this should use the Unraid host IP and exposed port
 
-## 文件结构
-
-```
-server/
-├── open-webui/              # Git 子模块 (Open WebUI 源码)
-│   └── backend/
-│       ├── open_webui/      # Python 后端
-│       └── data/            # 数据目录 (SQLite + Chroma)
-├── src/
-│   ├── openwebui/
-│   │   └── launcher.js      # Open WebUI 子进程启动器
-│   ├── middleware/
-│   │   └── openWebUIAuth.js # JWT → Open WebUI 认证桥接
-│   ├── services/
-│   │   └── kbSync.js        # 知识库同步服务
-│   └── apps/
-│       └── adminApp.js      # Express 代理配置
-```
-
-## 环境变量
-
-在 `server/.env` 中添加：
+Example:
 
 ```env
-# Open WebUI 配置
-OPEN_WEBUI_PORT=8080
-OPEN_WEBUI_HOST=127.0.0.1
-VECTOR_DB=chroma
-SCARF_NO_ANALYTICS=true
-DO_NOT_TRACK=true
-ANONYMOUS_TELEMETRY=false
-
-# Windows 下指定 Python 路径 (可选)
-PYTHON_PATH=C:\Users\用户名\AppData\Local\Programs\Python\Python312\python
+OPEN_WEBUI_URL=http://192.168.3.100:8080
 ```
 
-## 启动流程
+## Request Flow
 
-### 开发环境
-
-1. **安装 Python 依赖**（首次）：
-   ```bash
-   cd server/open-webui/backend
-   pip install -r requirements.txt
-   ```
-
-2. **启动服务**：
-   ```bash
-   cd server
-   npm run dev
-   ```
-
-3. **首次启动**：Open WebUI 会从 HuggingFace 下载 embedding 模型，需要 2-5 分钟
-
-### 生产环境 (Docker)
-
-```bash
-docker build -t blog-design .
-docker run -d \
-  --name blog-design \
-  -p 8787:8787 -p 3000:3000 \
-  -v blog-data:/app/server/db \
-  -v blog-uploads:/app/server/public/uploads \
-  -v openwebui-data:/app/server/open-webui/backend/data \
-  blog-design
+```text
+admin user -> /workbench -> Express proxy in blog container -> OPEN_WEBUI_URL -> open-webui container
 ```
 
-## 认证流程
+The JWT bridge is handled by:
 
-1. 用户登录 blog admin → 获取 JWT token
-2. 访问 `/cms/workspace` → iframe 加载 `/workbench`
-3. Express 中间件 `openWebUIAuth.js`：
-   - 验证 blog JWT
-   - 调用 Open WebUI API 创建/获取用户
-   - 获取 Open WebUI token
-4. 代理请求到 Open WebUI，注入 token
-5. 用户无需再次登录
+- `server/src/middleware/openWebUIAuth.js`
+- `server/src/apps/adminApp.js`
 
-## 知识库同步
+Knowledge-base sync uses:
 
-### 触发时机
+- `server/src/services/kbSync.js`
+- `server/src/apps/admin/kb/syncHandlers.js`
 
-- 文档创建/更新/删除时实时触发
-- 定时全量同步（通过 cron job）
-- 手动触发（管理界面按钮）
+## Development Mode
 
-### API
+Development can still use the embedded launcher path from the checked-in `server/open-webui` submodule.
 
-```javascript
-// 同步单个文档
-const { syncDocumentById } = require('./services/kbSync');
-await syncDocumentById(docId);
+Typical local setup:
 
-// 全量同步
-const { fullSync } = require('./services/kbSync');
-await fullSync();
+1. Install Python dependencies inside `server/open-webui/backend`
+2. Run `cd server && npm run dev`
+3. If `OPEN_WEBUI_URL` is not set, the launcher may try to start the local Python Open WebUI process
+
+## Production Mode
+
+Production should not rely on the embedded launcher.
+
+Instead:
+
+1. GitHub Actions builds the `blog` image and publishes it to GHCR
+2. Unraid pulls that image for the `blog` container
+3. `open-webui` is deployed separately
+4. The `blog` container must receive `OPEN_WEBUI_URL`
+
+Required production environment variables for the `blog` container:
+
+```env
+OPEN_WEBUI_URL=http://192.168.3.100:8080
+JWT_SECRET=<generate-a-long-random-value>
+SESSION_SECRET=<generate-a-long-random-value>
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=<set-a-real-password>
 ```
 
-## 故障排除
+## Troubleshooting
 
-### Open WebUI 启动失败
+### Workbench returns 503
 
-**现象**: `[OpenWebUI] Failed to start: spawn python ENOENT`
+Check:
 
-**解决**: 设置 `PYTHON_PATH` 环境变量指向 Python 可执行文件
+1. `OPEN_WEBUI_URL` is set in the `blog` container
+2. the Open WebUI container is reachable from the `blog` container
+3. `/workbench/health` returns the expected external target
 
-### 健康检查超时
+### KB sync connection test fails
 
-**现象**: `[OpenWebUI] Health check failed after 120 attempts`
+Check:
 
-**解决**: 首次启动需要下载模型，等待 2-5 分钟。后续启动会快很多。
+1. the Open WebUI URL in system settings or `OPEN_WEBUI_URL`
+2. the Open WebUI API key configured in admin settings
+3. that the Open WebUI service is reachable on the configured host and port
 
-### 认证失败
+### Embedded Python launcher starts unexpectedly in production
 
-**现象**: 401 Unauthorized on `/workbench`
+This means `OPEN_WEBUI_URL` was missing from the `blog` container environment.
 
-**解决**: 
-1. 检查 blog JWT 是否过期
-2. 检查 `JWT_SECRET` 是否配置
-3. 查看 Open WebUI 是否正常运行：`GET /workbench/health`
-
-## 升级 Open WebUI
-
-```bash
-cd server/open-webui
-git fetch origin
-git checkout <version-tag>
-cd ../..
-git add server/open-webui
-git commit -m "chore: upgrade Open WebUI to vX.Y.Z"
-```
-
-## 回滚
-
-如需回滚到旧版工作台：
-
-1. 恢复 `admin/src/views/workspace/index.vue`
-2. 恢复 `admin/src/router/index.ts`
-3. 恢复 `server/src/seeds/rbacSeed.js`
-4. 移除 `server/src/apps/adminApp.js` 中的代理配置
-5. 停止启动 Open WebUI：`server/src/index.js`
+Fix the Unraid template or container variables and restart the `blog` container.

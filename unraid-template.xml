@@ -10,10 +10,10 @@
   <Support>https://github.com/ifoxchen-glitch/blog-design-v2.0/issues</Support>
   <Project>https://github.com/ifoxchen-glitch/blog-design-v2.0</Project>
   <Overview>
-    ifoxchen's personal blog - fullstack blog with dual-port architecture.
-    Front port 8787 (Express 5 + static HTML blog).
-    Admin port 3000 (Vue 3 SPA + JWT/RBAC API).
-    Super admin auto-created on first boot with ADMIN_EMAIL / ADMIN_PASSWORD.
+    ifoxchen's personal blog with dual-port architecture.
+    Front port 8787 serves the public blog.
+    Admin port 3000 serves the Vue SPA and API.
+    Open WebUI runs as a separate container and is reached through OPEN_WEBUI_URL.
   </Overview>
   <Category>Productivity: Tools</Category>
   <WebUI>http://[IP]:[PORT:8787]/</WebUI>
@@ -26,24 +26,22 @@
   <DonateLink/>
   <Requires/>
 
-  <!-- Ports -->
   <Config Name="Front Blog Port" Target="8787" Default="8787" Mode="tcp" Description="Blog front-end port" Type="Port" Display="always" Required="true" Mask="false">8787</Config>
-  <Config Name="Admin SPA Port" Target="3000" Default="3000" Mode="tcp" Description="Vue 3 admin SPA port" Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Admin SPA Port" Target="3000" Default="3000" Mode="tcp" Description="Vue admin SPA and API port" Type="Port" Display="always" Required="true" Mask="false">3000</Config>
 
-  <!-- Paths -->
   <Config Name="Database" Target="/app/server/db" Default="/mnt/user/appdata/blog/db" Mode="rw" Description="SQLite database directory" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/blog/db</Config>
   <Config Name="Uploads" Target="/app/server/public/uploads" Default="/mnt/user/appdata/blog/uploads" Mode="rw" Description="Media uploads directory" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/blog/uploads</Config>
 
-  <!-- Variables -->
-  <Config Name="JWT_SECRET" Target="JWT_SECRET" Default="" Mode="" Description="JWT signing secret, min 32 chars. REQUIRED. Generate with: openssl rand -hex 32" Type="Variable" Display="always" Required="true" Mask="true"/>
-  <Config Name="SESSION_SECRET" Target="SESSION_SECRET" Default="change-me-in-production" Mode="" Description="Express session secret" Type="Variable" Display="always" Required="true" Mask="true">change-me-in-production</Config>
+  <Config Name="JWT_SECRET" Target="JWT_SECRET" Default="" Mode="" Description="JWT signing secret, minimum 32 characters. Generate with: openssl rand -hex 32" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="SESSION_SECRET" Target="SESSION_SECRET" Default="" Mode="" Description="Express session secret. Generate with: openssl rand -hex 32" Type="Variable" Display="always" Required="true" Mask="true"/>
   <Config Name="ADMIN_EMAIL" Target="ADMIN_EMAIL" Default="admin@example.com" Mode="" Description="Super admin email address" Type="Variable" Display="always" Required="true" Mask="false">admin@example.com</Config>
-  <Config Name="ADMIN_PASSWORD" Target="ADMIN_PASSWORD" Default="admin123" Mode="" Description="Super admin password (plain text, bcrypt hashed on first boot)" Type="Variable" Display="always" Required="true" Mask="true">admin123</Config>
-  <Config Name="ADMIN_PASSWORD_HASH" Target="ADMIN_PASSWORD_HASH" Default="" Mode="" Description="Optional: pre-computed bcrypt hash (overrides ADMIN_PASSWORD)" Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="ADMIN_PASSWORD" Target="ADMIN_PASSWORD" Default="" Mode="" Description="Initial super admin password. Leave empty if using ADMIN_PASSWORD_HASH." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="ADMIN_PASSWORD_HASH" Target="ADMIN_PASSWORD_HASH" Default="" Mode="" Description="Optional bcrypt hash. Overrides ADMIN_PASSWORD when set." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="OPEN_WEBUI_URL" Target="OPEN_WEBUI_URL" Default="http://192.168.3.100:8080" Mode="" Description="External Open WebUI URL. Use the Unraid host IP and exposed Open WebUI port." Type="Variable" Display="always" Required="true" Mask="false">http://192.168.3.100:8080</Config>
   <Config Name="NODE_ENV" Target="NODE_ENV" Default="production" Mode="" Description="Node environment" Type="Variable" Display="advanced" Required="false" Mask="false">production</Config>
-  <Config Name="PORT" Target="PORT" Default="8787" Mode="" Description="Front service port (inside container)" Type="Variable" Display="advanced" Required="false" Mask="false">8787</Config>
-  <Config Name="ADMIN_PORT" Target="ADMIN_PORT" Default="3000" Mode="" Description="Admin service port (inside container)" Type="Variable" Display="advanced" Required="false" Mask="false">3000</Config>
+  <Config Name="PORT" Target="PORT" Default="8787" Mode="" Description="Front service port inside the container" Type="Variable" Display="advanced" Required="false" Mask="false">8787</Config>
+  <Config Name="ADMIN_PORT" Target="ADMIN_PORT" Default="3000" Mode="" Description="Admin service port inside the container" Type="Variable" Display="advanced" Required="false" Mask="false">3000</Config>
   <Config Name="TZ" Target="TZ" Default="Asia/Shanghai" Mode="" Description="Timezone" Type="Variable" Display="advanced" Required="false" Mask="false">Asia/Shanghai</Config>
   <Config Name="SITE_URL" Target="SITE_URL" Default="https://ifoxchen.com" Mode="" Description="Public site URL for RSS generation" Type="Variable" Display="advanced" Required="false" Mask="false">https://ifoxchen.com</Config>
-  <Config Name="AGENT_API_KEY" Target="AGENT_API_KEY" Default="" Mode="" Description="Optional: external agent publish API key" Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="AGENT_API_KEY" Target="AGENT_API_KEY" Default="" Mode="" Description="Optional external agent publish API key" Type="Variable" Display="advanced" Required="false" Mask="true"/>
 </Container>

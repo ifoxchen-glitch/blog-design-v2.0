@@ -1,52 +1,63 @@
-# 更新远程服务器流程
+# Production Deployment Flow
 
-## 项目源路径
-本地项目路径：`C:\Users\陈科\MyProject\blog-design-v2.0`
+## Source Repository
 
+Local project path: `C:\Users\陈科\MyProject\blog-design-v2.0`
 
-## 目标服务器
-- IP: 192.168.3.100
-- 用户: root
-- SSH 密钥: `C:/Users/陈科/.ssh/blog_deploy`
+## Official Production Path
 
-## 使用 SSH 密钥部署
+Production is deployed through GitHub Container Registry and Unraid templates.
 
-### 连接测试
-```bash
-ssh -o StrictHostKeyChecking=no -i "C:/Users/陈科/.ssh/blog_deploy" root@192.168.3.100 "whoami"
+1. Push code to GitHub.
+2. GitHub Actions builds and publishes the `blog` image to GHCR.
+3. Unraid pulls the latest image for the `blog` container.
+4. `open-webui` runs as a separate container.
+5. The `blog` container connects to `open-webui` through `OPEN_WEBUI_URL`, using the Unraid host IP and exposed port.
+
+## Production Topology
+
+- `blog` container:
+  - frontend on `8787`
+  - admin SPA and API on `3000`
+- `open-webui` container:
+  - exposed separately on `8080`
+- container-to-service connection:
+  - `OPEN_WEBUI_URL=http://192.168.3.100:8080`
+
+## Required Production Variables
+
+The `blog` container must be configured with:
+
+- `JWT_SECRET`
+- `SESSION_SECRET`
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD` or `ADMIN_PASSWORD_HASH`
+- `OPEN_WEBUI_URL`
+
+Recommended value for this environment:
+
+```env
+OPEN_WEBUI_URL=http://192.168.3.100:8080
 ```
 
-### 复制文件（从本地路径）
-```bash
-# 创建目录结构
-ssh -o StrictHostKeyChecking=no -i "C:/Users/陈科/.ssh/blog_deploy" root@192.168.3.100 "mkdir -p /opt/blog/server/src /opt/blog/server/views /opt/blog/server/public/uploads /opt/blog/js /opt/blog/css"
+## Unraid Deployment Notes
 
-# 复制项目文件（使用本地路径）
-scp -o StrictHostKeyChecking=no -i "C:/Users/陈科/.ssh/blog_deploy" "C:/Users/陈科/MyProject/blog-design-v2.0/server/package.json" root@192.168.3.100:/opt/blog/server/
-scp -o StrictHostKeyChecking=no -i "C:/Users/陈科/.ssh/blog_deploy" "C:/Users/陈科/MyProject/blog-design-v2.0/server/package-lock.json" root@192.168.3.100:/opt/blog/server/
-scp -o StrictHostKeyChecking=no -i "C:/Users/陈科/.ssh/blog_deploy" "C:/Users/陈科/MyProject/blog-design-v2.0/server/src/*" root@192.168.3.100:/opt/blog/server/src/
-scp -o StrictHostKeyChecking=no -i "C:/Users/陈科/.ssh/blog_deploy" "C:/Users/陈科/MyProject/blog-design-v2.0/server/views/*" root@192.168.3.100:/opt/blog/server/views/
-scp -o StrictHostKeyChecking=no -i "C:/Users/陈科/.ssh/blog_deploy" "C:/Users/陈科/MyProject/blog-design-v2.0/*.html" root@192.168.3.100:/opt/blog/
-scp -o StrictHostKeyChecking=no -i "C:/Users/陈科/.ssh/blog_deploy" "C:/Users/陈科/MyProject/blog-design-v2.0/js/*" root@192.168.3.100:/opt/blog/js/
-scp -o StrictHostKeyChecking=no -i "C:/Users/陈科/.ssh/blog_deploy" "C:/Users/陈科/MyProject/blog-design-v2.0/css/*" root@192.168.3.100:/opt/blog/css/
+- The official production entrypoint is the Unraid template in `unraid-template.xml`.
+- `deploy-unraid.sh` is a helper script for manual Unraid-side deployment and should use the same variables as the template.
+- The legacy SSH + `scp` + remote `docker build` workflow is no longer the official production path.
 
-# 复制环境变量文件（如果存在）
-scp -o StrictHostKeyChecking=no -i "C:/Users/陈科/.ssh/blog_deploy" "C:/Users/陈科/MyProject/blog-design-v2.0/server/.env" root@192.168.3.100:/opt/blog/server/ 2>/dev/null || echo "警告: .env文件不存在，请在服务器上手动创建"
+## Validation After Release
+
+After Unraid pulls and restarts the `blog` container, verify:
+
+```powershell
+Invoke-RestMethod http://192.168.3.100:8787/health
+Invoke-RestMethod http://192.168.3.100:3000/health
+Invoke-RestMethod http://192.168.3.100:8787/api/categories
 ```
 
+Then log into the admin UI and confirm:
 
-### 构建 Docker
-```bash
-ssh -o StrictHostKeyChecking=no -i "C:/Users/陈科/.ssh/blog_deploy" root@192.168.3.100 "cd /opt/blog && docker rm -f blog && docker build -t blog . && docker run -d --name blog -p 8787:8787 -v /opt/blog/server/db:/app/server/db -v /opt/blog/server/public/uploads:/app/server/public/uploads -v /opt/blog/server/.env:/app/server/.env blog"
-```
-
-### 测试
-```bash
-powershell -Command "Invoke-RestMethod http://192.168.3.100:8787/api/categories"
-powershell -Command "Invoke-RestMethod http://192.168.3.100:8787/"
-```
-
-## 注意事项
-
-- 必须重新构建 Docker 镜像，只重启容器不会加载新代码
-- 挂载的目录（server/db, server/public/uploads）数据会保留
+- `/workbench/health` reports the external Open WebUI target
+- knowledge base sync can reach Open WebUI
+- uploaded files and SQLite data remain mounted
