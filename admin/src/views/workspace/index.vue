@@ -6,26 +6,8 @@ import PageHeader from '../../components/common/PageHeader.vue'
 const loading = ref(true)
 const error = ref('')
 const isFullscreen = ref(false)
-const webUIUrl = ref('')
-
-async function loadSettings() {
-  try {
-    const res = await fetch('/api/v2/admin/settings')
-    const data = await res.json()
-    if (data.code === 0 && data.data?.open_webui_url) {
-      webUIUrl.value = data.data.open_webui_url
-    }
-  } catch (err) {
-    console.error('Failed to load settings:', err)
-  }
-}
 
 function getWorkbenchUrl() {
-  // 如果配置了外部地址，直接使用
-  if (webUIUrl.value) {
-    return webUIUrl.value
-  }
-  // 否则使用当前 host 的代理
   const base = window.location.origin
   return `${base}/workbench`
 }
@@ -41,22 +23,14 @@ function handleError() {
 
 function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value
-  if (isFullscreen.value) {
-    document.body.style.overflow = 'hidden'
-  } else {
-    document.body.style.overflow = ''
-  }
+  document.body.style.overflow = isFullscreen.value ? 'hidden' : ''
 }
 
-// 监听来自 iframe 的消息（如需要与 Open WebUI 通信）
 function handleMessage(event: MessageEvent) {
-  // 仅接受来自同源的消�
   if (event.origin !== window.location.origin) return
-  // 可扩展：处理 Open WebUI 发来的消息
 }
 
 onMounted(() => {
-  loadSettings()
   window.addEventListener('message', handleMessage)
 })
 
@@ -79,20 +53,28 @@ onUnmounted(() => {
       </template>
     </PageHeader>
 
-    <div class="relative w-full bg-white rounded-xl border border-base-content/5 overflow-hidden"
+    <div
+      class="relative w-full overflow-hidden rounded-xl border border-base-content/5 bg-white"
       :style="isFullscreen ? 'height: calc(100vh - 60px)' : 'height: calc(100vh - 180px)'"
     >
-      <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white z-10">
+      <div
+        v-if="loading"
+        class="absolute inset-0 z-10 flex items-center justify-center bg-white"
+      >
         <NSpin size="large" description="加载工作台..." />
       </div>
 
-      <NAlert v-if="error" type="error" class="absolute top-4 left-4 right-4 z-10">
+      <NAlert
+        v-if="error"
+        type="error"
+        class="absolute left-4 right-4 top-4 z-10"
+      >
         {{ error }}
       </NAlert>
 
       <iframe
         :src="getWorkbenchUrl()"
-        class="w-full h-full border-0"
+        class="h-full w-full border-0"
         sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-downloads"
         @load="handleLoad"
         @error="handleError"

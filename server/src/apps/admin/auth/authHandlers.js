@@ -7,6 +7,23 @@ const {
 } = require("../../../auth");
 const { nowIso } = require("../../../utils");
 
+function buildAccessTokenCookieOptions(req) {
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: req.secure || req.headers["x-forwarded-proto"] === "https",
+    path: "/",
+  };
+}
+
+function setAccessTokenCookie(req, res, accessToken) {
+  res.cookie("accessToken", accessToken, buildAccessTokenCookieOptions(req));
+}
+
+function clearAccessTokenCookie(req, res) {
+  res.clearCookie("accessToken", buildAccessTokenCookieOptions(req));
+}
+
 async function login(req, res) {
   const { email, password } = req.body || {};
   if (!email || !password) {
@@ -36,6 +53,7 @@ async function login(req, res) {
   }
 
   db.prepare("UPDATE users SET last_login_at = ? WHERE id = ?").run(nowIso(), user.id);
+  setAccessTokenCookie(req, res, accessToken);
 
   return res.status(200).json({
     code: 200,
@@ -88,6 +106,8 @@ async function refresh(req, res) {
     return res.status(500).json({ code: 500, message: err.message });
   }
 
+  setAccessTokenCookie(req, res, accessToken);
+
   return res.status(200).json({
     code: 200,
     message: "success",
@@ -101,6 +121,7 @@ async function logout(req, res) {
   // refresh-rotation table can be added later without changing this
   // contract: returning 200 means "you are logged out as far as we
   // care".
+  clearAccessTokenCookie(req, res);
   return res.status(200).json({
     code: 200,
     message: "success",
