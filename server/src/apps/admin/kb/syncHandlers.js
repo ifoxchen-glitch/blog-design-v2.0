@@ -355,6 +355,27 @@ function getRemoteFiles(_req, res) {
     }
 
     const tree = syncEngine.buildFileTree(files);
+
+    // Ensure raw directory skeleton shows in tree even when empty
+    if (config && config.vault_path) {
+      const syncSources = config.sync_sources ? parseJsonArray(config.sync_sources) : ['obsidian'];
+      const hasApi = syncSources.includes('api');
+      const hasManual = syncSources.includes('manual');
+      if (hasApi || hasManual) {
+        let rawFolder = tree.find(n => n.type === 'folder' && n.name === 'raw');
+        if (!rawFolder) {
+          rawFolder = { name: 'raw', path: 'raw', type: 'folder', children: [] };
+          tree.push(rawFolder);
+        }
+        if (hasApi && !rawFolder.children.find(n => n.name === 'api')) {
+          rawFolder.children.push({ name: 'api', path: 'raw/api', type: 'folder', children: [] });
+        }
+        if (hasManual && !rawFolder.children.find(n => n.name === 'manual')) {
+          rawFolder.children.push({ name: 'manual', path: 'raw/manual', type: 'folder', children: [] });
+        }
+      }
+    }
+
     res.json({ code: 200, data: { source: "filesystem", tree, fileCount: files.length } });
   } catch (err) {
     res.json({ code: 200, data: { source: "filesystem", tree: [], fileCount: 0, error: err.message } });
