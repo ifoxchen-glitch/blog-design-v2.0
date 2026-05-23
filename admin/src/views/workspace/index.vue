@@ -6,8 +6,24 @@ import PageHeader from '../../components/common/PageHeader.vue'
 const loading = ref(true)
 const error = ref('')
 const isFullscreen = ref(false)
+const webUIUrl = ref('')
+
+async function loadSettings() {
+  try {
+    const res = await fetch('/api/v2/admin/settings')
+    const data = await res.json()
+    if (data.code === 0 && data.data?.open_webui_url) {
+      webUIUrl.value = data.data.open_webui_url
+    }
+  } catch (err) {
+    console.error('Failed to load settings:', err)
+  }
+}
 
 function getWorkbenchUrl() {
+  if (webUIUrl.value) {
+    return webUIUrl.value
+  }
   const base = window.location.origin
   return `${base}/workbench`
 }
@@ -31,6 +47,7 @@ function handleMessage(event: MessageEvent) {
 }
 
 onMounted(() => {
+  loadSettings()
   window.addEventListener('message', handleMessage)
 })
 
