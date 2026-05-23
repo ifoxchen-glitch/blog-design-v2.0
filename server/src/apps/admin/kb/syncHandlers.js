@@ -384,12 +384,14 @@ function getRemoteFiles(_req, res) {
 
 function getSyncedFiles(_req, res) {
   const db = openDb();
-  const config = db.prepare("SELECT sync_sources FROM kb_sync_config WHERE id = 1").get();
+  const config = db.prepare("SELECT sync_sources, api_export_dir, manual_export_dir FROM kb_sync_config WHERE id = 1").get();
   const syncSources = config?.sync_sources ? parseJsonArray(config.sync_sources) : ['obsidian'];
+  const apiExportDir = config?.api_export_dir || 'raw/api';
+  const manualExportDir = config?.manual_export_dir || 'raw/manual';
   const placeholders = syncSources.map(() => '?').join(',');
 
   const docs = db
-    .prepare(`SELECT id, title, original_path, checksum, status, word_count, updated_at, source FROM kb_documents WHERE source IN (${placeholders}) ORDER BY original_path`)
+    .prepare(`SELECT id, title, slug, original_path, checksum, status, word_count, updated_at, source FROM kb_documents WHERE source IN (${placeholders}) ORDER BY original_path`)
     .all(...syncSources);
 
   // Cross-reference with latest sync log for per-file status
@@ -401,24 +403,37 @@ function getSyncedFiles(_req, res) {
     logMap[l.file_path] = { status: l.status, detail: l.detail };
   }
 
-  const files = docs.map((d) => ({
-    relativePath: d.original_path || `untitled-${d.id}.md`,
-    size: 0,
-    documentId: d.id,
-    title: d.title,
-    status: logMap[d.original_path]?.status === "success"
-      ? "synced"
-      : logMap[d.original_path]?.status === "skipped"
-        ? "skipped"
-        : logMap[d.original_path]?.status === "conflict"
-          ? "conflict"
-          : logMap[d.original_path]?.status === "error"
-            ? "error"
-            : "synced",
-    syncedAt: d.updated_at,
-    checksum: d.checksum,
-    detail: logMap[d.original_path]?.detail || null,
-  }));
+  const files = docs.map((d) => {
+    // Infer expected path for api/manual docs that haven't been exported yet
+    let relativePath = d.original_path;
+    if (!relativePath) {
+      if (d.source === 'api') {
+        relativePath = `${apiExportDir}/${d.slug}.md`;
+      } else if (d.source === 'manual') {
+        relativePath = `${manualExportDir}/${d.slug}.md`;
+      } else {
+        relativePath = `untitled-${d.id}.md`;
+      }
+    }
+    return {
+      relativePath,
+      size: 0,
+      documentId: d.id,
+      title: d.title,
+      status: logMap[d.original_path]?.status === "success"
+        ? "synced"
+        : logMap[d.original_path]?.status === "skipped"
+          ? "skipped"
+          : logMap[d.original_path]?.status === "conflict"
+            ? "conflict"
+            : logMap[d.original_path]?.status === "error"
+              ? "error"
+              : "synced",
+      syncedAt: d.updated_at,
+      checksum: d.checksum,
+      detail: logMap[d.original_path]?.detail || null,
+    };
+  });
 
   const tree = syncEngine.buildFileTree(files);
   res.json({
