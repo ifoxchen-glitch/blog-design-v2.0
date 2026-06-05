@@ -134,14 +134,25 @@ const SORT_OPTIONS = [
   { label: '到期时间 ↓', value: 'end_time:desc' },
 ]
 
+// Map camelCase column keys (used by NDataTable) to snake_case sort keys
+// the backend recognizes. Keys not listed pass through unchanged so the
+// manual dropdown options (e.g. "combo_used:asc") keep working.
+const SORT_KEY_MAP: Record<string, string> = {
+  cardNo: 'card_no',
+  comboUsed: 'combo_used',
+  endTime: 'end_time',
+}
+
 function applySort(value: string) {
   if (!value) {
     table.query.sortKey = ''
     table.query.sortOrder = 'desc'
   } else {
-    const [key, order] = value.split(':')
-    table.query.sortKey = key
-    table.query.sortOrder = order as 'asc' | 'desc'
+    const [key, rawOrder] = value.split(':')
+    table.query.sortKey = SORT_KEY_MAP[key] || key
+    table.query.sortOrder = (rawOrder === 'ascend' ? 'asc'
+      : rawOrder === 'descend' ? 'desc'
+      : rawOrder) as 'asc' | 'desc'
   }
   table.refresh()
 }
