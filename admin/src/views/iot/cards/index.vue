@@ -541,7 +541,7 @@ function usagePercent(used: number | null | undefined, total: number | null | un
   return Math.min(100, Math.round((used / total) * 100))
 }
 
-// Table columns (list view — show all key fields)
+// Table columns (list view — show key fields)
 const tableColumns = computed(() => [
   {
     title: '卡号',
@@ -549,18 +549,6 @@ const tableColumns = computed(() => [
     width: 160,
     ellipsis: { tooltip: true },
     sorter: true,
-  },
-  {
-    title: 'ICCID',
-    key: 'iccid',
-    width: 180,
-    ellipsis: { tooltip: true },
-  },
-  {
-    title: 'MSISDN',
-    key: 'msisdn',
-    width: 130,
-    ellipsis: { tooltip: true },
   },
   {
     title: 'IMEI',
@@ -577,12 +565,10 @@ const tableColumns = computed(() => [
     },
   },
   {
-    title: '卡状态',
-    key: 'gprsState',
+    title: '位置',
+    key: 'realPosition',
     width: 100,
-    render(row: CardItem) {
-      return gprsStateTag(normalizeGprs(row.gprsState))
-    },
+    ellipsis: { tooltip: true },
   },
   {
     title: '开关机状态',
@@ -612,28 +598,10 @@ const tableColumns = computed(() => [
     },
   },
   {
-    title: '剩余',
-    key: 'comboResidue',
-    width: 90,
-    sorter: true,
-    render(row: CardItem) {
-      const v = row.comboResidue
-      if (v === null || v === undefined) return '-'
-      if (v >= 1024) return (v / 1024).toFixed(1) + 'G'
-      return v.toFixed(0) + 'M'
-    },
-  },
-  {
     title: '到期时间',
     key: 'endTime',
     width: 110,
     sorter: true,
-  },
-  {
-    title: '位置',
-    key: 'realPosition',
-    width: 100,
-    ellipsis: { tooltip: true },
   },
   {
     title: '开关',
