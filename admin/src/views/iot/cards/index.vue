@@ -517,20 +517,6 @@ function gprsStateLabel(state: string | number | null | undefined) {
   return map[s] || '未知'
 }
 
-// Status tag VNode (for NDataTable render and NTag in templates)
-function gprsStateTag(state: string | number | null | undefined) {
-  const s = normalizeGprs(state)
-  const map: Record<string, { label: string; type: string }> = {
-    '0': { label: '未知', type: 'warning' },
-    '1': { label: '在线', type: 'success' },
-    '2': { label: '离线', type: 'default' },
-    '3': { label: '停机', type: 'error' },
-    '4': { label: '机卡分离', type: 'error' },
-  }
-  const t = map[s] || { label: '未知', type: 'warning' }
-  return h(NTag, { size: 'small', type: t.type as any }, () => t.label)
-}
-
 function operatorLabel(op: string) {
   const map: Record<string, string> = { '1': '联通', '2': '移动', '3': '电信' }
   return map[op] || op || '-'
@@ -541,7 +527,7 @@ function usagePercent(used: number | null | undefined, total: number | null | un
   return Math.min(100, Math.round((used / total) * 100))
 }
 
-// Table columns (list view — show all key fields)
+// Table columns (list view — show key fields)
 const tableColumns = computed(() => [
   {
     title: '卡号',
@@ -549,18 +535,6 @@ const tableColumns = computed(() => [
     width: 160,
     ellipsis: { tooltip: true },
     sorter: true,
-  },
-  {
-    title: 'ICCID',
-    key: 'iccid',
-    width: 180,
-    ellipsis: { tooltip: true },
-  },
-  {
-    title: 'MSISDN',
-    key: 'msisdn',
-    width: 130,
-    ellipsis: { tooltip: true },
   },
   {
     title: 'IMEI',
@@ -577,12 +551,10 @@ const tableColumns = computed(() => [
     },
   },
   {
-    title: '卡状态',
-    key: 'gprsState',
+    title: '位置',
+    key: 'realPosition',
     width: 100,
-    render(row: CardItem) {
-      return gprsStateTag(normalizeGprs(row.gprsState))
-    },
+    ellipsis: { tooltip: true },
   },
   {
     title: '开关机状态',
@@ -612,28 +584,10 @@ const tableColumns = computed(() => [
     },
   },
   {
-    title: '剩余',
-    key: 'comboResidue',
-    width: 90,
-    sorter: true,
-    render(row: CardItem) {
-      const v = row.comboResidue
-      if (v === null || v === undefined) return '-'
-      if (v >= 1024) return (v / 1024).toFixed(1) + 'G'
-      return v.toFixed(0) + 'M'
-    },
-  },
-  {
     title: '到期时间',
     key: 'endTime',
     width: 110,
     sorter: true,
-  },
-  {
-    title: '位置',
-    key: 'realPosition',
-    width: 100,
-    ellipsis: { tooltip: true },
   },
   {
     title: '开关',
